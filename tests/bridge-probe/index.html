@@ -26,6 +26,7 @@
     <button id="multi">Multi-domain test</button>
     <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
     <button id="send">Send to webhook</button>
+    <button id="bridgePost">Bridge POST (httpbin)</button>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -218,6 +219,19 @@
       summary.className = 'card';
       summary.innerHTML = `Webhook error: <code>${String(e.message||e)}</code>`;
     }
+  };
+  document.getElementById('bridgePost').onclick = async ()=>{
+    const info = { type:'bridge-post', url:'https://httpbin.org/post', method:'POST', headers:{'X-Test':'bridge'}, body:'{"msg":"hello_bridge"}' };
+    try{
+      if (typeof window.TXWebKitNativeFetch !== 'function') throw new Error('TXWebKitNativeFetch not found');
+      const p = window.TXWebKitNativeFetch(info.url, { method:'POST', headers: info.headers, body: info.body });
+      await Promise.race([Promise.resolve(p), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+      info.via = 'TXWebKitNativeFetch';
+      info.result = 'ok';
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
+    summary.className = 'card';
+    summary.innerHTML = `Bridge POST → ${info.url} result: <code>${info.result||info.error||'-'}</code>`;
   };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
