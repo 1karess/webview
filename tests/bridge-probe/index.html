@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Probe (Generic)</title>
+  <style>
+    body{font-family:system-ui;padding:16px;max-width:960px;margin:0 auto}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px}
+    .ok{background:#e6ffed;border-color:#b7f5c6}
+    .warn{background:#fff5f0;border-color:#ffd6cc}
+    pre{background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    button{padding:8px 12px}
+    code{background:#f0f3f6;padding:2px 6px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <h1>Generic Bridge Probe</h1>
+  <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
+  <div class="row">
+    <button id="run">Run</button>
+    <button id="copy">Copy JSON</button>
+  </div>
+  <div id="summary" class="card"></div>
+  <div class="grid">
+    <div class="card"><h3>Findings</h3><pre id="out">Ready.</pre></div>
+    <div class="card"><h3>Raw</h3><pre id="raw"></pre></div>
+  </div>
+<script>
+(function(){
+  const out = document.getElementById('out');
+  const raw = document.getElementById('raw');
+  const summary = document.getElementById('summary');
+  const patterns = [
+    /telegram|tg|webapp/i,
+    /bridge|native|app|sdk|jsi|webview/i,
+  ];
+  function looksSuspicious(name, value){
+    if (!name) return false;
+    if (patterns.some(p=>p.test(name))) return true;
+    if (value && typeof value === 'object'){
+      const s = Object.keys(value).join(',');
+      if (/bridge|native|invoke|postMessage|sdk/i.test(s)) return true;
+    }
+    return false;
+  }
+  function safeCall(fn){
+    try{ const r = fn(); return { ok:true, value: String(r).slice(0,200) }; }
+    catch(e){ return { ok:false, error: String(e.message||e).slice(0,200) }; }
+  }
+  function probe(){
+    const t0 = performance.now();
+    const findings = [];
+    const seen = new Set();
+    const known = {
+      hasTelegramWebApp: !!(window.Telegram && window.Telegram.WebApp),
+      hasTelegramWebview: !!window.TelegramWebview,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      time: new Date().toISOString(),
+    };
+    for (const k in window){
+      if (seen.has(k)) continue; seen.add(k);
+      let v; try{ v = window[k]; }catch{ v = undefined; }
+      const sus = looksSuspicious(k, v);
+      if (!sus) continue;
+      const entry = { name:k, type: typeof v };
+      if (typeof v === 'function'){
+        entry.sample = safeCall(()=>v());
+      } else if (v && typeof v === 'object'){
+        const keys = Object.keys(v).slice(0,8);
+        entry.keys = keys;
+        for (const m of keys){
+          if (typeof v[m] === 'function'){
+            entry.call = { method:m, result: safeCall(()=>v[m]()) };
+            break;
+          }
+        }
+      }
+      findings.push(entry);
+      if (findings.length>=100) break;
+    }
+    const t1 = performance.now();
+    const report = { known, findings, durationMs: +(t1-t0).toFixed(2) };
+    return report;
+  }
+  let last = null;
+  document.getElementById('run').onclick = ()=>{
+    last = probe();
+    const count = last.findings.length;
+    summary.className = 'card ' + (count>0 ? 'warn' : 'ok');
+    summary.innerHTML = count>0
+      ? `Possible bridges found: <strong>${count}</strong> (review carefully)`
+      : `No obvious bridges detected.`;
+    out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
+    raw.textContent = JSON.stringify(last, null, 2);
+  };
+  document.getElementById('copy').onclick = ()=>{
+    const text = raw.textContent || 'No data';
+    navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
+  };
+})();
+</script>
+</body>
+</html>
