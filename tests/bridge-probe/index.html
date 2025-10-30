@@ -27,6 +27,8 @@
     <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
     <button id="send">Send to webhook</button>
     <button id="bridgePost">Bridge POST (httpbin)</button>
+    <button id="readBody">Read body (httpbin)</button>
+    <button id="authTest">Auth header test</button>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -232,6 +234,50 @@
     pushRaw(info);
     summary.className = 'card';
     summary.innerHTML = `Bridge POST → ${info.url} result: <code>${info.result||info.error||'-'}</code>`;
+  };
+  document.getElementById('readBody').onclick = async ()=>{
+    const info = { type:'read-body', url:'https://httpbin.org/anything' };
+    try{
+      let status = null, bodySnippet = null, via = null;
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        const r = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(info.url)),
+          new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),7000))
+        ]);
+        // Best-effort: if bridge returns Response-like
+        if (r && typeof r === 'object'){
+          if (typeof r.status === 'number') status = r.status;
+          if (typeof r.text === 'function'){
+            try{ const t = await r.text(); bodySnippet = String(t).slice(0,500); }catch{}
+          }
+        }
+        via = 'TXWebKitNativeFetch';
+      }
+      // Fallback to fetch (CORS-enabled endpoint)
+      if (bodySnippet==null){
+        const fr = await fetch(info.url, { mode:'cors', cache:'no-store', credentials:'omit' });
+        status = fr.status; const t = await fr.text(); bodySnippet = t.slice(0,500); via = via || 'fetch';
+      }
+      info.via = via; info.status = status; info.bodySnippet = bodySnippet;
+      summary.className = 'card';
+      summary.innerHTML = `Read body → ${info.url}<br>via: <code>${via}</code> status: <code>${status}</code>`;
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
+  };
+  document.getElementById('authTest').onclick = async ()=>{
+    const info = { type:'auth-test', url:'https://httpbin.org/anything', headers:{ 'Authorization':'Bearer TEST' } };
+    try{
+      // Cookie header cannot be set by JS (forbidden header). We record that policy.
+      const init = { method:'GET', mode:'cors', cache:'no-store', credentials:'omit', headers: info.headers };
+      const fr = await fetch(info.url, init);
+      info.status = fr.status;
+      const txt = await fr.text();
+      info.bodySnippet = txt.slice(0,500);
+      info.note = 'Cookie header cannot be set by JS; use Set-Cookie or server to test cookies.';
+      summary.className='card';
+      summary.innerHTML = `Auth test → sent Authorization: Bearer TEST, status: <code>${info.status}</code>`;
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
   };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
