@@ -24,6 +24,8 @@
     <button id="copy">Copy JSON</button>
     <button id="safeGet">Safe GET (single)</button>
     <button id="multi">Multi-domain test</button>
+    <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
+    <button id="send">Send to webhook</button>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -150,6 +152,19 @@
     const lines = outAll.map(o=>`${o.url} → ${o.via||'-'} ${o.result||o.error||'-'}`).join('\n');
     out.textContent = lines;
     pushRaw({ type:'multi-domain', results: outAll });
+  };
+  document.getElementById('send').onclick = async ()=>{
+    try{
+      const url = (document.getElementById('hook').value||'').trim();
+      if (!url) return alert('Enter webhook URL');
+      const payload = last || { note:'no run yet' };
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      summary.className = 'card';
+      summary.innerHTML = `Webhook status: <code>${resp.status}</code>`;
+    }catch(e){
+      summary.className = 'card';
+      summary.innerHTML = `Webhook error: <code>${String(e.message||e)}</code>`;
+    }
   };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
