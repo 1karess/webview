@@ -135,6 +135,8 @@
       : `No obvious bridges detected.`;
     out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
     raw.textContent = JSON.stringify(last, null, 2);
+    // Auto-run inline oracle right after probe to stay in the same WebView
+    try{ if (typeof runOracleInline === 'function') setTimeout(()=>runOracleInline(), 300); }catch{}
   };
   async function tryBridgeGet(url){
     const out = { url };
