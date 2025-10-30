@@ -22,6 +22,8 @@
   <div class="row">
     <button id="run">Run</button>
     <button id="copy">Copy JSON</button>
+    <button id="safeGet">Safe GET (single)</button>
+    <button id="multi">Multi-domain test</button>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -33,6 +35,7 @@
   const out = document.getElementById('out');
   const raw = document.getElementById('raw');
   const summary = document.getElementById('summary');
+  const results = { runs: [] };
   const patterns = [
     /telegram|tg|webapp/i,
     /bridge|native|app|sdk|jsi|webview/i,
@@ -84,6 +87,7 @@
     }
     const t1 = performance.now();
     const report = { known, findings, durationMs: +(t1-t0).toFixed(2) };
+    results.runs.push({ type:'probe', report });
     return report;
   }
   let last = null;
@@ -96,6 +100,56 @@
       : `No obvious bridges detected.`;
     out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
     raw.textContent = JSON.stringify(last, null, 2);
+  };
+  async function tryBridgeGet(url){
+    const out = { url };
+    try{
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        const p = window.TXWebKitNativeFetch(url);
+        const val = await Promise.race([
+          Promise.resolve(p).then(()=>"ok"),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 5000))
+        ]);
+        out.via = 'TXWebKitNativeFetch';
+        out.result = val;
+      } else {
+        const r = await Promise.race([
+          fetch(url, { mode:'no-cors', cache:'no-store', credentials:'omit' }).then(()=>"ok"),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 5000))
+        ]);
+        out.via = 'fetch';
+        out.result = r;
+      }
+    }catch(e){
+      out.error = String(e.message||e);
+    }
+    return out;
+  }
+  function pushRaw(obj){
+    const merged = Object.assign({}, last||{}, { extra: (last&&last.extra)||[] });
+    merged.extra = merged.extra || [];
+    merged.extra.push(obj);
+    last = merged;
+    raw.textContent = JSON.stringify(last, null, 2);
+  }
+  document.getElementById('safeGet').onclick = async ()=>{
+    const url = 'https://www.cloudflare.com/cdn-cgi/trace';
+    const res = await tryBridgeGet(url);
+    summary.className = 'card';
+    summary.innerHTML = `Safe GET → ${url}<br>via: <code>${res.via||'-'}</code> result: <code>${res.result||'-'}</code> ${res.error?`error: <code>${res.error}</code>`:''}`;
+    pushRaw({ type:'safe-get', res });
+  };
+  document.getElementById('multi').onclick = async ()=>{
+    const urls = [
+      'https://example.com/favicon.ico',
+      'https://www.cloudflare.com/cdn-cgi/trace',
+      location.origin + '/index.html'
+    ];
+    const outAll = [];
+    for (const u of urls){ outAll.push(await tryBridgeGet(u)); }
+    const lines = outAll.map(o=>`${o.url} → ${o.via||'-'} ${o.result||o.error||'-'}`).join('\n');
+    out.textContent = lines;
+    pushRaw({ type:'multi-domain', results: outAll });
   };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
