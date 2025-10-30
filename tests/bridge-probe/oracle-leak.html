@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Oracle XS-Leaks</title>
+  <style>
+    body{font-family:system-ui;padding:16px;max-width:960px;margin:0 auto}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px}
+    .ok{background:#e6ffed;border-color:#b7f5c6}
+    .warn{background:#fff5f0;border-color:#ffd6cc}
+    pre{background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap}
+    code{background:#f0f3f6;padding:2px 6px;border-radius:4px}
+    textarea{width:100%;min-height:120px}
+    small{color:#666}
+  </style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; connect-src *; img-src * data: blob:; style-src 'unsafe-inline' 'self'">
+</head>
+<body>
+  <a href="./index.html">← Back</a>
+  <h1>Bridge Oracle XS-Leaks</h1>
+  <p>Share this page link with prefilled targets to run inside the app WebView.</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="run">Run matrix</button>
+      <button id="copy">Copy JSON</button>
+      <button id="copyLink">Copy shareable link</button>
+      <label><input type="checkbox" id="includeFetch" checked /> Also test fetch() baseline</label>
+      <label><input type="checkbox" id="gesture" /> Simulate user gesture</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="timeoutMs" type="number" min="100" value="6000" style="padding:8px;width:160px" />
+      <small>Timeout (ms)</small>
+    </div>
+    <div style="margin-top:8px">
+      <label><strong>Targets (one per line)</strong></label>
+      <textarea id="targets">https://httpbin.org/status/401
+https://httpbin.org/status/403
+https://httpbin.org/anything
+https://example.com/favicon.ico
+data:text/plain,hello
+about:blank</textarea>
+      <small>Tip: you can prefill via URL params: ?targets=URL1,URL2&fetch=1&gesture=0&timeout=6000</small>
+    </div>
+  </div>
+
+  <div id="summary" class="card"></div>
+  <div class="grid">
+    <div class="card"><h3>Findings</h3><pre id="out">Ready.</pre></div>
+    <div class="card"><h3>Raw</h3><pre id="raw"></pre></div>
+  </div>
+
+<script>
+(function(){
+  const raw = document.getElementById('raw');
+  const out = document.getElementById('out');
+  const summary = document.getElementById('summary');
+  const results = { runs: [] };
+
+  function now(){ return performance.now(); }
+  function withTimeout(promise, ms){
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))
+    ]);
+  }
+
+  function getBridges(){
+    const bridges = [];
+    if (typeof window.TXWebKitNativeFetch === 'function'){
+      bridges.push({ name:'TXWebKitNativeFetch', fn: (url, init)=>window.TXWebKitNativeFetch(url, init) });
+    }
+    if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
+      bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
+    }
+    return bridges;
+  }
+
+  async function tryOne(method, url, init, timeout){
+    const t0 = now();
+    const info = { method:method.name, url, startMs: t0 };
+    try{
+      const r = await withTimeout(method.fn(url, init), timeout);
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = true;
+      if (r && typeof r === 'object'){
+        if (typeof r.status === 'number') info.status = r.status;
+        if (typeof r.ok === 'boolean') info.ok = r.ok;
+        if (typeof r.headers === 'object' && r.headers){
+          try{
+            const hs = (typeof r.headers?.forEach === 'function') ? (()=>{ const o={}; r.headers.forEach((v,k)=>o[k]=String(v)); return o; })() : r.headers;
+            info.headers = hs;
+          }catch{}
+        }
+        if (typeof r.text === 'function'){
+          try{ const t = await r.text(); info.bodySnippet = String(t).slice(0,300); }catch{}
+        }
+      } else {
+        info.resultType = typeof r;
+        if (r !== undefined) info.resultPreview = String(r).slice(0,120);
+      }
+    }catch(e){
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = false;
+      info.error = String(e && (e.message||e)).slice(0,300);
+      if (e && typeof e === 'object'){
+        if (typeof e.code !== 'undefined') info.errorCode = e.code;
+        if (typeof e.status === 'number') info.status = e.status;
+        if (typeof e.reason === 'string') info.reason = e.reason.slice(0,200);
+      }
+    }
+    return info;
+  }
+
+  async function tryFetchBaseline(url, timeout){
+    const t0 = now();
+    const info = { method:'fetch', url, startMs: t0 };
+    try{
+      const fr = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), timeout);
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = true;
+      info.status = fr.status;
+      info.ok = fr.ok;
+      try{ const txt = await fr.text(); info.bodySnippet = txt.slice(0,200); }catch{}
+    }catch(e){
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = false;
+      info.error = String(e && (e.message||e)).slice(0,200);
+    }
+    return info;
+  }
+
+  function classifyLeak(event){
+    const sig = { oracle:false, reasons:[] };
+    if (event.method !== 'fetch' && event.fulfilled) {
+      if (typeof event.status === 'number' || typeof event.bodySnippet === 'string'){
+        sig.oracle = true; sig.reasons.push('bridge returned status/body');
+      }
+    }
+    if (!event.fulfilled && event.error){
+      if (/AUTH|TOKEN|CSRF|LOGIN|DENY|forbidden|unauthor/i.test(event.error)){
+        sig.oracle = true; sig.reasons.push('bridge error mentions auth/state');
+      }
+    }
+    if (typeof event.errorCode !== 'undefined'){
+      sig.oracle = true; sig.reasons.push('bridge error code present');
+    }
+    return sig;
+  }
+
+  function summarize(all){
+    const byUrl = {};
+    for (const e of all){
+      byUrl[e.url] = byUrl[e.url] || { url:e.url, total:0, oracle:0 };
+      byUrl[e.url].total++;
+      const c = classifyLeak(e);
+      if (c.oracle) byUrl[e.url].oracle++;
+    }
+    const list = Object.values(byUrl);
+    const oracleAny = list.some(x=>x.oracle>0);
+    return { oracleAny, urls:list };
+  }
+
+  function pushRaw(obj){
+    const merged = Object.assign({}, results.last||{}, { extra:(results.last&&results.last.extra)||[] });
+    merged.extra = merged.extra || [];
+    merged.extra.push(obj);
+    results.last = merged;
+    raw.textContent = JSON.stringify(results.last, null, 2);
+  }
+
+  function parseParams(){
+    const p = new URLSearchParams(location.search);
+    const targetsParam = p.get('targets');
+    const fetchParam = p.get('fetch');
+    const gestureParam = p.get('gesture');
+    const timeoutParam = p.get('timeout');
+    if (targetsParam){
+      try{
+        const list = targetsParam.split(',').map(s=>decodeURIComponent(s.trim())).filter(Boolean);
+        if (list.length){ document.getElementById('targets').value = list.join('\n'); }
+      }catch{}
+    }
+    if (fetchParam!=null){ document.getElementById('includeFetch').checked = fetchParam==='1' || /true/i.test(fetchParam); }
+    if (gestureParam!=null){ document.getElementById('gesture').checked = gestureParam==='1' || /true/i.test(gestureParam); }
+    if (timeoutParam){ const n = parseInt(timeoutParam,10); if (!Number.isNaN(n) && n>0) document.getElementById('timeoutMs').value = n; }
+  }
+
+  function buildShareLink(){
+    const base = location.origin + location.pathname;
+    const urls = (document.getElementById('targets').value||'')
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean).map(u=>encodeURIComponent(u));
+    const fetch = document.getElementById('includeFetch').checked ? '1' : '0';
+    const gesture = document.getElementById('gesture').checked ? '1' : '0';
+    const timeout = encodeURIComponent(document.getElementById('timeoutMs').value||'6000');
+    const qs = `?targets=${urls.join(',')}&fetch=${fetch}&gesture=${gesture}&timeout=${timeout}`;
+    return base + qs;
+  }
+
+  async function run(){
+    const timeout = Math.max(100, parseInt(document.getElementById('timeoutMs').value||'6000',10));
+    const includeFetch = document.getElementById('includeFetch').checked;
+    const isGesture = document.getElementById('gesture').checked;
+    const urls = (document.getElementById('targets').value||'')
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean);
+
+    const bridges = getBridges();
+    const runMeta = { time:new Date().toISOString(), ua:navigator.userAgent, bridges:bridges.map(b=>b.name), timeout, includeFetch, isGesture };
+    const events = [];
+
+    async function execForUrl(u){
+      const init = { method:'GET' };
+      if (isGesture) { try{ document.body.click(); }catch{} }
+      for (const b of bridges){
+        events.push(await tryOne(b, u, init, timeout));
+      }
+      if (includeFetch) events.push(await tryFetchBaseline(u, timeout));
+    }
+
+    for (const u of urls){
+      /* eslint-disable no-await-in-loop */
+      await execForUrl(u);
+      /* eslint-enable no-await-in-loop */
+    }
+
+    const report = { type:'oracle-leak', meta: runMeta, events, summary: summarize(events) };
+    results.runs.push(report); results.last = report;
+
+    const lines = [];
+    for (const e of events){
+      const tag = (e.fulfilled? 'OK' : 'ERR');
+      const leak = classifyLeak(e);
+      lines.push(`${tag} ${e.method} ${e.url} (${e.elapsedMs}ms)` + (leak.oracle? ` [oracle:${leak.reasons.join('|')}]` : ''));
+    }
+    out.textContent = lines.join('\n') || 'None';
+
+    const any = report.summary.oracleAny;
+    summary.className = 'card ' + (any ? 'warn' : 'ok');
+    summary.innerHTML = any
+      ? `Potential oracle signals detected on <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> of <strong>${report.summary.urls.length}</strong> targets.`
+      : `No high-signal oracle behavior observed.`;
+    raw.textContent = JSON.stringify(report, null, 2);
+  }
+
+  document.getElementById('run').onclick = run;
+  document.getElementById('copy').onclick = ()=>{
+    const text = raw.textContent || 'No data';
+    navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
+  };
+  document.getElementById('copyLink').onclick = ()=>{
+    const url = buildShareLink();
+    navigator.clipboard.writeText(url).then(()=>{ alert('Link copied'); });
+  };
+
+  parseParams();
+})();
+</script>
+</body>
+</html>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Oracle XS-Leaks</title>
+  <style>
+    body{font-family:system-ui;padding:16px;max-width:960px;margin:0 auto}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px}
+    .ok{background:#e6ffed;border-color:#b7f5c6}
+    .warn{background:#fff5f0;border-color:#ffd6cc}
+    pre{background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap}
+    code{background:#f0f3f6;padding:2px 6px;border-radius:4px}
+    textarea{width:100%;min-height:120px}
+    small{color:#666}
+  </style>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; connect-src *; img-src * data: blob:; style-src 'unsafe-inline' 'self'"> 
+</head>
+<body>
+  <a href="./index.html">← Back</a>
+  <h1>Bridge Oracle XS-Leaks</h1>
+  <p>Evaluate whether native bridge methods act as a high-bandwidth oracle for cross-origin state.</p>
+
+  <div class="card">
+    <div class="row">
+      <button id="run">Run matrix</button>
+      <button id="copy">Copy JSON</button>
+      <label><input type="checkbox" id="includeFetch" checked /> Also test fetch() baseline</label>
+      <label><input type="checkbox" id="gesture" /> Simulate user gesture</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="timeoutMs" type="number" min="100" value="6000" style="padding:8px;width:160px" />
+      <small>Timeout (ms)</small>
+    </div>
+    <div style="margin-top:8px">
+      <label><strong>Targets (one per line)</strong></label>
+      <textarea id="targets">https://httpbin.org/status/401
+https://httpbin.org/status/403
+https://httpbin.org/anything
+https://example.com/favicon.ico
+data:text/plain,hello
+about:blank</textarea>
+      <small>Replace with internal/cross-origin endpoints relevant to the host app (e.g., https://internal.api/profile)</small>
+    </div>
+  </div>
+
+  <div id="summary" class="card"></div>
+  <div class="grid">
+    <div class="card"><h3>Findings</h3><pre id="out">Ready.</pre></div>
+    <div class="card"><h3>Raw</h3><pre id="raw"></pre></div>
+  </div>
+
+<script>
+(function(){
+  const raw = document.getElementById('raw');
+  const out = document.getElementById('out');
+  const summary = document.getElementById('summary');
+  const results = { runs: [] };
+
+  function now(){ return performance.now(); }
+  function withTimeout(promise, ms){
+    return Promise.race([
+      Promise.resolve(promise),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))
+    ]);
+  }
+
+  function getBridges(){
+    const bridges = [];
+    if (typeof window.TXWebKitNativeFetch === 'function'){
+      bridges.push({ name:'TXWebKitNativeFetch', fn: (url, init)=>window.TXWebKitNativeFetch(url, init) });
+    }
+    if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
+      bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
+    }
+    if (window.Telegram && window.Telegram.WebApp && typeof window.Telegram.WebApp.openTelegramLink === 'function'){
+      // Not fetch-like, but keep for coverage: returns immediately (gesture often required)
+      bridges.push({ name:'Telegram.WebApp.openTelegramLink', fn: (url)=>{ window.Telegram.WebApp.openTelegramLink(url); return Promise.resolve({ opened:true }); } });
+    }
+    return bridges;
+  }
+
+  async function tryOne(method, url, init, timeout){
+    const t0 = now();
+    const info = { method, url, startMs: t0 };
+    try{
+      const r = await withTimeout(method.fn(url, init), timeout);
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = true;
+      if (r && typeof r === 'object'){
+        if (typeof r.status === 'number') info.status = r.status;
+        if (typeof r.ok === 'boolean') info.ok = r.ok;
+        if (typeof r.headers === 'object' && r.headers){
+          try{
+            const hs = (typeof r.headers.forEach === 'function') ? (()=>{ const o={}; r.headers.forEach((v,k)=>o[k]=String(v)); return o; })() : r.headers;
+            info.headers = hs;
+          }catch{}
+        }
+        if (typeof r.text === 'function'){
+          try{ const t = await r.text(); info.bodySnippet = String(t).slice(0,300); }catch{}
+        }
+      } else {
+        info.resultType = typeof r;
+        if (r !== undefined) info.resultPreview = String(r).slice(0,120);
+      }
+    }catch(e){
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = false;
+      info.error = String(e && (e.message||e)).slice(0,300);
+      // Many bridges encode rich error objects
+      if (e && typeof e === 'object'){
+        if (typeof e.code !== 'undefined') info.errorCode = e.code;
+        if (typeof e.status === 'number') info.status = e.status;
+        if (typeof e.reason === 'string') info.reason = e.reason.slice(0,200);
+      }
+    }
+    return info;
+  }
+
+  async function tryFetchBaseline(url, timeout){
+    const t0 = now();
+    const info = { method:'fetch', url, startMs: t0 };
+    try{
+      const fr = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), timeout);
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = true;
+      info.status = fr.status;
+      info.ok = fr.ok;
+      try{ const txt = await fr.text(); info.bodySnippet = txt.slice(0,200); }catch{}
+    }catch(e){
+      info.elapsedMs = +(now()-t0).toFixed(1);
+      info.fulfilled = false;
+      info.error = String(e && (e.message||e)).slice(0,200);
+    }
+    return info;
+  }
+
+  function classifyLeak(event){
+    // Classify whether the bridge exposes high-signal differences vs fetch()
+    // Signals: different fulfillment, distinct error codes/strings, presence of status/body where fetch is blocked
+    const sig = { oracle:false, reasons:[] };
+    if (event.method !== 'fetch' && event.fulfilled) {
+      if (typeof event.status === 'number' || typeof event.bodySnippet === 'string'){
+        sig.oracle = true; sig.reasons.push('bridge returned status/body');
+      }
+    }
+    if (!event.fulfilled && event.error){
+      if (/AUTH|TOKEN|CSRF|LOGIN|DENY|forbidden|unauthor/i.test(event.error)){
+        sig.oracle = true; sig.reasons.push('bridge error mentions auth/state');
+      }
+    }
+    if (typeof event.errorCode !== 'undefined'){
+      sig.oracle = true; sig.reasons.push('bridge error code present');
+    }
+    return sig;
+  }
+
+  function summarize(all){
+    const byUrl = {};
+    for (const e of all){
+      byUrl[e.url] = byUrl[e.url] || { url:e.url, total:0, oracle:0 };
+      byUrl[e.url].total++;
+      const c = classifyLeak(e);
+      if (c.oracle) byUrl[e.url].oracle++;
+    }
+    const list = Object.values(byUrl);
+    const oracleAny = list.some(x=>x.oracle>0);
+    return { oracleAny, urls:list };
+  }
+
+  function pushRaw(obj){
+    const merged = Object.assign({}, results.last||{}, { extra:(results.last&&results.last.extra)||[] });
+    merged.extra = merged.extra || [];
+    merged.extra.push(obj);
+    results.last = merged;
+    raw.textContent = JSON.stringify(results.last, null, 2);
+  }
+
+  async function run(){
+    const timeout = Math.max(100, parseInt(document.getElementById('timeoutMs').value||'6000',10));
+    const includeFetch = document.getElementById('includeFetch').checked;
+    const isGesture = document.getElementById('gesture').checked;
+    const urls = (document.getElementById('targets').value||'')
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean);
+
+    const bridges = getBridges();
+    const runMeta = { time:new Date().toISOString(), ua:navigator.userAgent, bridges:bridges.map(b=>b.name), timeout, includeFetch, isGesture };
+    const events = [];
+
+    async function execForUrl(u){
+      const init = { method:'GET' };
+      if (isGesture) {
+        // synthesize a click to satisfy gesture-gated APIs if possible
+        try{ document.body.click(); }catch{}
+      }
+      for (const b of bridges){
+        events.push(await tryOne(b, u, init, timeout));
+      }
+      if (includeFetch) events.push(await tryFetchBaseline(u, timeout));
+    }
+
+    for (const u of urls){
+      // serialize per URL to avoid mixed gesture side-effects
+      /* eslint-disable no-await-in-loop */
+      await execForUrl(u);
+      /* eslint-enable no-await-in-loop */
+    }
+
+    const report = { type:'oracle-leak', meta: runMeta, events, summary: summarize(events) };
+    results.runs.push(report); results.last = report;
+
+    const lines = [];
+    for (const e of events){
+      const tag = (e.fulfilled? 'OK' : 'ERR');
+      const leak = classifyLeak(e);
+      lines.push(`${tag} ${e.method} ${e.url} (${e.elapsedMs}ms)` + (leak.oracle? ` [oracle:${leak.reasons.join('|')}]` : ''));
+    }
+    out.textContent = lines.join('\n') || 'None';
+
+    const any = report.summary.oracleAny;
+    summary.className = 'card ' + (any ? 'warn' : 'ok');
+    summary.innerHTML = any
+      ? `Potential oracle signals detected on <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> of <strong>${report.summary.urls.length}</strong> targets.`
+      : `No high-signal oracle behavior observed.`;
+    raw.textContent = JSON.stringify(report, null, 2);
+  }
+
+  document.getElementById('run').onclick = run;
+  document.getElementById('copy').onclick = ()=>{
+    const text = raw.textContent || 'No data';
+    navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
+  };
+})();
+</script>
+</body>
+</html>
+
+
