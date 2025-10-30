@@ -14,27 +14,30 @@
     code{background:#f0f3f6;padding:2px 6px;border-radius:4px}
     textarea{width:100%;min-height:120px}
     small{color:#666}
+    .hidden{display:none}
+    button{touch-action:manipulation}
+    *{ -webkit-tap-highlight-color: rgba(0,0,0,0); }
   </style>
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline'; connect-src *; img-src * data: blob:; style-src 'unsafe-inline' 'self'">
 </head>
 <body>
-  <a href="./index.html">← Back</a>
-  <h1>Bridge Oracle XS-Leaks</h1>
+  <a href="./index.html" id="backLink">← Back</a>
+  <h1 id="title">Bridge Oracle XS-Leaks</h1>
   <p>Share this page link with prefilled targets to run inside the app WebView.</p>
 
   <div class="card">
-    <div class="row">
+    <div class="row" id="controlsRow1">
       <button id="run">Run matrix</button>
       <button id="copy">Copy JSON</button>
       <button id="copyLink">Copy shareable link</button>
       <label><input type="checkbox" id="includeFetch" checked /> Also test fetch() baseline</label>
       <label><input type="checkbox" id="gesture" /> Simulate user gesture</label>
     </div>
-    <div class="row" style="margin-top:8px">
+    <div class="row" style="margin-top:8px" id="controlsRow2">
       <input id="timeoutMs" type="number" min="100" value="6000" style="padding:8px;width:160px" />
       <small>Timeout (ms)</small>
     </div>
-    <div class="row" style="margin-top:8px;gap:12px">
+    <div class="row" style="margin-top:8px;gap:12px" id="controlsRow3">
       <div>
         <label><strong>fetch() credentials</strong></label><br/>
         <select id="fetchCreds" style="padding:8px;width:180px">
@@ -51,7 +54,7 @@
         </select>
       </div>
     </div>
-    <div style="margin-top:8px">
+    <div style="margin-top:8px" id="controlsInit">
       <label><strong>Request Init (JSON)</strong></label>
       <textarea id="initJson">{
   "method": "GET",
@@ -62,7 +65,7 @@
 }</textarea>
       <small>Only method, headers, body are used. Methods allowed: GET/POST. For POST, body is sent as-is.</small>
     </div>
-    <div style="margin-top:8px">
+    <div style="margin-top:8px" id="controlsTargets">
       <label><strong>Targets (one per line)</strong></label>
       <textarea id="targets">https://httpbin.org/status/401
 https://httpbin.org/status/403
@@ -229,6 +232,8 @@ about:blank</textarea>
     const fetchParam = p.get('fetch');
     const gestureParam = p.get('gesture');
     const timeoutParam = p.get('timeout');
+    const simple = p.get('simple');
+    const autorun = p.get('autorun');
     if (targetsParam){
       try{
         const list = targetsParam.split(',').map(s=>decodeURIComponent(s.trim())).filter(Boolean);
@@ -238,6 +243,21 @@ about:blank</textarea>
     if (fetchParam!=null){ document.getElementById('includeFetch').checked = fetchParam==='1' || /true/i.test(fetchParam); }
     if (gestureParam!=null){ document.getElementById('gesture').checked = gestureParam==='1' || /true/i.test(gestureParam); }
     if (timeoutParam){ const n = parseInt(timeoutParam,10); if (!Number.isNaN(n) && n>0) document.getElementById('timeoutMs').value = n; }
+
+    // Simple mode hides most controls for embedded/overlay environments
+    if (simple && (simple==='1' || /true/i.test(simple))){
+      document.getElementById('backLink').classList.add('hidden');
+      document.getElementById('controlsRow2').classList.add('hidden');
+      document.getElementById('controlsRow3').classList.add('hidden');
+      document.getElementById('controlsInit').classList.add('hidden');
+      document.getElementById('controlsTargets').classList.remove('hidden');
+      document.getElementById('title').textContent = 'Bridge Oracle (Simple)';
+    }
+
+    // Autorun after params applied
+    if (autorun && (autorun==='1' || /true/i.test(autorun))){
+      setTimeout(()=>{ document.getElementById('run').click(); }, 300);
+    }
   }
 
   function buildShareLink(){
@@ -299,7 +319,10 @@ about:blank</textarea>
     raw.textContent = JSON.stringify(report, null, 2);
   }
 
-  document.getElementById('run').onclick = run;
+  // Improve touch responsiveness
+  const runBtn = document.getElementById('run');
+  runBtn.addEventListener('click', run, { passive:true });
+  runBtn.addEventListener('touchstart', (e)=>{ e.preventDefault(); run(); }, { passive:false });
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
     navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
