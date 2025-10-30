@@ -26,6 +26,7 @@
     <button id="multi">Multi-domain test</button>
     <a href="./oracle-leak.html" id="oracleLink" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;text-decoration:none;align-self:center">Oracle leak test →</a>
     <button id="oracleInline" title="Run oracle in-place (same WebView)">Run oracle inline</button>
+    <a href="./index.html?oracle=1" id="oracleAuto" style="padding:8px 12px;border:1px solid #007acc;color:#007acc;border-radius:6px;text-decoration:none;align-self:center">Oracle inline (auto)</a>
     <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
     <button id="send">Send to webhook</button>
     <button id="bridgePost">Bridge POST (httpbin)</button>
@@ -59,6 +60,13 @@
   </div>
 <script>
 (function(){
+  // autorun inline oracle if ?oracle=1
+  (function(){
+    try{
+      const p = new URLSearchParams(location.search);
+      if (p.get('oracle')==='1'){ setTimeout(()=>{ document.getElementById('oracleInline').click(); }, 300); }
+    }catch{}
+  })();
   const out = document.getElementById('out');
   const raw = document.getElementById('raw');
   const summary = document.getElementById('summary');
