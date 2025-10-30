@@ -106,6 +106,51 @@ about:blank</textarea>
     if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
       bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
     }
+    // ByteDance-style bridges (experimental): byted_mixrender_native / JS2NativeBridge / BDXBridge
+    // We wrap callback-style APIs into a Promise and normalize a Response-like shape when possible
+    const hasByteInvoke = window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function';
+    const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
+    const hasBDX = window.BDXBridge && typeof window.BDXBridge._invokeMethod === 'function';
+
+    function toByteRequestOptions(url, init){
+      const method = (init && init.method) || 'GET';
+      const headers = (init && init.headers) || {};
+      const body = (init && init.body) || '';
+      return { url, method, headers, body };
+    }
+    function wrapCallbackStyle(invokeFn, methodName){
+      return (url, init)=>new Promise((resolve, reject)=>{
+        const opt = toByteRequestOptions(url, init);
+        let settled = false;
+        const timer = setTimeout(()=>{ if (!settled){ settled = true; reject(new Error('timeout')); } }, 7000);
+        try{
+          const cb = (resp)=>{
+            if (settled) return; settled = true; clearTimeout(timer);
+            try{
+              // Normalize: accept object or JSON string
+              const r = (typeof resp === 'string') ? (JSON.parse(resp)) : resp;
+              if (r && (r.status || r.code || r.ok || r.data || r.body)){
+                resolve(r);
+              } else {
+                resolve(r);
+              }
+            }catch(e){ resolve({ error: String(e&&e.message||e) }); }
+          };
+          // Common patterns: (method, options, callback) or (options, callback)
+          if (methodName){ invokeFn(methodName, opt, cb); }
+          else { invokeFn(opt, cb); }
+        }catch(e){ if (!settled){ settled = true; clearTimeout(timer); reject(e); } }
+      });
+    }
+    if (hasByteInvoke){
+      bridges.push({ name:'byted_mixrender_native.invoke', fn: wrapCallbackStyle(window.byted_mixrender_native.invoke.bind(window.byted_mixrender_native), 'request') });
+    }
+    if (hasJS2){
+      bridges.push({ name:'JS2NativeBridge._invokeMethod', fn: wrapCallbackStyle(window.JS2NativeBridge._invokeMethod.bind(window.JS2NativeBridge), 'request') });
+    }
+    if (hasBDX){
+      bridges.push({ name:'BDXBridge._invokeMethod', fn: wrapCallbackStyle(window.BDXBridge._invokeMethod.bind(window.BDXBridge), 'request') });
+    }
     return bridges;
   }
 
