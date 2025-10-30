@@ -121,25 +121,18 @@ about:blank</textarea>
     function wrapCallbackStyle(invokeFn, methodName){
       return (url, init)=>new Promise((resolve, reject)=>{
         const opt = toByteRequestOptions(url, init);
-        let settled = false;
-        const timer = setTimeout(()=>{ if (!settled){ settled = true; reject(new Error('timeout')); } }, 7000);
         try{
           const cb = (resp)=>{
-            if (settled) return; settled = true; clearTimeout(timer);
             try{
-              // Normalize: accept object or JSON string
-              const r = (typeof resp === 'string') ? (JSON.parse(resp)) : resp;
-              if (r && (r.status || r.code || r.ok || r.data || r.body)){
-                resolve(r);
-              } else {
-                resolve(r);
-              }
-            }catch(e){ resolve({ error: String(e&&e.message||e) }); }
+              const r = (typeof resp === 'string') ? JSON.parse(resp) : resp;
+              resolve(r);
+            }catch(e){
+              reject(new Error(`Callback JSON parse error: ${e && e.message || e}`));
+            }
           };
-          // Common patterns: (method, options, callback) or (options, callback)
           if (methodName){ invokeFn(methodName, opt, cb); }
           else { invokeFn(opt, cb); }
-        }catch(e){ if (!settled){ settled = true; clearTimeout(timer); reject(e); } }
+        }catch(e){ reject(e); }
       });
     }
     if (hasByteInvoke){
@@ -172,6 +165,10 @@ about:blank</textarea>
         }
         if (typeof r.text === 'function'){
           try{ const t = await r.text(); info.bodySnippet = String(t).slice(0,300); }catch{}
+        } else if (typeof r.body === 'string') {
+          info.bodySnippet = r.body.slice(0,300);
+        } else if (typeof r.data === 'string') {
+          info.bodySnippet = r.data.slice(0,300);
         }
       } else {
         info.resultType = typeof r;
