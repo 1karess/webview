@@ -321,16 +321,37 @@
       const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
       const hasBDX = window.BDXBridge && typeof window.BDXBridge._invokeMethod === 'function';
       function toByteReq(url){ return { url, method:'GET', headers:{}, body:'' }; }
-      function wrap(invoke, method){
+      function wrapMulti(invoke){
+        const candidates = ['request','httpRequest','networkRequest','fetch','ttnetRequest','bytedRequest'];
         return (url)=>new Promise((resolve,reject)=>{
-          const opt = toByteReq(url); let done=false; const t=setTimeout(()=>{ if(!done){done=true;reject(new Error('timeout'));}},6000);
-          const cb=(resp)=>{ if(done) return; done=true; clearTimeout(t); try{ resolve(typeof resp==='string'?JSON.parse(resp):resp);}catch(e){ resolve({ error:String(e&&e.message||e) }); } };
-          try{ if (method) invoke(method, opt, cb); else invoke(opt, cb); }catch(e){ if(!done){done=true;clearTimeout(t);reject(e);} }
+          const start = Date.now();
+          const opt = toByteReq(url);
+          let finished = false;
+          const overallTimer = setTimeout(()=>{ if(!finished){ finished=true; reject(new Error('timeout')); } }, 7000);
+          const tryOne = (idx)=>{
+            if (finished) return;
+            if (idx >= candidates.length){ finished=true; clearTimeout(overallTimer); return reject(new Error('no-method')); }
+            const method = candidates[idx];
+            let perDone = false;
+            const perTimer = setTimeout(()=>{ if(!perDone){ perDone=true; tryOne(idx+1); } }, 1800);
+            const cb = (resp)=>{
+              if (finished || perDone) return; perDone = true; finished = true; clearTimeout(perTimer); clearTimeout(overallTimer);
+              try{
+                const parsed = (typeof resp==='string') ? JSON.parse(resp) : resp;
+                resolve(Object.assign({ _methodUsed: method, _elapsedMs: Date.now()-start }, parsed||{}));
+              }catch(e){ resolve({ _methodUsed: method, _elapsedMs: Date.now()-start, error: String(e&&e.message||e) }); }
+            };
+            try{
+              // Prefer signature (method, options, cb); fallback (options, cb)
+              if (invoke.length >= 3) invoke(method, opt, cb); else invoke(opt, cb);
+            }catch{ tryOne(idx+1); }
+          };
+          tryOne(0);
         });
       }
-      if (hasByteInvoke) bridges.push({ name:'byted_mixrender_native.invoke', fn: wrap(window.byted_mixrender_native.invoke.bind(window.byted_mixrender_native), 'request') });
-      if (hasJS2) bridges.push({ name:'JS2NativeBridge._invokeMethod', fn: wrap(window.JS2NativeBridge._invokeMethod.bind(window.JS2NativeBridge), 'request') });
-      if (hasBDX) bridges.push({ name:'BDXBridge._invokeMethod', fn: wrap(window.BDXBridge._invokeMethod.bind(window.BDXBridge), 'request') });
+      if (hasByteInvoke) bridges.push({ name:'byted_mixrender_native.invoke', fn: wrapMulti(window.byted_mixrender_native.invoke.bind(window.byted_mixrender_native)) });
+      if (hasJS2) bridges.push({ name:'JS2NativeBridge._invokeMethod', fn: wrapMulti(window.JS2NativeBridge._invokeMethod.bind(window.JS2NativeBridge)) });
+      if (hasBDX) bridges.push({ name:'BDXBridge._invokeMethod', fn: wrapMulti(window.BDXBridge._invokeMethod.bind(window.BDXBridge)) });
       return bridges;
     }
     async function tryFetch(url){
@@ -348,6 +369,7 @@
           if (typeof r.ok==='boolean') out.ok=r.ok;
           if (typeof r.body==='string') out.bodySnippet=r.body.slice(0,120);
           if (typeof r.code!=='undefined') out.errorCode=r.code;
+          if (typeof r._methodUsed==='string') out.methodUsed=r._methodUsed;
         }
         return out;
       }catch(e){ return { via:b.name, error:String(e&&e.message||e) }; }
@@ -358,7 +380,7 @@
       for (const b of bridges){ events.push(await tryBridge(b,u)); }
       events.push(await tryFetch(u));
     }
-    const lines = events.map(e=>`${e.via} ${e.status||e.error||''}`);
+    const lines = events.map(e=>`${e.via}${e.methodUsed?('['+e.methodUsed+']'):''} ${e.status||e.error||''}`);
     out.textContent = lines.join('\n') || 'None';
     raw.textContent = JSON.stringify({ inlineOracle:true, bridges:bridges.map(b=>b.name), events }, null, 2);
     try{ summary.className='card'; summary.innerHTML = `Inline oracle ran with <code>${bridges.length}</code> bridge(s).`; }catch{}
