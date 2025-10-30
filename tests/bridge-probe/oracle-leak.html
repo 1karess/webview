@@ -34,6 +34,34 @@
       <input id="timeoutMs" type="number" min="100" value="6000" style="padding:8px;width:160px" />
       <small>Timeout (ms)</small>
     </div>
+    <div class="row" style="margin-top:8px;gap:12px">
+      <div>
+        <label><strong>fetch() credentials</strong></label><br/>
+        <select id="fetchCreds" style="padding:8px;width:180px">
+          <option value="omit" selected>omit (default)</option>
+          <option value="same-origin">same-origin</option>
+          <option value="include">include</option>
+        </select>
+      </div>
+      <div>
+        <label><strong>fetch() mode</strong></label><br/>
+        <select id="fetchMode" style="padding:8px;width:180px">
+          <option value="cors" selected>cors (default)</option>
+          <option value="no-cors">no-cors</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <label><strong>Request Init (JSON)</strong></label>
+      <textarea id="initJson">{
+  "method": "GET",
+  "headers": {
+    "X-Test": "1"
+  },
+  "body": ""
+}</textarea>
+      <small>Only method, headers, body are used. Methods allowed: GET/POST. For POST, body is sent as-is.</small>
+    </div>
     <div style="margin-top:8px">
       <label><strong>Targets (one per line)</strong></label>
       <textarea id="targets">https://httpbin.org/status/401
@@ -118,7 +146,8 @@ about:blank</textarea>
     const t0 = now();
     const info = { method:'fetch', url, startMs: t0 };
     try{
-      const fr = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), timeout);
+      const init = buildFetchInit();
+      const fr = await withTimeout(fetch(url, init), timeout);
       info.elapsedMs = +(now()-t0).toFixed(1);
       info.fulfilled = true;
       info.status = fr.status;
@@ -130,6 +159,29 @@ about:blank</textarea>
       info.error = String(e && (e.message||e)).slice(0,200);
     }
     return info;
+  }
+
+  function parseInitJson(){
+    const txt = document.getElementById('initJson').value || '';
+    let out = { method:'GET' };
+    try{
+      const o = JSON.parse(txt);
+      const method = String((o.method||'GET')).toUpperCase();
+      out.method = (method === 'POST') ? 'POST' : 'GET';
+      if (o.headers && typeof o.headers === 'object') out.headers = o.headers;
+      if (out.method === 'POST' && typeof o.body === 'string') out.body = o.body;
+    }catch{}
+    return out;
+  }
+
+  function buildFetchInit(){
+    const creds = document.getElementById('fetchCreds').value || 'omit';
+    const mode = document.getElementById('fetchMode').value || 'cors';
+    const base = parseInitJson();
+    const init = { method: base.method, mode, credentials: creds, cache:'no-store' };
+    if (base.headers) init.headers = base.headers;
+    if (base.method === 'POST' && typeof base.body === 'string') init.body = base.body;
+    return init;
   }
 
   function classifyLeak(event){
@@ -211,7 +263,10 @@ about:blank</textarea>
     const events = [];
 
     async function execForUrl(u){
-      const init = { method:'GET' };
+      const parsed = parseInitJson();
+      const init = { method: parsed.method };
+      if (parsed.headers) init.headers = parsed.headers;
+      if (parsed.method === 'POST' && typeof parsed.body === 'string') init.body = parsed.body;
       if (isGesture) { try{ document.body.click(); }catch{} }
       for (const b of bridges){
         events.push(await tryOne(b, u, init, timeout));
