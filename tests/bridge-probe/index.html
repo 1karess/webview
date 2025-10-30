@@ -25,6 +25,7 @@
     <button id="safeGet">Safe GET (single)</button>
     <button id="multi">Multi-domain test</button>
     <a href="./oracle-leak.html" id="oracleLink" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;text-decoration:none;align-self:center">Oracle leak test →</a>
+    <button id="oracleInline" title="Run oracle in-place (same WebView)">Run oracle inline</button>
     <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
     <button id="send">Send to webhook</button>
     <button id="bridgePost">Bridge POST (httpbin)</button>
@@ -284,6 +285,74 @@
     const text = raw.textContent || 'No data';
     navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
   };
+
+  // Minimal in-place Oracle runner to stay in the SAME WebView instance
+  async function runOracleInline(){
+    const targets = [
+      'https://httpbin.org/status/401',
+      'https://httpbin.org/status/403',
+      'https://httpbin.org/anything'
+    ];
+    function withTimeout(promise, ms){
+      return Promise.race([
+        Promise.resolve(promise),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))
+      ]);
+    }
+    function getBridges(){
+      const bridges = [];
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        bridges.push({ name:'TXWebKitNativeFetch', fn: (url, init)=>window.TXWebKitNativeFetch(url, init) });
+      }
+      if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
+        bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
+      }
+      const hasByteInvoke = window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function';
+      const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
+      const hasBDX = window.BDXBridge && typeof window.BDXBridge._invokeMethod === 'function';
+      function toByteReq(url){ return { url, method:'GET', headers:{}, body:'' }; }
+      function wrap(invoke, method){
+        return (url)=>new Promise((resolve,reject)=>{
+          const opt = toByteReq(url); let done=false; const t=setTimeout(()=>{ if(!done){done=true;reject(new Error('timeout'));}},6000);
+          const cb=(resp)=>{ if(done) return; done=true; clearTimeout(t); try{ resolve(typeof resp==='string'?JSON.parse(resp):resp);}catch(e){ resolve({ error:String(e&&e.message||e) }); } };
+          try{ if (method) invoke(method, opt, cb); else invoke(opt, cb); }catch(e){ if(!done){done=true;clearTimeout(t);reject(e);} }
+        });
+      }
+      if (hasByteInvoke) bridges.push({ name:'byted_mixrender_native.invoke', fn: wrap(window.byted_mixrender_native.invoke.bind(window.byted_mixrender_native), 'request') });
+      if (hasJS2) bridges.push({ name:'JS2NativeBridge._invokeMethod', fn: wrap(window.JS2NativeBridge._invokeMethod.bind(window.JS2NativeBridge), 'request') });
+      if (hasBDX) bridges.push({ name:'BDXBridge._invokeMethod', fn: wrap(window.BDXBridge._invokeMethod.bind(window.BDXBridge), 'request') });
+      return bridges;
+    }
+    async function tryFetch(url){
+      try{
+        const r = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), 6000);
+        return { via:'fetch', status:r.status, ok:r.ok };
+      }catch(e){ return { via:'fetch', error: String(e&&e.message||e) }; }
+    }
+    async function tryBridge(b, url){
+      try{
+        const r = await withTimeout(b.fn(url, { method:'GET' }), 6000);
+        const out = { via:b.name };
+        if (r && typeof r==='object'){
+          if (typeof r.status==='number') out.status=r.status;
+          if (typeof r.ok==='boolean') out.ok=r.ok;
+          if (typeof r.body==='string') out.bodySnippet=r.body.slice(0,120);
+          if (typeof r.code!=='undefined') out.errorCode=r.code;
+        }
+        return out;
+      }catch(e){ return { via:b.name, error:String(e&&e.message||e) }; }
+    }
+    const bridges = getBridges();
+    const events = [];
+    for (const u of targets){
+      for (const b of bridges){ events.push(await tryBridge(b,u)); }
+      events.push(await tryFetch(u));
+    }
+    const lines = events.map(e=>`${e.via} ${e.status||e.error||''}`);
+    out.textContent = lines.join('\n') || 'None';
+    raw.textContent = JSON.stringify({ inlineOracle:true, bridges:bridges.map(b=>b.name), events }, null, 2);
+  }
+  document.getElementById('oracleInline').onclick = runOracleInline;
 })();
 </script>
 </body>
