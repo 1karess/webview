@@ -265,21 +265,62 @@ https://httpbin.org/anything</textarea>
     reqOut.textContent = JSON.stringify(info, null, 2);
   };
   document.getElementById('send').onclick = async ()=>{
+    const url = (document.getElementById('hook').value||'').trim();
+    if (!url) return alert('请输入Webhook URL');
+    
+    // 收集所有测试结果
+    const allResults = [];
+    // 1. 所有runs（探针、Oracle测试）
+    for (const run of results.runs) {
+      allResults.push(run);
+    }
+    // 2. last对象（可能包含extra数组）
+    if (last) {
+      allResults.push(last);
+      // 如果last有extra，也要包含
+      if (last.extra && Array.isArray(last.extra)) {
+        for (const item of last.extra) {
+          allResults.push(item);
+        }
+      }
+    }
+    
+    const payload = {
+      allRuns: results.runs,
+      lastRun: last,
+      allResults: allResults, // 包含所有结果
+      rawOutput: raw.textContent, // 原始JSON输出
+      timestamp: new Date().toISOString()
+    };
+    
+    summary.className = 'card';
+    summary.innerHTML = `⏳ 正在发送到 webhook...`;
+    
     try{
-      const url = (document.getElementById('hook').value||'').trim();
-      if (!url) return alert('请输入Webhook URL');
-      // 发送所有测试结果（包括探针和Oracle测试）
-      const payload = {
-        allRuns: results.runs,
-        lastRun: last,
-        timestamp: new Date().toISOString()
-      };
-      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload, null, 2) });
-      summary.className = 'card';
-      summary.innerHTML = `✅ Webhook发送成功：状态码 <code>${resp.status}</code>，已发送 ${results.runs.length} 个测试结果。`;
+      // 先尝试CORS模式（可以读取响应状态）
+      try{
+        const resp = await fetch(url, { 
+          method:'POST', 
+          mode:'cors',
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify(payload, null, 2) 
+        });
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ Webhook发送成功：状态码 <code>${resp.status}</code>，已发送 ${allResults.length} 个测试结果。<br><small>包含：${results.runs.length} 个runs + ${last?.extra?.length||0} 个额外结果</small>`;
+      } catch(corsError) {
+        // CORS失败，改用no-cors模式（能发送但无法读取响应）
+        await fetch(url, { 
+          method:'POST', 
+          mode:'no-cors',
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify(payload, null, 2) 
+        });
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ Webhook已发送（no-cors模式，无法读取响应状态）。<br><small>已发送 ${allResults.length} 个测试结果</small>`;
+      }
     }catch(e){
-      summary.className = 'card';
-      summary.innerHTML = `❌ Webhook发送失败：<code>${String(e.message||e)}</code>`;
+      summary.className = 'card warn';
+      summary.innerHTML = `❌ Webhook发送失败：<code>${String(e.message||e)}</code><br><small>请检查URL是否正确，或是否允许跨域请求</small>`;
     }
   };
   document.getElementById('bridgePost').onclick = async ()=>{
