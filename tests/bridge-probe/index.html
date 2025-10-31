@@ -18,6 +18,9 @@
 </head>
 <body>
   <h1>Generic Bridge Probe</h1>
+  <div id="envWarning" class="card" style="background:#fff5f0;border-color:#ffd6cc;margin-bottom:12px">
+    <strong>⚠️ Environment Check:</strong> <span id="envStatus">Checking...</span>
+  </div>
   <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
   
   <!-- Core Functions -->
@@ -87,6 +90,26 @@
   </div>
 <script>
 (function(){
+  // Environment detection: warn if running in desktop browser
+  (function(){
+    const envStatus = document.getElementById('envStatus');
+    const envWarning = document.getElementById('envWarning');
+    const ua = navigator.userAgent.toLowerCase();
+    const isMobile = /mobile|android|iphone|ipad/i.test(navigator.userAgent);
+    const hasKnownBridge = !!(window.TXWebKitNativeFetch || window.TelegramWebview || window.byted_mixrender_native || window.JS2NativeBridge || window.BDXBridge || (window.Telegram && window.Telegram.WebApp));
+    const isLikelyAppWebView = isMobile || hasKnownBridge || /aweme|micromessenger|qqbrowser|weibo|douyin|byte/i.test(ua);
+    
+    if (isLikelyAppWebView) {
+      envStatus.textContent = '✅ App WebView detected (mobile/known bridge). Tests will work properly.';
+      envWarning.style.background = '#e6ffed';
+      envWarning.style.borderColor = '#b7f5c6';
+    } else {
+      envStatus.textContent = '⚠️ Desktop browser detected. App bridges won\'t be found. Please test inside App WebView (mobile).';
+      envWarning.style.background = '#fff5f0';
+      envWarning.style.borderColor = '#ffd6cc';
+    }
+  })();
+  
   const out = document.getElementById('out');
   const raw = document.getElementById('raw');
   const summary = document.getElementById('summary');
