@@ -20,6 +20,15 @@
   <h1>Generic Bridge Probe</h1>
   <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
   
+  <!-- One-Click Full Test -->
+  <div class="card" style="background:#e6f3ff;border:2px solid #0066cc">
+    <h3 style="margin-top:0">🚀 一键测试所有（推荐）</h3>
+    <div class="row">
+      <button id="runAll" style="background:#0066cc;color:white;font-weight:bold;padding:12px 24px;font-size:16px">▶ 运行所有测试并发送</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:8px">自动运行：Bridge扫描 → 网络测试 → Oracle测试 → 汇总结果 → 发送到webhook</small>
+  </div>
+
   <!-- Core Functions -->
   <div class="card">
     <h3 style="margin-top:0">Core Detection</h3>
@@ -27,7 +36,7 @@
       <button id="run">Run</button>
       <button id="copy">Copy JSON</button>
     </div>
-    <small style="color:#666">Click "Run" to scan for bridges. Oracle test runs automatically after scan.</small>
+    <small style="color:#666">Click "Run" to scan for bridges.</small>
   </div>
 
   <!-- Quick Network Tests -->
@@ -215,8 +224,10 @@ https://httpbin.org/anything</textarea>
     raw.textContent = JSON.stringify(last, null, 2);
   }
   
-  // Auto-send to webhook if URL is preset
+  // Auto-send to webhook if URL is preset (can be disabled for batch testing)
+  let autoSendEnabled = true;
   function autoSendWebhook(){
+    if (!autoSendEnabled) return;
     try{
       const hookInput = document.getElementById('hook');
       const webhookUrl = hookInput?.value?.trim();
@@ -228,6 +239,169 @@ https://httpbin.org/anything</textarea>
       }
     }catch{}
   }
+  
+  // Run all tests sequentially and send summary
+  async function runAllTests(){
+    const hookInput = document.getElementById('hook');
+    const webhookUrl = hookInput?.value?.trim();
+    
+    summary.className = 'card';
+    summary.innerHTML = `⏳ 正在运行所有测试，请稍候...<br><small>这可能需要几分钟时间</small>`;
+    out.textContent = '正在运行所有测试...';
+    
+    // Disable auto-send during batch testing
+    autoSendEnabled = false;
+    const startTime = Date.now();
+    
+    try{
+      // 1. Probe scan
+      summary.innerHTML = `⏳ 步骤 1/6: 正在扫描 Bridge...`;
+      last = probe();
+      const count = last.findings.length;
+      summary.innerHTML = count>0
+        ? `Possible bridges found: <strong>${count}</strong> (review carefully)`
+        : `No obvious bridges detected.`;
+      out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
+      raw.textContent = JSON.stringify(last, null, 2);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 2. Safe GET
+      summary.innerHTML = `⏳ 步骤 2/6: 正在测试 Safe GET...`;
+      const safeGetUrl = 'https://www.cloudflare.com/cdn-cgi/trace';
+      const safeGetRes = await tryBridgeGet(safeGetUrl);
+      pushRaw({ type:'safe-get', res: safeGetRes });
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 3. Multi-domain
+      summary.innerHTML = `⏳ 步骤 3/6: 正在测试多域名...`;
+      const multiUrls = [
+        'https://example.com/favicon.ico',
+        'https://www.cloudflare.com/cdn-cgi/trace',
+        location.origin + '/index.html'
+      ];
+      const multiResults = [];
+      for (const u of multiUrls){ multiResults.push(await tryBridgeGet(u)); }
+      pushRaw({ type:'multi-domain', results: multiResults });
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 4. Read body
+      summary.innerHTML = `⏳ 步骤 4/6: 正在测试读取响应体...`;
+      const readBodyInfo = { type:'read-body', url:'https://httpbin.org/anything' };
+      try{
+        let status = null, bodySnippet = null, via = null;
+        if (typeof window.TXWebKitNativeFetch === 'function'){
+          const r = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(readBodyInfo.url)),
+            new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),7000))
+          ]);
+          if (r && typeof r === 'object'){
+            if (typeof r.status === 'number') status = r.status;
+            if (typeof r.text === 'function'){
+              try{ const t = await r.text(); bodySnippet = String(t).slice(0,500); }catch{}
+            }
+          }
+          via = 'TXWebKitNativeFetch';
+        }
+        if (bodySnippet==null){
+          const fr = await fetch(readBodyInfo.url, { mode:'cors', cache:'no-store', credentials:'omit' });
+          status = fr.status; const t = await fr.text(); bodySnippet = t.slice(0,500); via = via || 'fetch';
+        }
+        readBodyInfo.via = via; readBodyInfo.status = status; readBodyInfo.bodySnippet = bodySnippet;
+      }catch(e){ readBodyInfo.error = String(e.message||e); }
+      pushRaw(readBodyInfo);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 5. Bridge POST
+      summary.innerHTML = `⏳ 步骤 5/6: 正在测试 Bridge POST...`;
+      const bridgePostInfo = { type:'bridge-post', url:'https://httpbin.org/post', method:'POST', headers:{'X-Test':'bridge'}, body:'{"msg":"hello_bridge"}' };
+      try{
+        if (typeof window.TXWebKitNativeFetch === 'function'){
+          const p = window.TXWebKitNativeFetch(bridgePostInfo.url, { method:'POST', headers: bridgePostInfo.headers, body: bridgePostInfo.body });
+          await Promise.race([Promise.resolve(p), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+          bridgePostInfo.via = 'TXWebKitNativeFetch';
+          bridgePostInfo.result = 'ok';
+        }else{
+          bridgePostInfo.error = 'TXWebKitNativeFetch not found';
+        }
+      }catch(e){ bridgePostInfo.error = String(e.message||e); }
+      pushRaw(bridgePostInfo);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 6. Oracle test
+      summary.innerHTML = `⏳ 步骤 6/6: 正在运行 Oracle XS-Leaks 测试...`;
+      await runOracleInline();
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // Re-enable auto-send
+      autoSendEnabled = true;
+      
+      // Generate summary
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      const summaryReport = {
+        type: 'full-test-summary',
+        timestamp: new Date().toISOString(),
+        durationMs: duration,
+        userAgent: navigator.userAgent,
+        allRuns: results.runs,
+        lastRun: last,
+        summary: {
+          totalTests: results.runs.length,
+          bridgeCount: last?.findings?.length || 0,
+          testTypes: results.runs.map(r=>r.type)
+        }
+      };
+      
+      // Send summary to webhook
+      if (webhookUrl) {
+        summary.innerHTML = `⏳ 正在发送汇总结果到 webhook...`;
+        try{
+          const payload = {
+            ...summaryReport,
+            allResults: summaryReport.allRuns,
+            rawOutput: raw.textContent
+          };
+          
+          try{
+            const resp = await fetch(webhookUrl, { 
+              method:'POST', 
+              mode:'cors',
+              headers:{'Content-Type':'application/json'}, 
+              body: JSON.stringify(payload, null, 2) 
+            });
+            summary.className = 'card ok';
+            summary.innerHTML = `✅ 所有测试完成！汇总结果已发送到 webhook。<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个<br><strong>状态码：</strong> <code>${resp.status}</code>`;
+          } catch(corsError) {
+            await fetch(webhookUrl, { 
+              method:'POST', 
+              mode:'no-cors',
+              headers:{'Content-Type':'application/json'}, 
+              body: JSON.stringify(payload, null, 2) 
+            });
+            summary.className = 'card ok';
+            summary.innerHTML = `✅ 所有测试完成！汇总结果已发送到 webhook（no-cors模式）。<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个`;
+          }
+        }catch(e){
+          summary.className = 'card warn';
+          summary.innerHTML = `✅ 所有测试完成，但发送到 webhook 失败：<code>${String(e.message||e)}</code><br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个`;
+        }
+      } else {
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ 所有测试完成！<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个<br><small>请填写 Webhook URL 以自动发送结果</small>`;
+      }
+      
+      // Update display
+      raw.textContent = JSON.stringify(summaryReport, null, 2);
+      
+    }catch(e){
+      autoSendEnabled = true;
+      summary.className = 'card warn';
+      summary.innerHTML = `❌ 测试过程中出错：<code>${String(e.message||e)}</code>`;
+    }
+  }
+  
+  document.getElementById('runAll').onclick = runAllTests;
   document.getElementById('safeGet').onclick = async ()=>{
     const url = 'https://www.cloudflare.com/cdn-cgi/trace';
     const res = await tryBridgeGet(url);
