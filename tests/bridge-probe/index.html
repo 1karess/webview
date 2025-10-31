@@ -324,6 +324,8 @@ https://httpbin.org/anything</textarea>
           bridgePostInfo.error = 'TXWebKitNativeFetch not found';
         }
       }catch(e){ bridgePostInfo.error = String(e.message||e); }
+      // Save to results.runs directly (not just extra)
+      results.runs.push({ type:'bridge-post', data: bridgePostInfo, timestamp: new Date().toISOString() });
       pushRaw(bridgePostInfo);
       await new Promise(r=>setTimeout(r, 500));
       
@@ -335,21 +337,47 @@ https://httpbin.org/anything</textarea>
       // Re-enable auto-send
       autoSendEnabled = true;
       
+      // Wait a bit more to ensure all async operations complete
+      await new Promise(r=>setTimeout(r, 1000));
+      
       // Generate summary
       const endTime = Date.now();
       const duration = endTime - startTime;
+      
+      // Collect all test results including extra items
+      const allTestResults = [];
+      for (const run of results.runs) {
+        allTestResults.push(run);
+      }
+      // Also include last.extra if exists
+      if (last && last.extra && Array.isArray(last.extra)) {
+        for (const item of last.extra) {
+          // Avoid duplicates - check if already in allTestResults
+          const exists = allTestResults.some(r => 
+            r.type === 'extra' && JSON.stringify(r.data) === JSON.stringify(item)
+          );
+          if (!exists) {
+            allTestResults.push({ type: 'extra', data: item, timestamp: new Date().toISOString() });
+          }
+        }
+      }
       
       const summaryReport = {
         type: 'full-test-summary',
         timestamp: new Date().toISOString(),
         durationMs: duration,
         userAgent: navigator.userAgent,
-        allRuns: results.runs,
+        allRuns: results.runs, // Structured runs
+        allTestResults: allTestResults, // All results including extra
         lastRun: last,
         summary: {
           totalTests: results.runs.length,
+          totalResults: allTestResults.length,
           bridgeCount: last?.findings?.length || 0,
-          testTypes: results.runs.map(r=>r.type)
+          testTypes: results.runs.map(r=>r.type),
+          detectedBridges: last?.findings?.filter(f => 
+            /bridge|native|invoke/i.test(f.name)
+          ).map(f => f.name) || []
         }
       };
       
@@ -359,7 +387,6 @@ https://httpbin.org/anything</textarea>
         try{
           const payload = {
             ...summaryReport,
-            allResults: summaryReport.allRuns,
             rawOutput: raw.textContent
           };
           
