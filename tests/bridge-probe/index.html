@@ -20,6 +20,12 @@
       .card{padding:10px}
       button{min-height:44px;font-size:16px;width:100%}
     }
+    /* Ensure button is visible on all WebViews */
+    #runAll {
+      -webkit-appearance: none;
+      appearance: none;
+      touch-action: manipulation;
+    }
   </style>
 </head>
 <body>
@@ -27,9 +33,9 @@
   <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
   
   <!-- One-Click Full Test -->
-  <div class="card" style="background:#e6f3ff;border:2px solid #0066cc;margin-bottom:16px;position:sticky;top:0;z-index:10">
-    <h3 style="margin-top:0;margin-bottom:12px;color:#0066cc">🚀 一键测试所有（推荐）</h3>
-    <button id="runAll" style="background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;box-shadow:0 4px 6px rgba(0,102,204,0.3);transition:all 0.2s">▶ 运行所有测试并发送</button>
+  <div class="card" style="background:#e6f3ff;border:2px solid #0066cc;margin-bottom:16px">
+    <h3 style="margin-top:0;margin-bottom:12px;color:#0066cc;font-size:18px">🚀 一键测试所有（推荐）</h3>
+    <button id="runAll" style="background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;border:0;border-radius:8px">▶ 运行所有测试并发送</button>
     <small style="color:#666;display:block;margin-top:12px;line-height:1.5">自动运行：Bridge扫描 → 网络测试 → Oracle测试 → 汇总结果 → 发送到webhook</small>
   </div>
 
@@ -432,7 +438,27 @@ https://httpbin.org/anything</textarea>
     }
   }
   
-  document.getElementById('runAll').onclick = runAllTests;
+  // Ensure button is visible on all WebViews (especially ByteDance)
+  const runAllBtn = document.getElementById('runAll');
+  if (runAllBtn) {
+    runAllBtn.onclick = runAllTests;
+    // Force show button (in case hidden by WebView)
+    runAllBtn.style.display = 'block';
+    runAllBtn.style.visibility = 'visible';
+    runAllBtn.style.opacity = '1';
+  } else {
+    console.error('runAll button not found!');
+    // Create button if missing (fallback)
+    const container = document.querySelector('.card');
+    if (container) {
+      const btn = document.createElement('button');
+      btn.id = 'runAll';
+      btn.textContent = '▶ 运行所有测试并发送';
+      btn.style.cssText = 'background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;border:0;border-radius:8px';
+      btn.onclick = runAllTests;
+      container.appendChild(btn);
+    }
+  }
   document.getElementById('safeGet').onclick = async ()=>{
     const url = 'https://www.cloudflare.com/cdn-cgi/trace';
     const res = await tryBridgeGet(url);
