@@ -372,6 +372,13 @@ https://httpbin.org/anything</textarea>
         }
       }
       
+      // Find probe report to get bridge count
+      const probeReport = results.runs.find(r => r.type === 'probe');
+      const bridgeFindings = probeReport?.report?.findings || [];
+      const detectedBridges = bridgeFindings
+        .filter(f => /bridge|native|invoke/i.test(f.name))
+        .map(f => f.name);
+      
       const summaryReport = {
         type: 'full-test-summary',
         timestamp: new Date().toISOString(),
@@ -383,11 +390,9 @@ https://httpbin.org/anything</textarea>
         summary: {
           totalTests: results.runs.length,
           totalResults: allTestResults.length,
-          bridgeCount: last?.findings?.length || 0,
+          bridgeCount: detectedBridges.length,
           testTypes: results.runs.map(r=>r.type),
-          detectedBridges: last?.findings?.filter(f => 
-            /bridge|native|invoke/i.test(f.name)
-          ).map(f => f.name) || []
+          detectedBridges: detectedBridges
         }
       };
       
