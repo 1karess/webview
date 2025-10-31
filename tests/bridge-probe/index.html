@@ -19,19 +19,46 @@
 <body>
   <h1>Generic Bridge Probe</h1>
   <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
-  <div class="row">
-    <button id="run">Run</button>
-    <button id="copy">Copy JSON</button>
-    <button id="safeGet">Safe GET (single)</button>
-    <button id="multi">Multi-domain test</button>
-    <a href="./oracle-leak.html" id="oracleLink" style="padding:8px 12px;border:1px solid #ddd;border-radius:6px;text-decoration:none;align-self:center">Oracle leak test →</a>
-    <button id="oracleInline" title="Run oracle in-place (same WebView)">Run oracle inline</button>
-    <a href="./index.html?oracle=1" id="oracleAuto" style="padding:8px 12px;border:1px solid #007acc;color:#007acc;border-radius:6px;text-decoration:none;align-self:center">Oracle inline (auto)</a>
-    <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:220px;padding:8px" />
-    <button id="send">Send to webhook</button>
-    <button id="bridgePost">Bridge POST (httpbin)</button>
-    <button id="readBody">Read body (httpbin)</button>
-    <button id="authTest">Auth header test</button>
+  
+  <!-- Core Functions -->
+  <div class="card">
+    <h3 style="margin-top:0">Core Detection</h3>
+    <div class="row">
+      <button id="run">Run</button>
+      <button id="copy">Copy JSON</button>
+    </div>
+    <small style="color:#666">Click "Run" to scan for bridges. Oracle test runs automatically after scan.</small>
+  </div>
+
+  <!-- Quick Network Tests -->
+  <div class="card">
+    <h3 style="margin-top:0">Quick Network Tests</h3>
+    <div class="row">
+      <button id="safeGet">Safe GET</button>
+      <button id="multi">Multi-domain</button>
+      <button id="readBody">Read body</button>
+    </div>
+  </div>
+
+  <!-- Advanced Tests -->
+  <div class="card">
+    <h3 style="margin-top:0">Advanced Tests</h3>
+    <div class="row">
+      <button id="bridgePost">Bridge POST</button>
+    </div>
+  </div>
+
+  <!-- Webhook Data Collection (Collapsible) -->
+  <div class="card">
+    <details>
+      <summary style="cursor:pointer;font-weight:bold">Webhook Data Collection</summary>
+      <div style="margin-top:8px">
+        <div class="row">
+          <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:200px;padding:8px" />
+          <button id="send">Send to webhook</button>
+        </div>
+      </div>
+    </details>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -60,13 +87,6 @@
   </div>
 <script>
 (function(){
-  // autorun inline oracle if ?oracle=1
-  (function(){
-    try{
-      const p = new URLSearchParams(location.search);
-      if (p.get('oracle')==='1'){ setTimeout(()=>{ document.getElementById('oracleInline').click(); }, 300); }
-    }catch{}
-  })();
   const out = document.getElementById('out');
   const raw = document.getElementById('raw');
   const summary = document.getElementById('summary');
@@ -276,21 +296,6 @@
     }catch(e){ info.error = String(e.message||e); }
     pushRaw(info);
   };
-  document.getElementById('authTest').onclick = async ()=>{
-    const info = { type:'auth-test', url:'https://httpbin.org/anything', headers:{ 'Authorization':'Bearer TEST' } };
-    try{
-      // Cookie header cannot be set by JS (forbidden header). We record that policy.
-      const init = { method:'GET', mode:'cors', cache:'no-store', credentials:'omit', headers: info.headers };
-      const fr = await fetch(info.url, init);
-      info.status = fr.status;
-      const txt = await fr.text();
-      info.bodySnippet = txt.slice(0,500);
-      info.note = 'Cookie header cannot be set by JS; use Set-Cookie or server to test cookies.';
-      summary.className='card';
-      summary.innerHTML = `Auth test → sent Authorization: Bearer TEST, status: <code>${info.status}</code>`;
-    }catch(e){ info.error = String(e.message||e); }
-    pushRaw(info);
-  };
   document.getElementById('copy').onclick = ()=>{
     const text = raw.textContent || 'No data';
     navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
@@ -387,7 +392,6 @@
   }
   // expose globally to avoid scoping issues
   window.runOracleInline = runOracleInline;
-  document.getElementById('oracleInline').onclick = window.runOracleInline;
 })();
 </script>
 </body>
