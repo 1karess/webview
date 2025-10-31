@@ -18,9 +18,6 @@
 </head>
 <body>
   <h1>Generic Bridge Probe</h1>
-  <div id="envWarning" class="card" style="background:#fff5f0;border-color:#ffd6cc;margin-bottom:12px">
-    <strong>⚠️ Environment Check:</strong> <span id="envStatus">Checking...</span>
-  </div>
   <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
   
   <!-- Core Functions -->
@@ -40,6 +37,22 @@
       <button id="safeGet">Safe GET</button>
       <button id="multi">Multi-domain</button>
       <button id="readBody">Read body</button>
+    </div>
+  </div>
+
+  <!-- Oracle XS-Leaks Test -->
+  <div class="card">
+    <h3 style="margin-top:0">Oracle XS-Leaks Test</h3>
+    <div style="margin-top:8px">
+      <label><strong>测试目标 URL（每行一个）</strong></label>
+      <textarea id="oracleTargets" style="width:100%;min-height:80px;padding:8px">https://httpbin.org/status/401
+https://httpbin.org/status/403
+https://httpbin.org/anything</textarea>
+      <small style="color:#666">输入你想测试的URL。工具会用Bridge和fetch()同时访问，对比返回结果。</small>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="runOracle">▶ 运行Oracle测试</button>
+      <label><input type="checkbox" id="oracleIncludeFetch" checked /> 同时测试fetch()基线</label>
     </div>
   </div>
 
@@ -90,26 +103,6 @@
   </div>
 <script>
 (function(){
-  // Environment detection: warn if running in desktop browser
-  (function(){
-    const envStatus = document.getElementById('envStatus');
-    const envWarning = document.getElementById('envWarning');
-    const ua = navigator.userAgent.toLowerCase();
-    const isMobile = /mobile|android|iphone|ipad/i.test(navigator.userAgent);
-    const hasKnownBridge = !!(window.TXWebKitNativeFetch || window.TelegramWebview || window.byted_mixrender_native || window.JS2NativeBridge || window.BDXBridge || (window.Telegram && window.Telegram.WebApp));
-    const isLikelyAppWebView = isMobile || hasKnownBridge || /aweme|micromessenger|qqbrowser|weibo|douyin|byte/i.test(ua);
-    
-    if (isLikelyAppWebView) {
-      envStatus.textContent = '✅ App WebView detected (mobile/known bridge). Tests will work properly.';
-      envWarning.style.background = '#e6ffed';
-      envWarning.style.borderColor = '#b7f5c6';
-    } else {
-      envStatus.textContent = '⚠️ Desktop browser detected. App bridges won\'t be found. Please test inside App WebView (mobile).';
-      envWarning.style.background = '#fff5f0';
-      envWarning.style.borderColor = '#ffd6cc';
-    }
-  })();
-  
   const out = document.getElementById('out');
   const raw = document.getElementById('raw');
   const summary = document.getElementById('summary');
@@ -267,14 +260,19 @@
   document.getElementById('send').onclick = async ()=>{
     try{
       const url = (document.getElementById('hook').value||'').trim();
-      if (!url) return alert('Enter webhook URL');
-      const payload = last || { note:'no run yet' };
-      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      if (!url) return alert('请输入Webhook URL');
+      // 发送所有测试结果（包括探针和Oracle测试）
+      const payload = {
+        allRuns: results.runs,
+        lastRun: last,
+        timestamp: new Date().toISOString()
+      };
+      const resp = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload, null, 2) });
       summary.className = 'card';
-      summary.innerHTML = `Webhook status: <code>${resp.status}</code>`;
+      summary.innerHTML = `✅ Webhook发送成功：状态码 <code>${resp.status}</code>，已发送 ${results.runs.length} 个测试结果。`;
     }catch(e){
       summary.className = 'card';
-      summary.innerHTML = `Webhook error: <code>${String(e.message||e)}</code>`;
+      summary.innerHTML = `❌ Webhook发送失败：<code>${String(e.message||e)}</code>`;
     }
   };
   document.getElementById('bridgePost').onclick = async ()=>{
@@ -324,13 +322,15 @@
     navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
   };
 
-  // Minimal in-place Oracle runner to stay in the SAME WebView instance
+  // Oracle XS-Leaks test runner
   async function runOracleInline(){
-    const targets = [
-      'https://httpbin.org/status/401',
-      'https://httpbin.org/status/403',
-      'https://httpbin.org/anything'
-    ];
+    const targetsInput = document.getElementById('oracleTargets');
+    const targets = (targetsInput?.value||'')
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    if (targets.length === 0) {
+      alert('请至少输入一个测试目标 URL');
+      return;
+    }
     function withTimeout(promise, ms){
       return Promise.race([
         Promise.resolve(promise),
@@ -385,36 +385,96 @@
     async function tryFetch(url){
       try{
         const r = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), 6000);
-        return { via:'fetch', status:r.status, ok:r.ok };
-      }catch(e){ return { via:'fetch', error: String(e&&e.message||e) }; }
+        return { method:'fetch', url, via:'fetch', status:r.status, ok:r.ok, fulfilled:true };
+      }catch(e){ return { method:'fetch', url, via:'fetch', error: String(e&&e.message||e), fulfilled:false }; }
     }
     async function tryBridge(b, url){
       try{
         const r = await withTimeout(b.fn(url, { method:'GET' }), 6000);
-        const out = { via:b.name };
+        const out = { method:b.name, url, via:b.name, fulfilled:true };
         if (r && typeof r==='object'){
           if (typeof r.status==='number') out.status=r.status;
           if (typeof r.ok==='boolean') out.ok=r.ok;
-          if (typeof r.body==='string') out.bodySnippet=r.body.slice(0,120);
+          if (typeof r.body==='string') out.bodySnippet=r.body.slice(0,300);
+          if (typeof r.data==='string') out.bodySnippet=r.data.slice(0,300);
           if (typeof r.code!=='undefined') out.errorCode=r.code;
           if (typeof r._methodUsed==='string') out.methodUsed=r._methodUsed;
         }
         return out;
-      }catch(e){ return { via:b.name, error:String(e&&e.message||e) }; }
+      }catch(e){ return { method:b.name, url, via:b.name, error:String(e&&e.message||e), fulfilled:false }; }
     }
+    
+    function classifyLeak(event){
+      const sig = { oracle:false, reasons:[] };
+      if (event.method !== 'fetch' && event.fulfilled) {
+        if (typeof event.status === 'number' || typeof event.bodySnippet === 'string'){
+          sig.oracle = true; sig.reasons.push('bridge returned status/body');
+        }
+      }
+      if (!event.fulfilled && event.error){
+        if (/AUTH|TOKEN|CSRF|LOGIN|DENY|forbidden|unauthor/i.test(event.error)){
+          sig.oracle = true; sig.reasons.push('bridge error mentions auth/state');
+        }
+      }
+      if (typeof event.errorCode !== 'undefined'){
+        sig.oracle = true; sig.reasons.push('bridge error code present');
+      }
+      return sig;
+    }
+    
+    function summarizeOracle(all){
+      const byUrl = {};
+      for (const e of all){
+        byUrl[e.url] = byUrl[e.url] || { url:e.url, total:0, oracle:0 };
+        byUrl[e.url].total++;
+        const c = classifyLeak(e);
+        if (c.oracle) byUrl[e.url].oracle++;
+      }
+      const list = Object.values(byUrl);
+      const oracleAny = list.some(x=>x.oracle>0);
+      return { oracleAny, urls:list };
+    }
+    
     const bridges = getBridges();
+    const includeFetch = document.getElementById('oracleIncludeFetch')?.checked !== false;
     const events = [];
+    
     for (const u of targets){
       for (const b of bridges){ events.push(await tryBridge(b,u)); }
-      events.push(await tryFetch(u));
+      if (includeFetch) events.push(await tryFetch(u));
     }
-    const lines = events.map(e=>`${e.via}${e.methodUsed?('['+e.methodUsed+']'):''} ${e.status||e.error||''}`);
-    out.textContent = lines.join('\n') || 'None';
-    raw.textContent = JSON.stringify({ inlineOracle:true, bridges:bridges.map(b=>b.name), events }, null, 2);
-    try{ summary.className='card'; summary.innerHTML = `Inline oracle ran with <code>${bridges.length}</code> bridge(s).`; }catch{}
+    
+    const report = {
+      type:'oracle-leak',
+      meta: {
+        time: new Date().toISOString(),
+        ua: navigator.userAgent,
+        bridges: bridges.map(b=>b.name),
+        includeFetch
+      },
+      events,
+      summary: summarizeOracle(events)
+    };
+    
+    results.runs.push(report);
+    last = report;
+    
+    const lines = events.map(e=>{
+      const tag = (e.fulfilled? '✅ OK' : '❌ ERR');
+      const leak = classifyLeak(e);
+      return `${tag} ${e.method} ${e.url}` + (leak.oracle? ` ⚠️ [泄露: ${leak.reasons.join(', ')}]` : '');
+    });
+    out.textContent = lines.join('\n') || '无结果';
+    raw.textContent = JSON.stringify(report, null, 2);
+    
+    const any = report.summary.oracleAny;
+    summary.className = 'card ' + (any ? 'warn' : 'ok');
+    summary.innerHTML = any
+      ? `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`
+      : `✅ Oracle测试完成：未发现明显的泄露信号。`;
   }
-  // expose globally to avoid scoping issues
-  window.runOracleInline = runOracleInline;
+  
+  document.getElementById('runOracle').onclick = runOracleInline;
 })();
 </script>
 </body>
