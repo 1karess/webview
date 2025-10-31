@@ -379,6 +379,15 @@ https://httpbin.org/anything</textarea>
         .filter(f => /bridge|native|invoke/i.test(f.name))
         .map(f => f.name);
       
+      // Debug: log to console if needed
+      if (detectedBridges.length === 0 && bridgeFindings.length > 0) {
+        console.log('Bridge detection debug:', {
+          probeReport: !!probeReport,
+          bridgeFindings: bridgeFindings.length,
+          bridgeNames: bridgeFindings.map(f => f.name)
+        });
+      }
+      
       const summaryReport = {
         type: 'full-test-summary',
         timestamp: new Date().toISOString(),
@@ -649,6 +658,43 @@ https://httpbin.org/anything</textarea>
       }
       if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
         bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
+      }
+      // Facebook Bridge support
+      if (typeof window._pcmBridgeCallbackHandler === 'function'){
+        bridges.push({ 
+          name:'_pcmBridgeCallbackHandler', 
+          fn: (url, init)=>new Promise((resolve,reject)=>{
+            try{
+              // Facebook Bridge typically uses postMessage or callback pattern
+              // Try common patterns
+              const req = { url, method: init?.method || 'GET', headers: init?.headers || {}, body: init?.body || '' };
+              window._pcmBridgeCallbackHandler(JSON.stringify(req), (result)=>{
+                try{
+                  const parsed = typeof result === 'string' ? JSON.parse(result) : result;
+                  resolve(parsed);
+                }catch(e){
+                  resolve({ status: 200, body: String(result) });
+                }
+              });
+            }catch(e){
+              reject(e);
+            }
+          })
+        });
+      }
+      // Check for Facebook __fb_i object
+      if (window.__fb_i && typeof window.__fb_i === 'object'){
+        // Try common Facebook Bridge methods
+        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch'];
+        for (const method of fbMethods){
+          if (typeof window.__fb_i[method] === 'function'){
+            bridges.push({ 
+              name:`__fb_i.${method}`, 
+              fn: (url, init)=>window.__fb_i[method](url, init) 
+            });
+            break; // Use first available method
+          }
+        }
       }
       const hasByteInvoke = window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function';
       const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
