@@ -64,17 +64,16 @@ https://httpbin.org/anything</textarea>
     </div>
   </div>
 
-  <!-- Webhook Data Collection (Collapsible) -->
+  <!-- Webhook Data Collection -->
   <div class="card">
-    <details>
-      <summary style="cursor:pointer;font-weight:bold">Webhook Data Collection</summary>
-      <div style="margin-top:8px">
-        <div class="row">
-          <input id="hook" placeholder="https://your-webhook" style="flex:1;min-width:200px;padding:8px" />
-          <button id="send">Send to webhook</button>
-        </div>
+    <h3 style="margin-top:0">Webhook 数据收集</h3>
+    <div style="margin-top:8px">
+      <div class="row">
+        <input id="hook" placeholder="https://webhook.site/your-id" style="flex:1;min-width:200px;padding:8px" />
+        <button id="send">📤 发送到 Webhook</button>
       </div>
-    </details>
+      <small style="color:#666;display:block;margin-top:4px">所有测试结果（探针、Oracle、网络测试）都会发送到 webhook</small>
+    </div>
   </div>
   <div id="summary" class="card"></div>
   <div class="grid">
@@ -171,8 +170,16 @@ https://httpbin.org/anything</textarea>
       : `No obvious bridges detected.`;
     out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
     raw.textContent = JSON.stringify(last, null, 2);
-    // Auto-run inline oracle right after probe to stay in the same WebView
-    try{ setTimeout(()=>window.runOracleInline && window.runOracleInline(), 300); }catch{}
+    // Auto-send to webhook if URL is preset
+    try{
+      const webhookUrl = document.getElementById('hook')?.value?.trim();
+      if (webhookUrl) {
+        setTimeout(()=>{
+          const btn = document.getElementById('send');
+          if (btn) btn.click();
+        }, 500);
+      }
+    }catch{}
   };
   async function tryBridgeGet(url){
     const out = { url };
@@ -475,6 +482,32 @@ https://httpbin.org/anything</textarea>
   }
   
   document.getElementById('runOracle').onclick = runOracleInline;
+  
+  // Parse URL parameters and auto-fill webhook URL
+  (function(){
+    try{
+      const p = new URLSearchParams(location.search);
+      const webhookUrl = p.get('webhook');
+      if (webhookUrl) {
+        const hookInput = document.getElementById('hook');
+        if (hookInput) {
+          hookInput.value = decodeURIComponent(webhookUrl);
+        }
+      }
+      // Auto-send after Oracle test if webhook is preset
+      const originalRunOracle = runOracleInline;
+      runOracleInline = async function(){
+        await originalRunOracle();
+        setTimeout(()=>{
+          const hookInput = document.getElementById('hook');
+          if (hookInput && hookInput.value.trim()) {
+            const sendBtn = document.getElementById('send');
+            if (sendBtn) sendBtn.click();
+          }
+        }, 500);
+      };
+    }catch{}
+  })();
 })();
 </script>
 </body>
