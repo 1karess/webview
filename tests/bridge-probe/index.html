@@ -883,16 +883,63 @@ https://httpbin.org/anything</textarea>
           try {
             const obj = window[key];
             if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+              let objKeys = undefined;
+              if (typeof obj === 'object') {
+                try {
+                  objKeys = Object.keys(obj).slice(0, 30);
+                } catch(e2) {
+                  // Object.keys might fail for some objects, try to get property names another way
+                  try {
+                    objKeys = [];
+                    for (let k in obj) {
+                      if (objKeys.length >= 30) break;
+                      try {
+                        if (obj.hasOwnProperty(k)) objKeys.push(k);
+                      } catch(e3) {}
+                    }
+                  } catch(e3) {}
+                }
+              }
               bridgeFindings.push({
                 name: key,
                 type: typeof obj === 'function' ? 'function' : 'object',
-                keys: typeof obj === 'object' ? Object.keys(obj).slice(0, 30) : undefined
+                keys: objKeys
               });
             }
           } catch(e) {
-            // Ignore access errors
+            // Ignore access errors, but log for debugging
+            console.log('Bridge analysis: failed to access', key, e);
           }
         }
+      }
+    }
+    
+    // Explicitly check for __fb_i even if not in window.keys (might be non-enumerable)
+    if (!bridgeFindings.find(f => f.name === '__fb_i')) {
+      try {
+        if (window.__fb_i && typeof window.__fb_i === 'object') {
+          let objKeys = undefined;
+          try {
+            objKeys = Object.keys(window.__fb_i).slice(0, 30);
+          } catch(e2) {
+            try {
+              objKeys = [];
+              for (let k in window.__fb_i) {
+                if (objKeys.length >= 30) break;
+                try {
+                  if (window.__fb_i.hasOwnProperty(k)) objKeys.push(k);
+                } catch(e3) {}
+              }
+            } catch(e3) {}
+          }
+          bridgeFindings.push({
+            name: '__fb_i',
+            type: 'object',
+            keys: objKeys
+          });
+        }
+      } catch(e) {
+        console.log('Bridge analysis: failed to access __fb_i', e);
       }
     }
     
