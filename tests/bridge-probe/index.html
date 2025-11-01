@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Bridge Probe (Generic)</title>
   <style>
     body{font-family:system-ui;padding:16px;max-width:960px;margin:0 auto}
@@ -982,7 +985,14 @@ https://httpbin.org/anything</textarea>
         // 1. Get the actual object
         let bridgeObj = null;
         try {
-          bridgeObj = window[finding.name];
+          if (finding.name === '__fb_i') {
+            // Special handling for __fb_i - use 'in' operator first
+            if ('__fb_i' in window) {
+              bridgeObj = window.__fb_i;
+            }
+          } else {
+            bridgeObj = window[finding.name];
+          }
         } catch(e) {
           bridgeInfo.analysis.accessError = String(e.message || e);
         }
