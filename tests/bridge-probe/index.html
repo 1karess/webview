@@ -669,6 +669,20 @@ https://httpbin.org/anything</textarea>
         new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))
       ]);
     }
+    
+    // Wait a bit for Facebook Bridge to initialize (if needed)
+    // Some bridges initialize asynchronously
+    await new Promise(r=>setTimeout(r, 100));
+    
+    // Try to trigger Facebook initialization if possible
+    // Check multiple times in case __fb_i initializes late
+    for (let i = 0; i < 3; i++) {
+      if ('__fb_i' in window && window.__fb_i && typeof window.__fb_i === 'object') {
+        break;
+      }
+      await new Promise(r=>setTimeout(r, 200));
+    }
+    
     function getBridges(){
       const bridges = [];
       if (typeof window.TXWebKitNativeFetch === 'function'){
@@ -681,42 +695,54 @@ https://httpbin.org/anything</textarea>
       // Note: _pcmBridgeCallbackHandler is a callback handler, not a request sender
       // We need to find the actual request sending function, likely in __fb_i
       
-      // Check for Facebook __fb_i object first (more likely to have request methods)
-      if (window.__fb_i && typeof window.__fb_i === 'object'){
-        // Try common Facebook Bridge methods
-        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get', 'ajax'];
-        for (const method of fbMethods){
-          if (typeof window.__fb_i[method] === 'function'){
-            bridges.push({ 
-              name:`__fb_i.${method}`, 
-              fn: (url, init)=>window.__fb_i[method](url, init) 
-            });
-            break; // Use first available method
-          }
-        }
-        // If no common method found, check all properties for function-like methods
-        if (bridges.length === 0 || !bridges.some(b => b.name.startsWith('__fb_i.'))) {
-          try {
-            const keys = Object.keys(window.__fb_i);
-            for (const key of keys) {
-              if (typeof window.__fb_i[key] === 'function' && 
-                  (key.toLowerCase().includes('request') || 
-                   key.toLowerCase().includes('fetch') || 
-                   key.toLowerCase().includes('http') ||
-                   key.toLowerCase().includes('network') ||
-                   key.toLowerCase().includes('send'))) {
+      // Check for Facebook __fb_i object - it might be undefined initially, so wait and retry
+      // Strategy: Check immediately, then wait a bit and check again if undefined
+      function tryGetFbI() {
+        if ('__fb_i' in window) {
+          const fb_i = window.__fb_i;
+          if (fb_i && typeof fb_i === 'object') {
+            // Try common Facebook Bridge methods
+            const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get', 'ajax'];
+            for (const method of fbMethods){
+              if (typeof fb_i[method] === 'function'){
                 bridges.push({ 
-                  name:`__fb_i.${key}`, 
-                  fn: (url, init)=>window.__fb_i[key](url, init) 
+                  name:`__fb_i.${method}`, 
+                  fn: (url, init)=>fb_i[method](url, init) 
                 });
-                break;
+                break; // Use first available method
               }
             }
-          } catch(e) {
-            // Ignore access errors
+            // If no common method found, check all properties for function-like methods
+            if (!bridges.some(b => b.name.startsWith('__fb_i.'))) {
+              try {
+                const keys = Object.keys(fb_i);
+                for (const key of keys) {
+                  if (typeof fb_i[key] === 'function' && 
+                      (key.toLowerCase().includes('request') || 
+                       key.toLowerCase().includes('fetch') || 
+                       key.toLowerCase().includes('http') ||
+                       key.toLowerCase().includes('network') ||
+                       key.toLowerCase().includes('send'))) {
+                    bridges.push({ 
+                      name:`__fb_i.${key}`, 
+                      fn: (url, init)=>fb_i[key](url, init) 
+                    });
+                    break;
+                  }
+                }
+              } catch(e) {
+                // Ignore access errors
+              }
+            }
           }
         }
       }
+      
+      // Try immediately
+      tryGetFbI();
+      
+      // If not found, wait a bit and try again (Facebook might initialize it asynchronously)
+      // Note: We can't actually wait in this synchronous function, but we'll try in Oracle test
       
       // _pcmBridgeCallbackHandler is a callback handler - we can't directly call it for requests
       // It receives (resultStatus, callbackID, resultJSON) from native side
