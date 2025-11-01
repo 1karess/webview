@@ -675,32 +675,13 @@ https://httpbin.org/anything</textarea>
         bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
       }
       // Facebook Bridge support
-      if (typeof window._pcmBridgeCallbackHandler === 'function'){
-        bridges.push({ 
-          name:'_pcmBridgeCallbackHandler', 
-          fn: (url, init)=>new Promise((resolve,reject)=>{
-            try{
-              // Facebook Bridge typically uses postMessage or callback pattern
-              // Try common patterns
-              const req = { url, method: init?.method || 'GET', headers: init?.headers || {}, body: init?.body || '' };
-              window._pcmBridgeCallbackHandler(JSON.stringify(req), (result)=>{
-                try{
-                  const parsed = typeof result === 'string' ? JSON.parse(result) : result;
-                  resolve(parsed);
-                }catch(e){
-                  resolve({ status: 200, body: String(result) });
-                }
-              });
-            }catch(e){
-              reject(e);
-            }
-          })
-        });
-      }
-      // Check for Facebook __fb_i object
+      // Note: _pcmBridgeCallbackHandler is a callback handler, not a request sender
+      // We need to find the actual request sending function, likely in __fb_i
+      
+      // Check for Facebook __fb_i object first (more likely to have request methods)
       if (window.__fb_i && typeof window.__fb_i === 'object'){
         // Try common Facebook Bridge methods
-        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get'];
+        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get', 'ajax'];
         for (const method of fbMethods){
           if (typeof window.__fb_i[method] === 'function'){
             bridges.push({ 
@@ -711,7 +692,7 @@ https://httpbin.org/anything</textarea>
           }
         }
         // If no common method found, check all properties for function-like methods
-        if (bridges.length === 0 || bridges[bridges.length-1].name !== `__fb_i.${fbMethods[0]}`) {
+        if (bridges.length === 0 || !bridges.some(b => b.name.startsWith('__fb_i.'))) {
           try {
             const keys = Object.keys(window.__fb_i);
             for (const key of keys) {
@@ -719,7 +700,8 @@ https://httpbin.org/anything</textarea>
                   (key.toLowerCase().includes('request') || 
                    key.toLowerCase().includes('fetch') || 
                    key.toLowerCase().includes('http') ||
-                   key.toLowerCase().includes('network'))) {
+                   key.toLowerCase().includes('network') ||
+                   key.toLowerCase().includes('send'))) {
                 bridges.push({ 
                   name:`__fb_i.${key}`, 
                   fn: (url, init)=>window.__fb_i[key](url, init) 
@@ -732,6 +714,10 @@ https://httpbin.org/anything</textarea>
           }
         }
       }
+      
+      // _pcmBridgeCallbackHandler is a callback handler - we can't directly call it for requests
+      // It receives (resultStatus, callbackID, resultJSON) from native side
+      // The actual request is likely initiated through __fb_i or postMessage
       const hasByteInvoke = window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function';
       const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
       const hasBDX = window.BDXBridge && typeof window.BDXBridge._invokeMethod === 'function';
@@ -884,10 +870,31 @@ https://httpbin.org/anything</textarea>
     }
     
     const findings = probeRun.report.findings;
-    const bridgeFindings = findings.filter(f => 
+    let bridgeFindings = findings.filter(f => 
       /bridge|native|invoke|callback|pcm/i.test(f.name) || 
       (f.type === 'function' && f.name && !['window', 'self', 'frames', 'top', 'parent'].includes(f.name))
     );
+    
+    // Also check window.keys for objects that might be bridges (like __fb_i)
+    const windowFinding = findings.find(f => f.name === 'window');
+    if (windowFinding && windowFinding.keys) {
+      for (const key of windowFinding.keys) {
+        if (/^__|bridge|native|fb|pcm/i.test(key) && !bridgeFindings.find(f => f.name === key)) {
+          try {
+            const obj = window[key];
+            if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+              bridgeFindings.push({
+                name: key,
+                type: typeof obj === 'function' ? 'function' : 'object',
+                keys: typeof obj === 'object' ? Object.keys(obj).slice(0, 30) : undefined
+              });
+            }
+          } catch(e) {
+            // Ignore access errors
+          }
+        }
+      }
+    }
     
     if (bridgeFindings.length === 0) {
       if (analysisOutput) analysisOutput.textContent = '❌ 未检测到Bridge对象';
