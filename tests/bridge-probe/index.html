@@ -36,7 +36,7 @@
   <div class="card" style="background:#e6f3ff;border:2px solid #0066cc;margin-bottom:16px">
     <h3 style="margin-top:0;margin-bottom:12px;color:#0066cc;font-size:18px">🚀 一键测试所有（推荐）</h3>
     <button id="runAll" style="background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;border:0;border-radius:8px">▶ 运行所有测试并发送</button>
-    <small style="color:#666;display:block;margin-top:12px;line-height:1.5">自动运行：Bridge扫描 → 网络测试 → Oracle测试 → 汇总结果 → 发送到webhook</small>
+    <small style="color:#666;display:block;margin-top:12px;line-height:1.5">自动运行：Bridge扫描 → 网络测试 → Bridge分析 → Oracle测试 → 汇总结果 → 发送到webhook</small>
   </div>
 
   <!-- Core Functions -->
@@ -57,6 +57,16 @@
       <button id="multi">Multi-domain</button>
       <button id="readBody">Read body</button>
     </div>
+  </div>
+
+  <!-- Bridge Analysis -->
+  <div class="card">
+    <h3 style="margin-top:0">Bridge 详细分析</h3>
+    <div class="row">
+      <button id="analyzeBridges">🔍 分析检测到的Bridge</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">检查Bridge的方法、参数、返回值，尝试调用并记录结果</small>
+    <pre id="bridgeAnalysis" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:60px;margin-top:8px;display:none">点击按钮开始分析...</pre>
   </div>
 
   <!-- Oracle XS-Leaks Test -->
@@ -265,7 +275,7 @@ https://httpbin.org/anything</textarea>
     
     try{
       // 1. Probe scan
-      summary.innerHTML = `⏳ 步骤 1/6: 正在扫描 Bridge...`;
+      summary.innerHTML = `⏳ 步骤 1/7: 正在扫描 Bridge...`;
       last = probe();
       const count = last.findings.length;
       summary.innerHTML = count>0
@@ -276,14 +286,14 @@ https://httpbin.org/anything</textarea>
       await new Promise(r=>setTimeout(r, 500));
       
       // 2. Safe GET
-      summary.innerHTML = `⏳ 步骤 2/6: 正在测试 Safe GET...`;
+      summary.innerHTML = `⏳ 步骤 2/7: 正在测试 Safe GET...`;
       const safeGetUrl = 'https://www.cloudflare.com/cdn-cgi/trace';
       const safeGetRes = await tryBridgeGet(safeGetUrl);
       pushRaw({ type:'safe-get', res: safeGetRes });
       await new Promise(r=>setTimeout(r, 500));
       
       // 3. Multi-domain
-      summary.innerHTML = `⏳ 步骤 3/6: 正在测试多域名...`;
+      summary.innerHTML = `⏳ 步骤 3/7: 正在测试多域名...`;
       const multiUrls = [
         'https://example.com/favicon.ico',
         'https://www.cloudflare.com/cdn-cgi/trace',
@@ -295,7 +305,7 @@ https://httpbin.org/anything</textarea>
       await new Promise(r=>setTimeout(r, 500));
       
       // 4. Read body
-      summary.innerHTML = `⏳ 步骤 4/6: 正在测试读取响应体...`;
+      summary.innerHTML = `⏳ 步骤 4/7: 正在测试读取响应体...`;
       const readBodyInfo = { type:'read-body', url:'https://httpbin.org/anything' };
       try{
         let status = null, bodySnippet = null, via = null;
@@ -322,7 +332,7 @@ https://httpbin.org/anything</textarea>
       await new Promise(r=>setTimeout(r, 500));
       
       // 5. Bridge POST
-      summary.innerHTML = `⏳ 步骤 5/6: 正在测试 Bridge POST...`;
+      summary.innerHTML = `⏳ 步骤 5/7: 正在测试 Bridge POST...`;
       const bridgePostInfo = { type:'bridge-post', url:'https://httpbin.org/post', method:'POST', headers:{'X-Test':'bridge'}, body:'{"msg":"hello_bridge"}' };
       try{
         if (typeof window.TXWebKitNativeFetch === 'function'){
@@ -339,8 +349,13 @@ https://httpbin.org/anything</textarea>
       pushRaw(bridgePostInfo);
       await new Promise(r=>setTimeout(r, 500));
       
-      // 6. Oracle test
-      summary.innerHTML = `⏳ 步骤 6/6: 正在运行 Oracle XS-Leaks 测试...`;
+      // 6. Bridge Analysis
+      summary.innerHTML = `⏳ 步骤 6/7: 正在分析检测到的Bridge...`;
+      await analyzeBridges();
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 7. Oracle test
+      summary.innerHTML = `⏳ 步骤 7/7: 正在运行 Oracle XS-Leaks 测试...`;
       await runOracleInline();
       await new Promise(r=>setTimeout(r, 500));
       
@@ -826,6 +841,171 @@ https://httpbin.org/anything</textarea>
     autoSendWebhook();
   }
   
+  // Bridge detailed analysis function
+  async function analyzeBridges(){
+    const analysisOutput = document.getElementById('bridgeAnalysis');
+    analysisOutput.style.display = 'block';
+    analysisOutput.textContent = '🔍 正在分析检测到的Bridge...';
+    
+    // Get probe results
+    const probeRun = results.runs.find(r => r.type === 'probe');
+    if (!probeRun || !probeRun.report || !probeRun.report.findings) {
+      analysisOutput.textContent = '❌ 未找到probe结果，请先运行"Run"按钮扫描Bridge';
+      return;
+    }
+    
+    const findings = probeRun.report.findings;
+    const bridgeFindings = findings.filter(f => 
+      /bridge|native|invoke|callback|pcm/i.test(f.name) || 
+      (f.type === 'function' && f.name && !['window', 'self', 'frames', 'top', 'parent'].includes(f.name))
+    );
+    
+    if (bridgeFindings.length === 0) {
+      analysisOutput.textContent = '❌ 未检测到Bridge对象';
+      return;
+    }
+    
+    const analysis = {
+      timestamp: new Date().toISOString(),
+      bridges: []
+    };
+    
+    for (const finding of bridgeFindings) {
+      const bridgeInfo = {
+        name: finding.name,
+        type: finding.type,
+        analysis: {}
+      };
+      
+      try {
+        // 1. Get the actual object
+        let bridgeObj = null;
+        try {
+          bridgeObj = window[finding.name];
+        } catch(e) {
+          bridgeInfo.analysis.accessError = String(e.message || e);
+        }
+        
+        if (bridgeObj !== null && bridgeObj !== undefined) {
+          // 2. Check if it's a function
+          if (typeof bridgeObj === 'function') {
+            bridgeInfo.analysis.isFunction = true;
+            bridgeInfo.analysis.functionLength = bridgeObj.length; // Number of parameters
+            
+            // 3. Try to inspect function signature
+            const funcStr = bridgeObj.toString();
+            bridgeInfo.analysis.functionSignature = funcStr.slice(0, 200);
+            
+            // 4. Try calling with different patterns
+            const testPatterns = [
+              { name: 'no-args', call: ()=>bridgeObj() },
+              { name: 'url-string', call: ()=>bridgeObj('https://httpbin.org/status/200') },
+              { name: 'url-object', call: ()=>bridgeObj({url: 'https://httpbin.org/status/200'}) },
+              { name: 'url-with-callback', call: ()=>new Promise((r,rej)=>{
+                try {
+                  bridgeObj('https://httpbin.org/status/200', (result)=>{ r(result); });
+                  setTimeout(()=>rej(new Error('timeout')), 2000);
+                } catch(e) { rej(e); }
+              }) },
+              { name: 'json-string', call: ()=>bridgeObj(JSON.stringify({url: 'https://httpbin.org/status/200'})) }
+            ];
+            
+            for (const pattern of testPatterns) {
+              try {
+                const result = await Promise.race([
+                  Promise.resolve(pattern.call()),
+                  new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+                ]);
+                bridgeInfo.analysis[pattern.name] = {
+                  success: true,
+                  result: typeof result === 'object' ? JSON.stringify(result).slice(0, 200) : String(result).slice(0, 200)
+                };
+                break; // Stop on first success
+              } catch(e) {
+                bridgeInfo.analysis[pattern.name] = {
+                  success: false,
+                  error: String(e.message || e).slice(0, 100)
+                };
+              }
+            }
+          } else if (typeof bridgeObj === 'object') {
+            // 5. If it's an object, list all properties
+            bridgeInfo.analysis.isObject = true;
+            try {
+              const keys = Object.keys(bridgeObj).slice(0, 20);
+              bridgeInfo.analysis.objectKeys = keys;
+              
+              // Check for common Bridge methods
+              const commonMethods = ['invoke', 'call', 'request', 'fetch', 'post', 'get', '_invokeMethod', 'nativeFetch'];
+              bridgeInfo.analysis.detectedMethods = keys.filter(k => commonMethods.some(m => k.toLowerCase().includes(m.toLowerCase())));
+              
+              // Try to call detected methods
+              for (const method of bridgeInfo.analysis.detectedMethods.slice(0, 3)) {
+                try {
+                  const methodObj = bridgeObj[method];
+                  if (typeof methodObj === 'function') {
+                    const testResult = await Promise.race([
+                      Promise.resolve(methodObj('https://httpbin.org/status/200')),
+                      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 2000))
+                    ]);
+                    bridgeInfo.analysis[`${method}_result`] = String(testResult).slice(0, 100);
+                  }
+                } catch(e) {
+                  bridgeInfo.analysis[`${method}_error`] = String(e.message || e).slice(0, 100);
+                }
+              }
+            } catch(e) {
+              bridgeInfo.analysis.objectInspectError = String(e.message || e);
+            }
+          }
+        }
+      } catch(e) {
+        bridgeInfo.analysis.generalError = String(e.message || e);
+      }
+      
+      analysis.bridges.push(bridgeInfo);
+    }
+    
+    // Display results
+    const lines = [];
+    lines.push(`📊 Bridge分析报告 (${analysis.bridges.length}个)`);
+    lines.push('='.repeat(50));
+    
+    for (const bridge of analysis.bridges) {
+      lines.push(`\n🔹 ${bridge.name} [${bridge.type}]`);
+      if (bridge.analysis.isFunction) {
+        lines.push(`   ✓ 是函数，参数数量: ${bridge.analysis.functionLength || '?'}`);
+        if (bridge.analysis.functionSignature) {
+          lines.push(`   函数签名: ${bridge.analysis.functionSignature}`);
+        }
+        // Show test results
+        for (const [pattern, result] of Object.entries(bridge.analysis)) {
+          if (['isFunction', 'functionLength', 'functionSignature'].includes(pattern)) continue;
+          if (result && typeof result === 'object') {
+            lines.push(`   ${pattern}: ${result.success ? '✅ ' + result.result : '❌ ' + result.error}`);
+          }
+        }
+      } else if (bridge.analysis.isObject) {
+        lines.push(`   ✓ 是对象`);
+        if (bridge.analysis.objectKeys) {
+          lines.push(`   属性: ${bridge.analysis.objectKeys.join(', ')}`);
+        }
+        if (bridge.analysis.detectedMethods && bridge.analysis.detectedMethods.length > 0) {
+          lines.push(`   检测到的方法: ${bridge.analysis.detectedMethods.join(', ')}`);
+        }
+      }
+    }
+    
+    analysisOutput.textContent = lines.join('\n');
+    
+    // Save to results
+    results.runs.push({ type: 'bridge-analysis', analysis, timestamp: new Date().toISOString() });
+    pushRaw({ type: 'bridge-analysis', analysis });
+    
+    autoSendWebhook();
+  }
+  
+  document.getElementById('analyzeBridges').onclick = analyzeBridges;
   document.getElementById('runOracle').onclick = runOracleInline;
   
   // Parse URL parameters and auto-fill webhook URL
