@@ -917,29 +917,47 @@ https://httpbin.org/anything</textarea>
     // Explicitly check for __fb_i even if not in window.keys (might be non-enumerable)
     if (!bridgeFindings.find(f => f.name === '__fb_i')) {
       try {
-        if (window.__fb_i && typeof window.__fb_i === 'object') {
-          let objKeys = undefined;
-          try {
-            objKeys = Object.keys(window.__fb_i).slice(0, 30);
-          } catch(e2) {
+        // Check if __fb_i exists
+        if ('__fb_i' in window) {
+          const fb_i = window.__fb_i;
+          if (fb_i && typeof fb_i === 'object') {
+            let objKeys = undefined;
             try {
-              objKeys = [];
-              for (let k in window.__fb_i) {
-                if (objKeys.length >= 30) break;
-                try {
-                  if (window.__fb_i.hasOwnProperty(k)) objKeys.push(k);
-                } catch(e3) {}
-              }
-            } catch(e3) {}
+              objKeys = Object.keys(fb_i).slice(0, 30);
+            } catch(e2) {
+              try {
+                objKeys = [];
+                for (let k in fb_i) {
+                  if (objKeys.length >= 30) break;
+                  try {
+                    if (Object.prototype.hasOwnProperty.call(fb_i, k)) objKeys.push(k);
+                  } catch(e3) {}
+                }
+              } catch(e3) {}
+            }
+            bridgeFindings.push({
+              name: '__fb_i',
+              type: 'object',
+              keys: objKeys,
+              exists: true
+            });
+          } else if (fb_i === null || fb_i === undefined) {
+            // Log that __fb_i exists but is null/undefined
+            bridgeFindings.push({
+              name: '__fb_i',
+              type: typeof fb_i === 'undefined' ? 'undefined' : 'null',
+              exists: true,
+              value: fb_i
+            });
           }
-          bridgeFindings.push({
-            name: '__fb_i',
-            type: 'object',
-            keys: objKeys
-          });
         }
       } catch(e) {
-        console.log('Bridge analysis: failed to access __fb_i', e);
+        // Even if access fails, record that we tried
+        bridgeFindings.push({
+          name: '__fb_i',
+          type: 'error',
+          analysis: { accessError: String(e.message || e) }
+        });
       }
     }
     
