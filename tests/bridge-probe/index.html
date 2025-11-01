@@ -700,7 +700,7 @@ https://httpbin.org/anything</textarea>
       // Check for Facebook __fb_i object
       if (window.__fb_i && typeof window.__fb_i === 'object'){
         // Try common Facebook Bridge methods
-        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch'];
+        const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get'];
         for (const method of fbMethods){
           if (typeof window.__fb_i[method] === 'function'){
             bridges.push({ 
@@ -708,6 +708,27 @@ https://httpbin.org/anything</textarea>
               fn: (url, init)=>window.__fb_i[method](url, init) 
             });
             break; // Use first available method
+          }
+        }
+        // If no common method found, check all properties for function-like methods
+        if (bridges.length === 0 || bridges[bridges.length-1].name !== `__fb_i.${fbMethods[0]}`) {
+          try {
+            const keys = Object.keys(window.__fb_i);
+            for (const key of keys) {
+              if (typeof window.__fb_i[key] === 'function' && 
+                  (key.toLowerCase().includes('request') || 
+                   key.toLowerCase().includes('fetch') || 
+                   key.toLowerCase().includes('http') ||
+                   key.toLowerCase().includes('network'))) {
+                bridges.push({ 
+                  name:`__fb_i.${key}`, 
+                  fn: (url, init)=>window.__fb_i[key](url, init) 
+                });
+                break;
+              }
+            }
+          } catch(e) {
+            // Ignore access errors
           }
         }
       }
@@ -843,14 +864,22 @@ https://httpbin.org/anything</textarea>
   
   // Bridge detailed analysis function
   async function analyzeBridges(){
-    const analysisOutput = document.getElementById('bridgeAnalysis');
-    analysisOutput.style.display = 'block';
-    analysisOutput.textContent = '🔍 正在分析检测到的Bridge...';
+    let analysisOutput;
+    try {
+      analysisOutput = document.getElementById('bridgeAnalysis');
+      if (analysisOutput) {
+        analysisOutput.style.display = 'block';
+        analysisOutput.textContent = '🔍 正在分析检测到的Bridge...';
+      }
+    } catch(e) {
+      // Element might not exist when called from runAllTests, that's OK
+      analysisOutput = null;
+    }
     
     // Get probe results
     const probeRun = results.runs.find(r => r.type === 'probe');
     if (!probeRun || !probeRun.report || !probeRun.report.findings) {
-      analysisOutput.textContent = '❌ 未找到probe结果，请先运行"Run"按钮扫描Bridge';
+      if (analysisOutput) analysisOutput.textContent = '❌ 未找到probe结果，请先运行"Run"按钮扫描Bridge';
       return;
     }
     
@@ -861,7 +890,7 @@ https://httpbin.org/anything</textarea>
     );
     
     if (bridgeFindings.length === 0) {
-      analysisOutput.textContent = '❌ 未检测到Bridge对象';
+      if (analysisOutput) analysisOutput.textContent = '❌ 未检测到Bridge对象';
       return;
     }
     
@@ -932,23 +961,55 @@ https://httpbin.org/anything</textarea>
             // 5. If it's an object, list all properties
             bridgeInfo.analysis.isObject = true;
             try {
-              const keys = Object.keys(bridgeObj).slice(0, 20);
+              const keys = Object.keys(bridgeObj).slice(0, 30);
               bridgeInfo.analysis.objectKeys = keys;
               
               // Check for common Bridge methods
-              const commonMethods = ['invoke', 'call', 'request', 'fetch', 'post', 'get', '_invokeMethod', 'nativeFetch'];
+              const commonMethods = ['invoke', 'call', 'request', 'fetch', 'post', 'get', '_invokeMethod', 'nativeFetch', 'send', 'httpRequest'];
               bridgeInfo.analysis.detectedMethods = keys.filter(k => commonMethods.some(m => k.toLowerCase().includes(m.toLowerCase())));
               
+              // Also check for methods with network-related keywords
+              const networkKeywords = ['request', 'fetch', 'http', 'network', 'send', 'post', 'get', 'ajax'];
+              const networkMethods = keys.filter(k => 
+                typeof bridgeObj[k] === 'function' && 
+                networkKeywords.some(kw => k.toLowerCase().includes(kw))
+              );
+              if (networkMethods.length > 0) {
+                bridgeInfo.analysis.networkMethods = networkMethods;
+              }
+              
               // Try to call detected methods
-              for (const method of bridgeInfo.analysis.detectedMethods.slice(0, 3)) {
+              const methodsToTest = bridgeInfo.analysis.detectedMethods.length > 0 
+                ? bridgeInfo.analysis.detectedMethods 
+                : (networkMethods.length > 0 ? networkMethods.slice(0, 3) : []);
+              
+              for (const method of methodsToTest.slice(0, 3)) {
                 try {
                   const methodObj = bridgeObj[method];
                   if (typeof methodObj === 'function') {
-                    const testResult = await Promise.race([
-                      Promise.resolve(methodObj('https://httpbin.org/status/200')),
-                      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 2000))
-                    ]);
-                    bridgeInfo.analysis[`${method}_result`] = String(testResult).slice(0, 100);
+                    // Try different calling patterns
+                    const patterns = [
+                      ()=>methodObj('https://httpbin.org/status/200'),
+                      ()=>methodObj({url: 'https://httpbin.org/status/200'}),
+                      ()=>new Promise((r,rej)=>{
+                        try {
+                          methodObj('https://httpbin.org/status/200', (result)=>{ r(result); });
+                          setTimeout(()=>rej(new Error('timeout')), 2000);
+                        } catch(e) { rej(e); }
+                      })
+                    ];
+                    for (const pattern of patterns) {
+                      try {
+                        const testResult = await Promise.race([
+                          Promise.resolve(pattern()),
+                          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 2000))
+                        ]);
+                        bridgeInfo.analysis[`${method}_result`] = String(testResult).slice(0, 200);
+                        break;
+                      } catch(e) {
+                        bridgeInfo.analysis[`${method}_error`] = String(e.message || e).slice(0, 100);
+                      }
+                    }
                   }
                 } catch(e) {
                   bridgeInfo.analysis[`${method}_error`] = String(e.message || e).slice(0, 100);
@@ -996,13 +1057,21 @@ https://httpbin.org/anything</textarea>
       }
     }
     
-    analysisOutput.textContent = lines.join('\n');
+    if (analysisOutput) {
+      analysisOutput.textContent = lines.join('\n');
+    }
     
     // Save to results
-    results.runs.push({ type: 'bridge-analysis', analysis, timestamp: new Date().toISOString() });
+    const bridgeAnalysisRun = { type: 'bridge-analysis', report: { analysis }, timestamp: new Date().toISOString() };
+    results.runs.push(bridgeAnalysisRun);
     pushRaw({ type: 'bridge-analysis', analysis });
     
-    autoSendWebhook();
+    // Only auto-send if not in batch mode
+    if (typeof autoSendEnabled === 'undefined' || autoSendEnabled) {
+      autoSendWebhook();
+    }
+    
+    return bridgeAnalysisRun;
   }
   
   document.getElementById('analyzeBridges').onclick = analyzeBridges;
