@@ -989,12 +989,52 @@ https://httpbin.org/anything</textarea>
             // Special handling for __fb_i - use 'in' operator first
             if ('__fb_i' in window) {
               bridgeObj = window.__fb_i;
+              // Check if it's actually undefined or null
+              if (bridgeObj === undefined || bridgeObj === null) {
+                bridgeInfo.analysis.existsButUndefined = true;
+                // Try to get property descriptor to understand why
+                try {
+                  const desc = Object.getOwnPropertyDescriptor(window, '__fb_i');
+                  if (desc) {
+                    bridgeInfo.analysis.propertyDescriptor = {
+                      enumerable: desc.enumerable,
+                      configurable: desc.configurable,
+                      hasGetter: !!desc.get,
+                      hasSetter: !!desc.set,
+                      writable: desc.writable
+                    };
+                  }
+                } catch(e) {}
+              }
+            } else {
+              bridgeInfo.analysis.notInWindow = true;
             }
           } else {
             bridgeObj = window[finding.name];
           }
         } catch(e) {
           bridgeInfo.analysis.accessError = String(e.message || e);
+        }
+        
+        // Even if bridgeObj is undefined, we should still analyze it if it exists
+        if (finding.name === '__fb_i' && bridgeInfo.analysis.existsButUndefined) {
+          // Try to access it through other means
+          try {
+            // Try Object.getOwnPropertyDescriptor
+            const desc = Object.getOwnPropertyDescriptor(window, '__fb_i');
+            if (desc && desc.get) {
+              bridgeInfo.analysis.hasGetter = true;
+              try {
+                const value = desc.get();
+                if (value !== undefined && value !== null) {
+                  bridgeObj = value;
+                  bridgeInfo.analysis.accessedViaGetter = true;
+                }
+              } catch(e) {
+                bridgeInfo.analysis.getterError = String(e.message || e);
+              }
+            }
+          } catch(e) {}
         }
         
         if (bridgeObj !== null && bridgeObj !== undefined) {
