@@ -1,0 +1,2482 @@
+<!DOCTYPE html>
+<!-- HTML5 文档类型声明 -->
+<html lang="en">
+<!-- 页面根元素，设置语言为英文（虽然实际内容主要是中文） -->
+<head>
+  <!-- 页面头部，包含元数据和样式 -->
+  <meta charset="UTF-8" />
+  <!-- 字符编码：UTF-8，支持中文等多语言字符 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- 响应式视口设置：让页面在移动设备上正确显示，宽度自适应设备，初始缩放1:1 -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <!-- 禁用缓存：确保每次加载都是最新版本，避免WebView缓存导致测试结果不准确 -->
+  <meta http-equiv="Pragma" content="no-cache" />
+  <!-- HTTP/1.0 兼容的禁用缓存指令 -->
+  <meta http-equiv="Expires" content="0" />
+  <!-- 设置过期时间为0，强制浏览器不使用缓存 -->
+  <title>Bridge Probe (Generic)</title>
+  <!-- 页面标题：显示在浏览器标签页 -->
+  <style>
+    /* CSS样式表：定义页面外观 */
+    body{font-family:system-ui;padding:16px;max-width:960px;margin:0 auto}
+    /* 页面主体样式：使用系统字体，内边距16px，最大宽度960px，水平居中 */
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    /* 网格布局：单列，列间距12px */
+    .card{border:1px solid #ddd;border-radius:8px;padding:12px}
+    /* 卡片样式：1px灰色边框，8px圆角，内边距12px */
+    .ok{background:#e6ffed;border-color:#b7f5c6}
+    /* 成功状态：浅绿色背景，绿色边框 */
+    .warn{background:#fff5f0;border-color:#ffd6cc}
+    /* 警告状态：浅红色背景，红色边框 */
+    pre{background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap}
+    /* 代码块样式：浅灰背景，内边距10px，圆角，保留换行和空格 */
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    /* 行布局：弹性盒子，元素间距8px，允许换行 */
+    button{padding:8px 12px;cursor:pointer;border:none;border-radius:6px}
+    /* 按钮样式：内边距8px上下、12px左右，鼠标指针，无边框，6px圆角 */
+    code{background:#f0f3f6;padding:2px 6px;border-radius:4px}
+    /* 行内代码样式：浅灰背景，小内边距，4px圆角 */
+    /* Mobile-friendly styles */
+    /* 移动端适配样式 */
+    @media (max-width: 600px) {
+      /* 媒体查询：屏幕宽度小于600px时应用以下样式 */
+      body{padding:12px}
+      /* 移动端：减少内边距为12px */
+      .card{padding:10px}
+      /* 移动端：卡片内边距减少为10px */
+      button{min-height:44px;font-size:16px;width:100%}
+      /* 移动端按钮：最小高度44px（iOS推荐触摸目标大小），字体16px避免自动缩放，宽度100% */
+    }
+    /* Ensure button is visible on all WebViews */
+    /* 确保按钮在所有WebView中可见（特别是字节跳动的WebView可能隐藏某些元素） */
+    #runAll {
+      -webkit-appearance: none;
+      /* 移除WebKit浏览器的默认外观（iOS Safari） */
+      appearance: none;
+      /* 移除标准浏览器的默认外观 */
+      touch-action: manipulation;
+      /* 触摸操作优化：禁用双击缩放，提升点击响应速度 */
+    }
+  </style>
+</head>
+<!-- HTML头部结束标签 -->
+<body>
+  <!-- 页面主体开始：包含所有用户界面元素 -->
+  <h1>Generic Bridge Probe</h1>
+  <!-- 页面主标题：通用Bridge探针工具 -->
+  <p>Open this page inside any in-app WebView to detect injected JS bridges or special objects. Then tap Run.</p>
+  <!-- 页面说明文字：提示用户在App的WebView中打开此页面，然后点击Run按钮 -->
+  
+  <!-- One-Click Full Test -->
+  <!-- 一键完整测试区域：推荐使用，自动执行所有测试步骤 -->
+  <div class="card" style="background:#e6f3ff;border:2px solid #0066cc;margin-bottom:16px">
+    <!-- 卡片容器：蓝色背景，突出显示，底部间距16px -->
+    <h3 style="margin-top:0;margin-bottom:12px;color:#0066cc;font-size:18px">🚀 一键测试所有（推荐）</h3>
+    <!-- 卡片标题：提示这是推荐功能，使用蓝色文字 -->
+    <button id="runAll" style="background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;border:0;border-radius:8px">▶ 运行所有测试并发送</button>
+    <!-- 一键测试按钮：蓝色背景，白色文字，全宽，最小高度50px（适合触摸操作） -->
+    <small style="color:#666;display:block;margin-top:12px;line-height:1.5">自动运行：Bridge扫描 → 网络测试 → Bridge分析 → Oracle测试 → 汇总结果 → 发送到webhook</small>
+    <!-- 说明文字：解释一键测试的执行流程（灰色小字） -->
+  </div>
+
+  <!-- Core Functions -->
+  <!-- 核心功能区域：基础的Bridge检测功能 -->
+  <div class="card">
+    <!-- 卡片容器：默认样式 -->
+    <h3 style="margin-top:0">Core Detection</h3>
+    <!-- 区域标题：核心检测 -->
+    <div class="row">
+      <!-- 按钮行容器：使用flex布局，横向排列 -->
+      <button id="run">Run</button>
+      <!-- Run按钮：执行Bridge扫描，id="run"用于JavaScript绑定事件 -->
+      <button id="copy">Copy JSON</button>
+      <!-- Copy按钮：复制JSON格式的测试结果到剪贴板 -->
+    </div>
+    <small style="color:#666">Click "Run" to scan for bridges.</small>
+    <!-- 提示文字：点击Run按钮扫描Bridge -->
+  </div>
+
+  <!-- Quick Network Tests -->
+  <!-- 快速网络测试区域：测试Bridge的网络请求能力 -->
+  <div class="card">
+    <!-- 卡片容器 -->
+    <h3 style="margin-top:0">Quick Network Tests</h3>
+    <!-- 区域标题：快速网络测试 -->
+    <div class="row">
+      <!-- 按钮行容器 -->
+      <button id="safeGet">Safe GET</button>
+      <!-- Safe GET按钮：使用Bridge或fetch()安全地发送GET请求（测试基本网络功能） -->
+      <button id="multi">Multi-domain</button>
+      <!-- Multi-domain按钮：测试多个不同域名的请求（检查跨域限制） -->
+      <button id="readBody">Read body</button>
+      <!-- Read body按钮：测试读取响应体内容（检查Bridge是否能返回完整响应） -->
+    </div>
+  </div>
+
+  <!-- Bridge Analysis -->
+  <!-- Bridge详细分析区域：深入分析检测到的Bridge对象 -->
+  <div class="card">
+    <!-- 卡片容器 -->
+    <h3 style="margin-top:0">Bridge 详细分析</h3>
+    <!-- 区域标题：Bridge详细分析 -->
+    <div class="row">
+      <!-- 按钮行容器 -->
+      <button id="analyzeBridges">🔍 分析检测到的Bridge</button>
+      <!-- 分析按钮：点击后分析所有检测到的Bridge，检查方法、参数、返回值等 -->
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">检查Bridge的方法、参数、返回值，尝试调用并记录结果</small>
+    <!-- 说明文字：解释分析功能的作用 -->
+    <pre id="bridgeAnalysis" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:60px;margin-top:8px;display:none">点击按钮开始分析...</pre>
+    <!-- 分析结果输出区域：初始隐藏(display:none)，点击按钮后显示分析结果（灰色背景，保留换行） -->
+  </div>
+
+  <!-- Oracle XS-Leaks Test -->
+  <!-- Oracle XS-Leaks测试区域：对比Bridge和fetch()的返回结果，检测信息泄露 -->
+  <div class="card">
+    <!-- 卡片容器 -->
+    <h3 style="margin-top:0">Oracle XS-Leaks Test</h3>
+    <!-- 区域标题：Oracle XS-Leaks测试（跨站泄露测试） -->
+    
+    <!-- 快速测试真实网站 -->
+    <div style="background:#e6f3ff;border:2px solid #1890ff;border-radius:6px;padding:12px;margin-bottom:12px">
+      <h4 style="margin-top:0;color:#1890ff">🚀 快速测试真实网站（推荐）</h4>
+      <p style="margin:8px 0;font-size:14px">点击按钮打开网站并登录，URL会自动填入下方测试框：</p>
+      <div class="row" style="margin:8px 0">
+        <button id="openWeibo" style="background:#ff6b6b;color:white">打开微博并登录</button>
+        <button id="openZhihu" style="background:#0084ff;color:white">打开知乎并登录</button>
+        <button id="openBilibili" style="background:#fb7299;color:white">打开B站并登录</button>
+        <button id="openDouban" style="background:#42bd56;color:white">打开豆瓣并登录</button>
+        <button id="openTwitter" style="background:#000000;color:white">Open Twitter/X</button>
+        <button id="openFacebook" style="background:#1877f2;color:white">Open Facebook</button>
+        <button id="openInstagram" style="background:#f77737;color:white">Open Instagram</button>
+        <button id="openReddit" style="background:#ff4500;color:white">Open Reddit</button>
+        <button id="openAmazon" style="background:#146eb4;color:white">Open Amazon</button>
+      </div>
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:8px;margin:8px 0;font-size:12px">
+        <strong>⚠️ 提示：</strong>某些网站（如B站）可能有严格的安全策略，即使使用Bridge也无法访问。这是正常现象，说明该网站有良好的安全防护。如果所有请求都失败，建议：
+        <ul style="margin:4px 0;padding-left:20px">
+          <li>尝试测试其他网站（微博、知乎等）</li>
+          <li>使用 <code>httpbin.org</code> 验证工具是否正常工作</li>
+          <li>在报告中记录该网站的防护情况</li>
+        </ul>
+      </div>
+      <div id="siteFrameContainer" style="display:none;margin-top:12px;border:2px solid #1890ff;border-radius:6px;overflow:hidden">
+        <div style="background:#1890ff;color:white;padding:8px;display:flex;justify-content:space-between;align-items:center">
+          <span id="siteFrameTitle" style="font-weight:bold">正在加载...</span>
+          <button id="closeSiteFrame" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">关闭</button>
+        </div>
+        <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
+      </div>
+      <small style="color:#666;display:block;margin-top:8px">步骤：1. 点击"打开XX并登录" → 2. 在下方iframe中登录 → 3. 点击下方"运行Oracle测试"按钮</small>
+    </div>
+    
+    <div style="margin-top:8px">
+      <!-- 内容区域：顶部间距8px -->
+      <label><strong>测试目标 URL（每行一个）</strong></label>
+      <!-- 标签：说明输入框用途 -->
+      <textarea id="oracleTargets" style="width:100%;min-height:80px;padding:8px">https://httpbin.org/status/401
+https://httpbin.org/status/403
+https://httpbin.org/anything</textarea>
+      <!-- 文本输入框：多行输入，每行一个URL，默认提供3个测试URL（httpbin.org是测试HTTP请求的工具） -->
+      <small style="color:#666">输入你想测试的URL。工具会用Bridge和fetch()同时访问，对比返回结果。</small>
+      <!-- 说明文字：解释Oracle测试的工作原理 -->
+    </div>
+    <div class="row" style="margin-top:8px">
+      <!-- 按钮行容器：顶部间距8px -->
+      <button id="runOracle">▶ 运行Oracle测试</button>
+      <!-- Oracle测试按钮：执行Oracle测试，对比Bridge和fetch()的响应 -->
+      <label><input type="checkbox" id="oracleIncludeFetch" checked /> 同时测试fetch()基线</label>
+      <!-- 复选框：默认选中，决定是否同时测试fetch()作为对比基线 -->
+    </div>
+  </div>
+
+  <!-- Facebook Bridge 系统性测试 -->
+  <!-- Facebook Bridge系统性测试区域：检测、测试、判断Facebook Bridge是否可用 -->
+  <div class="card" style="background:#e6f3ff;border:2px solid #1877f2;margin-bottom:16px">
+    <h3 style="margin-top:0;color:#1877f2;font-size:18px">📘 Facebook Bridge 系统性测试</h3>
+    <div class="row">
+      <button id="testFBBridge">🔍 测试Facebook Bridge</button>
+      <button id="testFBAllBridges">🔍 测试所有Bridge</button>
+      <button id="testFBTiming">⏱️ 时序测试（即使undefined）</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">系统性测试Facebook Bridge：检测存在 → 尝试调用 → 判断可用性 → 测时序（即使返回undefined）</small>
+    <pre id="fbTestResults" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:100px;margin-top:8px;max-height:400px;overflow-y:auto;font-size:12px;display:none">点击按钮开始测试...</pre>
+  </div>
+
+  <!-- Bridge Interception & Monitoring -->
+  <!-- Bridge拦截和监控区域：拦截Bridge调用，监控数据传输 -->
+  <div class="card">
+    <h3 style="margin-top:0">🔒 Bridge 拦截与监控</h3>
+    <div class="row">
+      <button id="startInterception">开始拦截</button>
+      <button id="stopInterception">停止拦截</button>
+      <button id="clearInterceptionLog">清空日志</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">拦截所有Bridge调用，记录参数、返回值、调用时间</small>
+    <pre id="interceptionLog" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:100px;margin-top:8px;max-height:300px;overflow-y:auto;font-size:12px">等待拦截...</pre>
+  </div>
+
+  <!-- Side-Channel Attacks -->
+  <!-- 侧信道攻击测试区域：时间攻击、缓存攻击、字体枚举等 -->
+  <div class="card">
+    <h3 style="margin-top:0">📊 侧信道攻击测试</h3>
+    <div class="row">
+      <button id="testTiming">时间攻击</button>
+      <button id="testCache">缓存攻击</button>
+      <button id="testFonts">字体枚举</button>
+      <button id="testPerformance">性能API</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">测试各种侧信道攻击方法，检测隐私泄漏</small>
+    <pre id="sideChannelResults" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:60px;margin-top:8px;display:none">点击按钮开始测试...</pre>
+  </div>
+
+  <!-- Telegram Specific Tests -->
+  <!-- Telegram特定功能测试区域：颜色监听、主题检测等 -->
+  <div class="card">
+    <h3 style="margin-top:0">📱 Telegram 特定测试</h3>
+    <div class="row">
+      <button id="testTelegramColors">颜色/主题检测</button>
+      <button id="testTelegramBridge">Telegram Bridge</button>
+      <button id="testTelegramListeners">监听器测试</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">测试Telegram注入的自定义功能，检测隐私泄漏</small>
+    <pre id="telegramResults" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:60px;margin-top:8px;display:none">点击按钮开始测试...</pre>
+  </div>
+
+  <!-- Privacy Leakage Tests -->
+  <!-- 隐私泄漏测试区域：用户偏好、系统信息、设备指纹等 -->
+  <div class="card">
+    <h3 style="margin-top:0">🔍 隐私泄漏检测</h3>
+    <div class="row">
+      <button id="testUserPreferences">用户偏好</button>
+      <button id="testSystemInfo">系统信息</button>
+      <button id="testDeviceFingerprint">设备指纹</button>
+      <button id="testAllPrivacy">全部测试</button>
+    </div>
+    <small style="color:#666;display:block;margin-top:4px">检测可能泄漏用户隐私的函数、属性、API</small>
+    <pre id="privacyResults" style="background:#f6f8fa;padding:10px;border-radius:6px;white-space:pre-wrap;min-height:60px;margin-top:8px;display:none">点击按钮开始测试...</pre>
+  </div>
+
+  <!-- Advanced Tests -->
+  <!-- 高级测试区域：额外的测试功能 -->
+  <div class="card">
+    <!-- 卡片容器 -->
+    <h3 style="margin-top:0">Advanced Tests</h3>
+    <!-- 区域标题：高级测试 -->
+    <div class="row">
+      <!-- 按钮行容器 -->
+      <button id="bridgePost">Bridge POST</button>
+      <!-- Bridge POST按钮：测试Bridge发送POST请求的能力（带请求体） -->
+    </div>
+  </div>
+
+  <!-- Webhook Data Collection -->
+  <!-- Webhook数据收集区域：配置webhook URL，自动发送测试结果 -->
+  <div class="card">
+    <!-- 卡片容器 -->
+    <h3 style="margin-top:0">Webhook 数据收集</h3>
+    <!-- 区域标题：Webhook数据收集 -->
+    <div style="margin-top:8px">
+      <!-- 内容区域：顶部间距8px -->
+      <div class="row">
+        <!-- 输入行容器 -->
+        <input id="hook" placeholder="https://webhook.site/your-id" style="flex:1;min-width:200px;padding:8px" />
+        <!-- Webhook输入框：输入webhook URL（webhook.site是测试webhook的工具），flex:1表示占据剩余空间 -->
+        <button id="send">📤 发送到 Webhook</button>
+        <!-- 发送按钮：手动触发发送测试结果到webhook -->
+      </div>
+      <small style="color:#666;display:block;margin-top:4px">所有测试结果（探针、Oracle、网络测试）都会发送到 webhook</small>
+      <!-- 说明文字：解释哪些数据会被发送到webhook -->
+    </div>
+  </div>
+  <div id="summary" class="card"></div>
+  <!-- 摘要区域：动态显示测试状态和统计信息，初始为空，JavaScript会填充内容 -->
+  <div class="grid">
+    <!-- 网格容器：使用CSS Grid布局，包含多个结果展示区域 -->
+    <div class="card"><h3>Findings</h3><pre id="out">Ready.</pre></div>
+    <!-- 发现列表区域：显示检测到的Bridge列表（格式化文本，易读） -->
+    <div class="card"><h3>Raw</h3><pre id="raw"></pre></div>
+    <!-- 原始数据区域：显示完整的JSON格式测试结果（用于复制和分析） -->
+    <div class="card">
+      <!-- 自定义请求测试器卡片 -->
+      <h3>Custom request tester</h3>
+      <!-- 区域标题：自定义请求测试器 -->
+      <div class="row" style="gap:6px">
+        <!-- 第一行：方法选择器和URL输入框，元素间距6px -->
+        <select id="m" style="padding:8px">
+          <!-- HTTP方法选择器：下拉菜单，选择GET或POST -->
+          <option>GET</option>
+          <!-- GET选项：HTTP GET请求 -->
+          <option>POST</option>
+          <!-- POST选项：HTTP POST请求 -->
+        </select>
+        <input id="u" placeholder="https://httpbin.org/get" style="flex:1;min-width:260px;padding:8px" />
+        <!-- URL输入框：输入要测试的URL，flex:1占据剩余空间，最小宽度260px -->
+      </div>
+      <div class="row" style="margin-top:6px;gap:6px">
+        <!-- 第二行：HTTP请求头输入框，顶部间距6px -->
+        <input id="h" placeholder="Header: X-Test=1; Accept=*/*" style="flex:1;min-width:260px;padding:8px" />
+        <!-- 请求头输入框：输入自定义HTTP头（格式：Header: Value; Header2: Value2），用于测试携带特定头信息 -->
+      </div>
+      <div class="row" style="margin-top:6px;gap:6px">
+        <!-- 第三行：请求体输入框（用于POST请求），顶部间距6px -->
+        <textarea id="b" placeholder="Body (for POST)" style="flex:1;min-height:80px;padding:8px"></textarea>
+        <!-- 请求体输入框：多行文本，用于POST请求的请求体内容（JSON、表单数据等） -->
+      </div>
+      <div class="row" style="margin-top:8px">
+        <!-- 第四行：发送按钮，顶部间距8px -->
+        <button id="sendReq">Send</button>
+        <!-- 发送按钮：执行自定义请求，使用Bridge或fetch()发送请求 -->
+      </div>
+      <pre id="reqOut" style="margin-top:8px"></pre>
+      <!-- 请求结果输出区域：显示自定义请求的响应结果（JSON格式，灰色背景） -->
+    </div>
+  </div>
+<script>
+/* JavaScript 代码开始：使用立即执行函数(IIFE)避免全局变量污染 */
+(function(){
+  /* 获取页面DOM元素引用 */
+  const out = document.getElementById('out');
+  /* 输出区域：显示检测到的Bridge列表 */
+  const raw = document.getElementById('raw');
+  /* 原始数据区域：显示完整的JSON格式测试结果 */
+  const summary = document.getElementById('summary');
+  /* 摘要区域：显示测试状态和统计信息 */
+  const results = { runs: [] };
+  /* 测试结果存储：数组，记录所有测试运行的结果 */
+  const patterns = [
+    /* 可疑对象名称匹配模式：正则表达式数组，用于识别可能是Bridge的对象 */
+    /telegram|tg|webapp/i,
+    /* 模式1：匹配Telegram相关（telegram、tg、webapp，不区分大小写） */
+    /bridge|native|app|sdk|jsi|webview/i,
+    /* 模式2：匹配Bridge相关（bridge、native、app、sdk、jsi、webview，不区分大小写） */
+  ];
+  function looksSuspicious(name, value){
+    /* 判断对象是否可疑（可能是Bridge） */
+    /* 参数：name - 对象名称，value - 对象值 */
+    if (!name) return false;
+    /* 如果名称为空，直接返回false（不可疑） */
+    if (patterns.some(p=>p.test(name))) return true;
+    /* 如果名称匹配任何一个模式，返回true（可疑） */
+    if (value && typeof value === 'object'){
+      /* 如果值是对象类型，进一步检查其属性 */
+      const s = Object.keys(value).join(',');
+      /* 获取对象的所有属性名，用逗号连接成字符串 */
+      if (/bridge|native|invoke|postMessage|sdk/i.test(s)) return true;
+      /* 如果属性名中包含bridge相关关键词，返回true（可疑） */
+    }
+    return false;
+    /* 其他情况返回false（不可疑） */
+  }
+  function safeCall(fn){
+    /* 安全调用函数：捕获异常，避免测试过程中崩溃 */
+    /* 参数：fn - 要调用的函数 */
+    try{ 
+      /* 尝试调用函数 */
+      const r = fn(); 
+      /* 执行函数，获取返回值 */
+      return { ok:true, value: String(r).slice(0,200) }; 
+      /* 成功：返回{ok:true, value:字符串化的返回值（前200字符）} */
+    }
+    catch(e){ 
+      /* 捕获异常 */
+      return { ok:false, error: String(e.message||e).slice(0,200) }; 
+      /* 失败：返回{ok:false, error:错误信息（前200字符）} */
+    }
+  }
+  function probe(){
+    /* 核心扫描函数：遍历window对象，找出所有可疑的Bridge对象 */
+    const t0 = performance.now();
+    /* 记录开始时间：使用performance.now()获取高精度时间戳（毫秒） */
+    const findings = [];
+    /* 发现列表：存储所有检测到的可疑对象信息 */
+    const seen = new Set();
+    /* 已访问集合：使用Set避免重复处理同一个属性 */
+    const known = {
+      /* 已知环境信息：记录当前WebView的基本信息 */
+      hasTelegramWebApp: !!(window.Telegram && window.Telegram.WebApp),
+      /* Telegram WebApp检测：检查是否存在Telegram.WebApp对象（Telegram Bot的WebApp API） */
+      hasTelegramWebview: !!window.TelegramWebview,
+      /* Telegram Webview检测：检查是否存在TelegramWebview对象 */
+      userAgent: navigator.userAgent,
+      /* 用户代理字符串：标识浏览器/WebView类型（如iOS Safari、Android WebView等） */
+      platform: navigator.platform,
+      /* 平台信息：操作系统平台（如MacIntel、Linux x86_64等） */
+      time: new Date().toISOString(),
+      /* 时间戳：ISO格式的当前时间（用于记录测试时间） */
+    };
+    for (const k in window){
+      /* 遍历window对象的所有属性 */
+      if (seen.has(k)) continue; 
+      /* 如果已经处理过这个属性，跳过（避免重复） */
+      seen.add(k);
+      /* 标记这个属性已访问 */
+      let v; 
+      /* 属性值：用于存储window[k]的值 */
+      try{ 
+        v = window[k]; 
+        /* 尝试获取属性值 */
+      }catch{ 
+        v = undefined; 
+        /* 如果访问失败（某些属性可能是受限的），设置为undefined */
+      }
+      const sus = looksSuspicious(k, v);
+      /* 判断属性是否可疑：调用looksSuspicious函数检查名称和值 */
+      if (!sus) continue;
+      /* 如果不可疑，跳过这个属性 */
+      const entry = { name:k, type: typeof v };
+      /* 创建可疑对象条目：记录名称和类型 */
+      if (typeof v === 'function'){
+        /* 如果值是函数类型 */
+        entry.sample = safeCall(()=>v());
+        /* 尝试调用函数：安全调用，捕获异常，记录返回值或错误 */
+      } else if (v && typeof v === 'object'){
+        /* 如果值是对象类型 */
+        const keys = Object.keys(v).slice(0,8);
+        /* 获取对象的前8个属性名（限制数量，避免处理过大的对象） */
+        entry.keys = keys;
+        /* 记录属性名列表 */
+        for (const m of keys){
+          /* 遍历对象的属性名 */
+          if (typeof v[m] === 'function'){
+            /* 如果属性值是函数 */
+            entry.call = { method:m, result: safeCall(()=>v[m]()) };
+            /* 尝试调用这个函数：记录方法名和调用结果 */
+            break;
+            /* 找到第一个函数就停止（只测试一个方法，避免过度调用） */
+          }
+        }
+      }
+      findings.push(entry);
+      /* 将可疑对象条目添加到发现列表 */
+      if (findings.length>=100) break;
+      /* 如果发现超过100个可疑对象，停止扫描（避免性能问题） */
+    }
+    const t1 = performance.now();
+    /* 记录结束时间 */
+    const report = { known, findings, durationMs: +(t1-t0).toFixed(2) };
+    /* 生成扫描报告：包含环境信息、发现列表、耗时（精确到小数点后2位） */
+    results.runs.push({ type:'probe', report });
+    /* 将报告保存到results.runs数组，类型标记为'probe' */
+    return report;
+    /* 返回报告对象 */
+  }
+  let last = null;
+  /* 最后一次测试结果：存储最近一次运行的测试报告 */
+  document.getElementById('run').onclick = ()=>{
+    /* "Run"按钮点击事件：执行Bridge扫描 */
+    last = probe();
+    /* 执行probe扫描：调用probe()函数，将结果保存到last */
+    const count = last.findings.length;
+    /* 获取检测到的可疑对象数量 */
+    summary.className = 'card ' + (count>0 ? 'warn' : 'ok');
+    /* 设置摘要区域样式：如果检测到可疑对象，使用警告样式（红色），否则使用成功样式（绿色） */
+    summary.innerHTML = count>0
+      ? `Possible bridges found: <strong>${count}</strong> (review carefully)`
+      /* 如果检测到可疑对象：显示数量，提醒仔细检查 */
+      : `No obvious bridges detected.`;
+      /* 如果未检测到：显示未检测到明显的Bridge */
+    out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
+    /* 格式化输出：将发现列表转换为可读文本，包含序号、名称、类型、属性列表（如果有）、调用结果（如果有） */
+    raw.textContent = JSON.stringify(last, null, 2);
+    /* 原始数据输出：将完整的报告对象转换为格式化的JSON字符串（缩进2空格） */
+    // Auto-send to webhook if URL is preset
+    /* 如果预设了webhook URL，自动发送结果 */
+    try{
+      const webhookUrl = document.getElementById('hook')?.value?.trim();
+      /* 获取webhook输入框的值，去除首尾空格 */
+      if (webhookUrl) {
+        /* 如果webhook URL不为空 */
+        setTimeout(()=>{
+          /* 延迟500毫秒后执行（给页面渲染时间） */
+          const btn = document.getElementById('send');
+          /* 获取"发送"按钮 */
+          if (btn) btn.click();
+          /* 如果按钮存在，自动点击（触发webhook发送） */
+        }, 500);
+      }
+    }catch{}
+    /* 捕获异常：如果webhook相关操作失败，静默处理（不影响主要功能） */
+  };
+  async function tryBridgeGet(url){
+    const out = { url };
+    try{
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        const p = window.TXWebKitNativeFetch(url);
+        const val = await Promise.race([
+          Promise.resolve(p).then(()=>"ok"),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 5000))
+        ]);
+        out.via = 'TXWebKitNativeFetch';
+        out.result = val;
+      } else {
+        const r = await Promise.race([
+          fetch(url, { mode:'no-cors', cache:'no-store', credentials:'omit' }).then(()=>"ok"),
+          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 5000))
+        ]);
+        out.via = 'fetch';
+        out.result = r;
+      }
+    }catch(e){
+      out.error = String(e.message||e);
+    }
+    return out;
+  }
+  function pushRaw(obj){
+    // 也保存到results.runs中，避免被覆盖丢失
+    results.runs.push({ type:'extra', data: obj, timestamp: new Date().toISOString() });
+    const merged = Object.assign({}, last||{}, { extra: (last&&last.extra)||[] });
+    merged.extra = merged.extra || [];
+    merged.extra.push(obj);
+    last = merged;
+    raw.textContent = JSON.stringify(last, null, 2);
+  }
+  
+  // Auto-send to webhook if URL is preset (can be disabled for batch testing)
+  let autoSendEnabled = true;
+  function autoSendWebhook(){
+    if (!autoSendEnabled) return;
+    try{
+      const hookInput = document.getElementById('hook');
+      const webhookUrl = hookInput?.value?.trim();
+      if (webhookUrl) {
+        setTimeout(()=>{
+          const sendBtn = document.getElementById('send');
+          if (sendBtn) sendBtn.click();
+        }, 300);
+      }
+    }catch{}
+  }
+  
+  // Run all tests sequentially and send summary
+  async function runAllTests(){
+    const hookInput = document.getElementById('hook');
+    const webhookUrl = hookInput?.value?.trim();
+    
+    summary.className = 'card';
+    summary.innerHTML = `⏳ 正在运行所有测试，请稍候...<br><small>这可能需要几分钟时间</small>`;
+    out.textContent = '正在运行所有测试...';
+    
+    // Disable auto-send during batch testing
+    autoSendEnabled = false;
+    const startTime = Date.now();
+    
+    try{
+      // 1. Probe scan
+      summary.innerHTML = `⏳ 步骤 1/7: 正在扫描 Bridge...`;
+      last = probe();
+      const count = last.findings.length;
+      summary.innerHTML = count>0
+        ? `Possible bridges found: <strong>${count}</strong> (review carefully)`
+        : `No obvious bridges detected.`;
+      out.textContent = last.findings.map((f,i)=>`${i+1}. ${f.name} [${f.type}]` + (f.keys?`\n   keys: ${f.keys.join(', ')}`:'') + (f.call?`\n   call: ${f.call.method} -> ${JSON.stringify(f.call.result)}`:'' )).join('\n\n') || 'None';
+      raw.textContent = JSON.stringify(last, null, 2);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 2. Safe GET
+      summary.innerHTML = `⏳ 步骤 2/7: 正在测试 Safe GET...`;
+      const safeGetUrl = 'https://www.cloudflare.com/cdn-cgi/trace';
+      const safeGetRes = await tryBridgeGet(safeGetUrl);
+      pushRaw({ type:'safe-get', res: safeGetRes });
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 3. Multi-domain
+      summary.innerHTML = `⏳ 步骤 3/7: 正在测试多域名...`;
+      const multiUrls = [
+        'https://example.com/favicon.ico',
+        'https://www.cloudflare.com/cdn-cgi/trace',
+        location.origin + '/index.html'
+      ];
+      const multiResults = [];
+      for (const u of multiUrls){ multiResults.push(await tryBridgeGet(u)); }
+      pushRaw({ type:'multi-domain', results: multiResults });
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 4. Read body
+      summary.innerHTML = `⏳ 步骤 4/7: 正在测试读取响应体...`;
+      const readBodyInfo = { type:'read-body', url:'https://httpbin.org/anything' };
+      try{
+        let status = null, bodySnippet = null, via = null;
+        if (typeof window.TXWebKitNativeFetch === 'function'){
+          const r = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(readBodyInfo.url)),
+            new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),7000))
+          ]);
+          if (r && typeof r === 'object'){
+            if (typeof r.status === 'number') status = r.status;
+            if (typeof r.text === 'function'){
+              try{ const t = await r.text(); bodySnippet = String(t).slice(0,500); }catch{}
+            }
+          }
+          via = 'TXWebKitNativeFetch';
+        }
+        if (bodySnippet==null){
+          const fr = await fetch(readBodyInfo.url, { mode:'cors', cache:'no-store', credentials:'omit' });
+          status = fr.status; const t = await fr.text(); bodySnippet = t.slice(0,500); via = via || 'fetch';
+        }
+        readBodyInfo.via = via; readBodyInfo.status = status; readBodyInfo.bodySnippet = bodySnippet;
+      }catch(e){ readBodyInfo.error = String(e.message||e); }
+      pushRaw(readBodyInfo);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 5. Bridge POST
+      summary.innerHTML = `⏳ 步骤 5/7: 正在测试 Bridge POST...`;
+      const bridgePostInfo = { type:'bridge-post', url:'https://httpbin.org/post', method:'POST', headers:{'X-Test':'bridge'}, body:'{"msg":"hello_bridge"}' };
+      try{
+        if (typeof window.TXWebKitNativeFetch === 'function'){
+          const p = window.TXWebKitNativeFetch(bridgePostInfo.url, { method:'POST', headers: bridgePostInfo.headers, body: bridgePostInfo.body });
+          await Promise.race([Promise.resolve(p), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+          bridgePostInfo.via = 'TXWebKitNativeFetch';
+          bridgePostInfo.result = 'ok';
+        }else{
+          bridgePostInfo.error = 'TXWebKitNativeFetch not found';
+        }
+      }catch(e){ bridgePostInfo.error = String(e.message||e); }
+      // Save to results.runs directly (not just extra)
+      results.runs.push({ type:'bridge-post', data: bridgePostInfo, timestamp: new Date().toISOString() });
+      pushRaw(bridgePostInfo);
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 6. Bridge Analysis
+      summary.innerHTML = `⏳ 步骤 6/7: 正在分析检测到的Bridge...`;
+      await analyzeBridges();
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // 7. Oracle test
+      summary.innerHTML = `⏳ 步骤 7/7: 正在运行 Oracle XS-Leaks 测试...`;
+      await runOracleInline();
+      await new Promise(r=>setTimeout(r, 500));
+      
+      // Re-enable auto-send
+      autoSendEnabled = true;
+      
+      // Wait a bit more to ensure all async operations complete
+      await new Promise(r=>setTimeout(r, 1000));
+      
+      // Generate summary
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      
+      // Collect all test results including extra items
+      const allTestResults = [];
+      for (const run of results.runs) {
+        allTestResults.push(run);
+      }
+      // Also include last.extra if exists
+      if (last && last.extra && Array.isArray(last.extra)) {
+        for (const item of last.extra) {
+          // Avoid duplicates - check if already in allTestResults
+          const exists = allTestResults.some(r => 
+            r.type === 'extra' && JSON.stringify(r.data) === JSON.stringify(item)
+          );
+          if (!exists) {
+            allTestResults.push({ type: 'extra', data: item, timestamp: new Date().toISOString() });
+          }
+        }
+      }
+      
+      // Find probe report to get bridge count
+      const probeReport = results.runs.find(r => r.type === 'probe');
+      const bridgeFindings = probeReport?.report?.findings || [];
+      const detectedBridges = bridgeFindings
+        .filter(f => /bridge|native|invoke/i.test(f.name))
+        .map(f => f.name);
+      
+      // Debug: log to console if needed
+      if (detectedBridges.length === 0 && bridgeFindings.length > 0) {
+        console.log('Bridge detection debug:', {
+          probeReport: !!probeReport,
+          bridgeFindings: bridgeFindings.length,
+          bridgeNames: bridgeFindings.map(f => f.name)
+        });
+      }
+      
+      const summaryReport = {
+        type: 'full-test-summary',
+        timestamp: new Date().toISOString(),
+        durationMs: duration,
+        userAgent: navigator.userAgent,
+        allRuns: results.runs, // Structured runs
+        allTestResults: allTestResults, // All results including extra
+        lastRun: last,
+        summary: {
+          totalTests: results.runs.length,
+          totalResults: allTestResults.length,
+          bridgeCount: detectedBridges.length,
+          testTypes: results.runs.map(r=>r.type),
+          detectedBridges: detectedBridges
+        }
+      };
+      
+      // Send summary to webhook
+      if (webhookUrl) {
+        summary.innerHTML = `⏳ 正在发送汇总结果到 webhook...`;
+        try{
+          const payload = {
+            ...summaryReport,
+            rawOutput: raw.textContent
+          };
+          
+          try{
+            const resp = await fetch(webhookUrl, { 
+              method:'POST', 
+              mode:'cors',
+              headers:{'Content-Type':'application/json'}, 
+              body: JSON.stringify(payload, null, 2) 
+            });
+            summary.className = 'card ok';
+            summary.innerHTML = `✅ 所有测试完成！汇总结果已发送到 webhook。<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个<br><strong>状态码：</strong> <code>${resp.status}</code>`;
+          } catch(corsError) {
+            await fetch(webhookUrl, { 
+              method:'POST', 
+              mode:'no-cors',
+              headers:{'Content-Type':'application/json'}, 
+              body: JSON.stringify(payload, null, 2) 
+            });
+            summary.className = 'card ok';
+            summary.innerHTML = `✅ 所有测试完成！汇总结果已发送到 webhook（no-cors模式）。<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个`;
+          }
+        }catch(e){
+          summary.className = 'card warn';
+          summary.innerHTML = `✅ 所有测试完成，但发送到 webhook 失败：<code>${String(e.message||e)}</code><br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个`;
+        }
+      } else {
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ 所有测试完成！<br><strong>测试时长：</strong> ${(duration/1000).toFixed(1)}秒<br><strong>测试数量：</strong> ${summaryReport.summary.totalTests}个<br><strong>检测到的Bridge：</strong> ${summaryReport.summary.bridgeCount}个<br><small>请填写 Webhook URL 以自动发送结果</small>`;
+      }
+      
+      // Update display
+      raw.textContent = JSON.stringify(summaryReport, null, 2);
+      
+    }catch(e){
+      autoSendEnabled = true;
+      summary.className = 'card warn';
+      summary.innerHTML = `❌ 测试过程中出错：<code>${String(e.message||e)}</code>`;
+    }
+  }
+  
+  // Ensure button is visible on all WebViews (especially ByteDance)
+  const runAllBtn = document.getElementById('runAll');
+  if (runAllBtn) {
+    runAllBtn.onclick = runAllTests;
+    // Force show button (in case hidden by WebView)
+    runAllBtn.style.display = 'block';
+    runAllBtn.style.visibility = 'visible';
+    runAllBtn.style.opacity = '1';
+  } else {
+    console.error('runAll button not found!');
+    // Create button if missing (fallback)
+    const container = document.querySelector('.card');
+    if (container) {
+      const btn = document.createElement('button');
+      btn.id = 'runAll';
+      btn.textContent = '▶ 运行所有测试并发送';
+      btn.style.cssText = 'background:#0066cc;color:white;font-weight:bold;padding:16px 24px;font-size:18px;width:100%;display:block;min-height:50px;border:0;border-radius:8px';
+      btn.onclick = runAllTests;
+      container.appendChild(btn);
+    }
+  }
+  document.getElementById('safeGet').onclick = async ()=>{
+    const url = 'https://www.cloudflare.com/cdn-cgi/trace';
+    const res = await tryBridgeGet(url);
+    summary.className = 'card';
+    summary.innerHTML = `Safe GET → ${url}<br>via: <code>${res.via||'-'}</code> result: <code>${res.result||'-'}</code> ${res.error?`error: <code>${res.error}</code>`:''}`;
+    pushRaw({ type:'safe-get', res });
+    autoSendWebhook();
+  };
+  document.getElementById('multi').onclick = async ()=>{
+    const urls = [
+      'https://example.com/favicon.ico',
+      'https://www.cloudflare.com/cdn-cgi/trace',
+      location.origin + '/index.html'
+    ];
+    const outAll = [];
+    for (const u of urls){ outAll.push(await tryBridgeGet(u)); }
+    const lines = outAll.map(o=>`${o.url} → ${o.via||'-'} ${o.result||o.error||'-'}`).join('\n');
+    out.textContent = lines;
+    pushRaw({ type:'multi-domain', results: outAll });
+    autoSendWebhook();
+  };
+  function parseHeaders(s){
+    const o = {};
+    (s||'').split(';').map(x=>x.trim()).filter(Boolean).forEach(kv=>{
+      const i = kv.indexOf('=');
+      if (i>0){ const k = kv.slice(0,i).trim(); const v = kv.slice(i+1).trim(); if (k) o[k]=v; }
+    });
+    return o;
+  }
+  document.getElementById('sendReq').onclick = async ()=>{
+    const reqOut = document.getElementById('reqOut');
+    const method = document.getElementById('m').value;
+    const url = (document.getElementById('u').value||'').trim();
+    const headers = parseHeaders(document.getElementById('h').value||'');
+    const body = document.getElementById('b').value||'';
+    if (!url) { reqOut.textContent = 'Enter URL'; return; }
+    const info = { type:'custom-request', url, method, headersPresent: Object.keys(headers).length>0, bodyBytes: body.length };
+    try{
+      if (typeof window.TXWebKitNativeFetch === 'function' && method==='GET' && !body){
+        const p = window.TXWebKitNativeFetch(url);
+        await Promise.race([Promise.resolve(p), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+        info.via = 'TXWebKitNativeFetch';
+        info.result = 'ok';
+      } else {
+        const init = { method, mode:'no-cors', cache:'no-store', credentials:'omit', headers };
+        if (method==='POST') init.body = body;
+        await Promise.race([fetch(url, init), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+        info.via = 'fetch';
+        info.result = 'ok';
+      }
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
+    reqOut.textContent = JSON.stringify(info, null, 2);
+    autoSendWebhook();
+  };
+  document.getElementById('send').onclick = async ()=>{
+    const url = (document.getElementById('hook').value||'').trim();
+    if (!url) return alert('请输入Webhook URL');
+    
+    // 收集所有测试结果
+    const allResults = [];
+    // 1. 所有runs（探针、Oracle测试）
+    for (const run of results.runs) {
+      allResults.push(run);
+    }
+    // 2. last对象（可能包含extra数组）
+    if (last) {
+      allResults.push(last);
+      // 如果last有extra，也要包含
+      if (last.extra && Array.isArray(last.extra)) {
+        for (const item of last.extra) {
+          allResults.push(item);
+        }
+      }
+    }
+    
+    const payload = {
+      allRuns: results.runs,
+      lastRun: last,
+      allResults: allResults, // 包含所有结果
+      rawOutput: raw.textContent, // 原始JSON输出
+      timestamp: new Date().toISOString()
+    };
+    
+    summary.className = 'card';
+    summary.innerHTML = `⏳ 正在发送到 webhook...`;
+    
+    try{
+      // 先尝试CORS模式（可以读取响应状态）
+      try{
+        const resp = await fetch(url, { 
+          method:'POST', 
+          mode:'cors',
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify(payload, null, 2) 
+        });
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ Webhook发送成功：状态码 <code>${resp.status}</code>，已发送 ${allResults.length} 个测试结果。<br><small>包含：${results.runs.length} 个runs + ${last?.extra?.length||0} 个额外结果</small>`;
+      } catch(corsError) {
+        // CORS失败，改用no-cors模式（能发送但无法读取响应）
+        await fetch(url, { 
+          method:'POST', 
+          mode:'no-cors',
+          headers:{'Content-Type':'application/json'}, 
+          body: JSON.stringify(payload, null, 2) 
+        });
+        summary.className = 'card ok';
+        summary.innerHTML = `✅ Webhook已发送（no-cors模式，无法读取响应状态）。<br><small>已发送 ${allResults.length} 个测试结果</small>`;
+      }
+    }catch(e){
+      summary.className = 'card warn';
+      summary.innerHTML = `❌ Webhook发送失败：<code>${String(e.message||e)}</code><br><small>请检查URL是否正确，或是否允许跨域请求</small>`;
+    }
+  };
+  document.getElementById('bridgePost').onclick = async ()=>{
+    const info = { type:'bridge-post', url:'https://httpbin.org/post', method:'POST', headers:{'X-Test':'bridge'}, body:'{"msg":"hello_bridge"}' };
+    try{
+      if (typeof window.TXWebKitNativeFetch !== 'function') throw new Error('TXWebKitNativeFetch not found');
+      const p = window.TXWebKitNativeFetch(info.url, { method:'POST', headers: info.headers, body: info.body });
+      await Promise.race([Promise.resolve(p), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),6000))]);
+      info.via = 'TXWebKitNativeFetch';
+      info.result = 'ok';
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
+    summary.className = 'card';
+    summary.innerHTML = `Bridge POST → ${info.url} result: <code>${info.result||info.error||'-'}</code>`;
+    autoSendWebhook();
+  };
+  document.getElementById('readBody').onclick = async ()=>{
+    const info = { type:'read-body', url:'https://httpbin.org/anything' };
+    try{
+      let status = null, bodySnippet = null, via = null;
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        const r = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(info.url)),
+          new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),7000))
+        ]);
+        // Best-effort: if bridge returns Response-like
+        if (r && typeof r === 'object'){
+          if (typeof r.status === 'number') status = r.status;
+          if (typeof r.text === 'function'){
+            try{ const t = await r.text(); bodySnippet = String(t).slice(0,500); }catch{}
+          }
+        }
+        via = 'TXWebKitNativeFetch';
+      }
+      // Fallback to fetch (CORS-enabled endpoint)
+      if (bodySnippet==null){
+        const fr = await fetch(info.url, { mode:'cors', cache:'no-store', credentials:'omit' });
+        status = fr.status; const t = await fr.text(); bodySnippet = t.slice(0,500); via = via || 'fetch';
+      }
+      info.via = via; info.status = status; info.bodySnippet = bodySnippet;
+      summary.className = 'card';
+      summary.innerHTML = `Read body → ${info.url}<br>via: <code>${via}</code> status: <code>${status}</code>`;
+    }catch(e){ info.error = String(e.message||e); }
+    pushRaw(info);
+    autoSendWebhook();
+  };
+  document.getElementById('copy').onclick = ()=>{
+    const text = raw.textContent || 'No data';
+    navigator.clipboard.writeText(text).then(()=>{ alert('Copied'); });
+  };
+
+  // Oracle XS-Leaks test runner
+  /* Oracle XS-Leaks测试运行器：对比Bridge和fetch()的返回结果，检测信息泄露 */
+  async function runOracleInline(){
+    /* Oracle测试主函数：异步执行，对比Bridge和fetch()对同一URL的响应 */
+    /* 返回值：Promise，执行完成后生成测试报告 */
+    const targetsInput = document.getElementById('oracleTargets');
+    /* 获取测试目标输入框：用户在textarea中输入的URL列表 */
+    const targets = (targetsInput?.value||'')
+      .split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    /* 解析URL列表：按换行符分割，去除首尾空格，过滤空行 */
+    if (targets.length === 0) {
+      /* 如果没有有效的URL */
+      alert('请至少输入一个测试目标 URL');
+      /* 弹出提示：要求用户输入至少一个URL */
+      return;
+      /* 提前返回，不执行测试 */
+    }
+    function withTimeout(promise, ms){
+      /* 超时包装函数：为Promise添加超时限制 */
+      /* 参数：promise - 要包装的Promise，ms - 超时时间（毫秒） */
+      /* 返回值：Promise，如果超时则拒绝 */
+      return Promise.race([
+        /* 使用Promise.race实现超时：第一个完成的Promise获胜 */
+        Promise.resolve(promise),
+        /* Promise 1：原始Promise */
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), ms))
+        /* Promise 2：超时Promise，ms毫秒后拒绝 */
+      ]);
+    }
+    
+    // Wait a bit for Facebook Bridge to initialize (if needed)
+    /* 等待Facebook Bridge初始化（如果需要）：某些Bridge是异步初始化的 */
+    // Some bridges initialize asynchronously
+    /* 某些Bridge是异步初始化的 */
+    await new Promise(r=>setTimeout(r, 100));
+    /* 等待100毫秒：给Bridge初始化时间 */
+    
+    // Try to trigger Facebook initialization if possible
+    /* 尝试触发Facebook初始化（如果可能）：检查__fb_i对象是否已初始化 */
+    // Check multiple times in case __fb_i initializes late
+    /* 多次检查，以防__fb_i初始化较晚 */
+    for (let i = 0; i < 3; i++) {
+      /* 循环最多3次：检查__fb_i是否已初始化 */
+      if ('__fb_i' in window && window.__fb_i && typeof window.__fb_i === 'object') {
+        /* 如果__fb_i已存在且是对象类型 */
+        break;
+        /* 跳出循环：已经初始化，不需要再等待 */
+      }
+      await new Promise(r=>setTimeout(r, 200));
+      /* 等待200毫秒：给Facebook Bridge更多初始化时间 */
+    }
+    
+    function getBridges(){
+      /* 获取所有可用的Bridge函数：检测并收集所有在window对象上可用的Bridge API */
+      /* 返回值：Bridge数组，每个元素包含name（名称）和fn（调用函数） */
+      const bridges = [];
+      /* Bridge列表：存储所有检测到的Bridge对象 */
+      if (typeof window.TXWebKitNativeFetch === 'function'){
+        /* 检测TXWebKitNativeFetch：腾讯系的Bridge（可能是微信、QQ等） */
+        bridges.push({ name:'TXWebKitNativeFetch', fn: (url, init)=>window.TXWebKitNativeFetch(url, init) });
+        /* 添加到列表：名称和调用函数（直接调用window.TXWebKitNativeFetch） */
+      }
+      if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function'){
+        /* 检测Telegram Webview：Telegram的WebView Bridge */
+        bridges.push({ name:'TelegramWebview.nativeFetch', fn: (url, init)=>window.TelegramWebview.nativeFetch(url, init) });
+        /* 添加到列表：Telegram的nativeFetch方法 */
+      }
+      // Facebook Bridge support
+      // Note: _pcmBridgeCallbackHandler is a callback handler, not a request sender
+      // We need to find the actual request sending function, likely in __fb_i
+      
+      // Check for Facebook __fb_i object - it might be undefined initially, so wait and retry
+      // Strategy: Check immediately, then wait a bit and check again if undefined
+      function tryGetFbI() {
+        if ('__fb_i' in window) {
+          const fb_i = window.__fb_i;
+          if (fb_i && typeof fb_i === 'object') {
+            // Try common Facebook Bridge methods
+            const fbMethods = ['request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 'post', 'get', 'ajax'];
+            for (const method of fbMethods){
+              if (typeof fb_i[method] === 'function'){
+                bridges.push({ 
+                  name:`__fb_i.${method}`, 
+                  fn: (url, init)=>fb_i[method](url, init) 
+                });
+                break; // Use first available method
+              }
+            }
+            // If no common method found, check all properties for function-like methods
+            if (!bridges.some(b => b.name.startsWith('__fb_i.'))) {
+              try {
+                const keys = Object.keys(fb_i);
+                for (const key of keys) {
+                  if (typeof fb_i[key] === 'function' && 
+                      (key.toLowerCase().includes('request') || 
+                       key.toLowerCase().includes('fetch') || 
+                       key.toLowerCase().includes('http') ||
+                       key.toLowerCase().includes('network') ||
+                       key.toLowerCase().includes('send'))) {
+                    bridges.push({ 
+                      name:`__fb_i.${key}`, 
+                      fn: (url, init)=>fb_i[key](url, init) 
+                    });
+                    break;
+                  }
+                }
+              } catch(e) {
+                // Ignore access errors
+              }
+            }
+          }
+        }
+      }
+      
+      // Try immediately
+      tryGetFbI();
+      
+      // If not found, wait a bit and try again (Facebook might initialize it asynchronously)
+      // Note: We can't actually wait in this synchronous function, but we'll try in Oracle test
+      
+      // _pcmBridgeCallbackHandler is a callback handler - we can't directly call it for requests
+      // It receives (resultStatus, callbackID, resultJSON) from native side
+      // The actual request is likely initiated through __fb_i or postMessage
+      /* 检测字节跳动（TikTok/抖音）的Bridge：这些APP使用invoke模式，需要尝试多个方法名 */
+      const hasByteInvoke = window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function';
+      /* 检测字节跳动的mixrender Bridge：byted_mixrender_native.invoke */
+      const hasJS2 = window.JS2NativeBridge && typeof window.JS2NativeBridge._invokeMethod === 'function';
+      /* 检测JS2NativeBridge：另一种常见的Bridge模式 */
+      const hasBDX = window.BDXBridge && typeof window.BDXBridge._invokeMethod === 'function';
+      /* 检测BDXBridge：可能是特定APP的Bridge */
+      function toByteReq(url){ return { url, method:'GET', headers:{}, body:'' }; }
+      /* 转换为字节Bridge请求格式：将URL转换为Bridge需要的对象格式 */
+      function wrapMulti(invoke){
+        /* 包装多方法尝试的Bridge调用：因为字节Bridge可能使用不同的方法名 */
+        /* 参数：invoke - Bridge的invoke函数 */
+        /* 返回值：包装后的函数，接受URL，返回Promise */
+        const candidates = ['request','httpRequest','networkRequest','fetch','ttnetRequest','bytedRequest'];
+        /* 候选方法名列表：按优先级排序，尝试这些方法名 */
+        return (url)=>new Promise((resolve,reject)=>{
+          /* 返回Promise包装的函数：用于异步调用Bridge */
+          const start = Date.now();
+          /* 记录开始时间：用于计算耗时 */
+          const opt = toByteReq(url);
+          /* 转换URL为Bridge需要的格式 */
+          let finished = false;
+          /* 完成标志：防止重复回调 */
+          const overallTimer = setTimeout(()=>{ if(!finished){ finished=true; reject(new Error('timeout')); } }, 7000);
+          /* 总超时定时器：7秒后如果还没完成，拒绝Promise */
+          const tryOne = (idx)=>{
+            /* 尝试第idx个方法名 */
+            /* 参数：idx - 候选方法名的索引 */
+            if (finished) return;
+            /* 如果已经完成，直接返回（避免重复处理） */
+            if (idx >= candidates.length){ finished=true; clearTimeout(overallTimer); return reject(new Error('no-method')); }
+            /* 如果所有方法都试过了，返回错误（没找到可用的方法） */
+            const method = candidates[idx];
+            /* 获取当前要尝试的方法名 */
+            let perDone = false;
+            /* 当前方法尝试完成标志：防止重复回调 */
+            const perTimer = setTimeout(()=>{ if(!perDone){ perDone=true; tryOne(idx+1); } }, 1800);
+            /* 单个方法超时定时器：1.8秒后如果没响应，尝试下一个方法 */
+            const cb = (resp)=>{
+              /* 回调函数：Bridge调用成功时执行 */
+              /* 参数：resp - Bridge返回的响应 */
+              if (finished || perDone) return; 
+              /* 如果已经完成或当前方法已完成，直接返回（避免重复处理） */
+              perDone = true; 
+              /* 标记当前方法已完成 */
+              finished = true; 
+              /* 标记总流程已完成 */
+              clearTimeout(perTimer); 
+              /* 清除单方法超时定时器 */
+              clearTimeout(overallTimer);
+              /* 清除总超时定时器 */
+              try{
+                const parsed = (typeof resp==='string') ? JSON.parse(resp) : resp;
+                /* 解析响应：如果返回字符串则解析JSON，否则直接使用 */
+                resolve(Object.assign({ _methodUsed: method, _elapsedMs: Date.now()-start }, parsed||{}));
+                /* 解析成功：返回结果，包含使用的方名和耗时 */
+              }catch(e){ 
+                resolve({ _methodUsed: method, _elapsedMs: Date.now()-start, error: String(e&&e.message||e) }); 
+                /* 解析失败：返回错误信息，但仍标记为成功调用 */
+              }
+            };
+            try{
+              // Prefer signature (method, options, cb); fallback (options, cb)
+              /* 优先使用签名(method, options, cb)，否则使用(options, cb) */
+              if (invoke.length >= 3) invoke(method, opt, cb); 
+              /* 如果invoke函数有3个或更多参数，使用(method, options, callback)格式 */
+              else invoke(opt, cb);
+              /* 否则使用(options, callback)格式 */
+            }catch{ 
+              tryOne(idx+1); 
+              /* 如果调用失败，尝试下一个方法名 */
+            }
+          };
+          tryOne(0);
+          /* 从第一个方法开始尝试 */
+        });
+      }
+      if (hasByteInvoke) bridges.push({ name:'byted_mixrender_native.invoke', fn: wrapMulti(window.byted_mixrender_native.invoke.bind(window.byted_mixrender_native)) });
+      /* 如果检测到字节Bridge，添加到列表（使用wrapMulti包装） */
+      if (hasJS2) bridges.push({ name:'JS2NativeBridge._invokeMethod', fn: wrapMulti(window.JS2NativeBridge._invokeMethod.bind(window.JS2NativeBridge)) });
+      /* 如果检测到JS2NativeBridge，添加到列表 */
+      if (hasBDX) bridges.push({ name:'BDXBridge._invokeMethod', fn: wrapMulti(window.BDXBridge._invokeMethod.bind(window.BDXBridge)) });
+      /* 如果检测到BDXBridge，添加到列表 */
+      return bridges;
+      /* 返回所有检测到的Bridge列表 */
+    }
+    async function tryFetch(url){
+      /* 尝试使用fetch()调用URL：作为基线对比，用于Oracle测试 */
+      /* 参数：url - 要请求的URL */
+      /* 返回值：Promise，解析为包含method、url、status等信息的对象 */
+      try{
+        const r = await withTimeout(fetch(url, { mode:'cors', credentials:'omit', cache:'no-store' }), 6000);
+        /* 使用fetch()请求URL，设置CORS模式，不发送凭据，不缓存，6秒超时 */
+        return { method:'fetch', url, via:'fetch', status:r.status, ok:r.ok, fulfilled:true };
+        /* 返回成功结果：包含方法名(fetch)、URL、状态码、是否成功、是否完成 */
+      }catch(e){ 
+        return { method:'fetch', url, via:'fetch', error: String(e&&e.message||e), fulfilled:false }; 
+        /* 捕获异常：返回失败结果，包含错误信息，fulfilled设为false */
+      }
+    }
+    async function tryBridge(b, url){
+      /* 尝试使用Bridge调用URL：用于Oracle测试 */
+      /* 参数：b - Bridge对象（包含name和fn），url - 要请求的URL */
+      /* 返回值：Promise，解析为包含method、url、status等信息或错误的对象 */
+      try{
+        const r = await withTimeout(b.fn(url, { method:'GET' }), 6000);
+        /* 调用Bridge函数，传入URL和GET方法，6秒超时 */
+        const out = { method:b.name, url, via:b.name, fulfilled:true };
+        /* 创建输出对象：包含Bridge名称、URL、调用方式、是否完成 */
+        if (r && typeof r==='object'){
+          /* 如果返回结果是对象类型 */
+          if (typeof r.status==='number') out.status=r.status;
+          /* 提取状态码：如果是数字类型 */
+          if (typeof r.ok==='boolean') out.ok=r.ok;
+          /* 提取ok标志：表示请求是否成功 */
+          
+          // 尝试多种方式提取响应体
+          if (typeof r.body==='string') {
+            out.bodySnippet=r.body.slice(0,300);
+            /* 提取响应体：如果是字符串，取前300字符 */
+          } else if (typeof r.data==='string') {
+            out.bodySnippet=r.data.slice(0,300);
+            /* 提取数据字段：有些Bridge使用data字段而不是body */
+          } else if (typeof r.text==='function') {
+            /* 如果返回对象有text()方法（类似Response对象） */
+            try {
+              const text = await r.text();
+              if (typeof text === 'string') {
+                out.bodySnippet = text.slice(0,300);
+                /* 通过text()方法读取响应体，取前300字符 */
+              }
+            } catch(e) {
+              /* 忽略text()调用失败 */
+            }
+          } else if (typeof r.response==='string') {
+            out.bodySnippet=r.response.slice(0,300);
+            /* 提取response字段：有些Bridge使用response字段 */
+          }
+          
+          if (typeof r.code!=='undefined') out.errorCode=r.code;
+          /* 提取错误码：用于更精确的错误判断 */
+          if (typeof r._methodUsed==='string') out.methodUsed=r._methodUsed;
+          /* 提取使用的方法名：用于字节Bridge等多方法尝试的场景 */
+        }
+        return out;
+        /* 返回结果对象 */
+      }catch(e){ 
+        return { method:b.name, url, via:b.name, error:String(e&&e.message||e), fulfilled:false }; 
+        /* 捕获异常：返回失败结果，包含错误信息，fulfilled设为false */
+      }
+    }
+    
+    function classifyLeak(event){
+      /* 泄露分类函数：判断Bridge是否泄露了比fetch()更多的信息（Oracle泄露信号） */
+      /* 参数：event - 测试事件对象，包含method、fulfilled、status、error等信息 */
+      const sig = { oracle:false, reasons:[] };
+      /* 泄露信号对象：oracle表示是否是泄露，reasons数组存储泄露原因 */
+      if (event.method !== 'fetch' && event.fulfilled) {
+        /* 如果方法不是fetch()（即Bridge调用）且调用成功 */
+        if (typeof event.status === 'number' || typeof event.bodySnippet === 'string'){
+          /* 如果Bridge返回了状态码（数字）或响应体片段（字符串） */
+          sig.oracle = true; 
+          /* 标记为泄露：因为fetch()在CORS限制下拿不到这些信息 */
+          sig.reasons.push('bridge returned status/body');
+          /* 添加泄露原因：Bridge返回了状态码或响应体 */
+        }
+      }
+      if (!event.fulfilled && event.error){
+        /* 如果调用失败且有错误信息 */
+        if (/AUTH|TOKEN|CSRF|LOGIN|DENY|forbidden|unauthor/i.test(event.error)){
+          /* 如果错误信息中包含认证/权限相关关键词（不区分大小写） */
+          sig.oracle = true; 
+          /* 标记为泄露：错误信息泄露了用户认证状态 */
+          sig.reasons.push('bridge error mentions auth/state');
+          /* 添加泄露原因：Bridge错误信息提及认证/状态 */
+        }
+      }
+      if (typeof event.errorCode !== 'undefined'){
+        /* 如果存在错误码（比错误信息更精确） */
+        sig.oracle = true; 
+        /* 标记为泄露：错误码可以更准确地判断用户状态 */
+        sig.reasons.push('bridge error code present');
+        /* 添加泄露原因：Bridge存在错误码 */
+      }
+      return sig;
+      /* 返回泄露信号对象 */
+    }
+    
+    function summarizeOracle(all){
+      const byUrl = {};
+      for (const e of all){
+        byUrl[e.url] = byUrl[e.url] || { url:e.url, total:0, oracle:0 };
+        byUrl[e.url].total++;
+        const c = classifyLeak(e);
+        if (c.oracle) byUrl[e.url].oracle++;
+      }
+      const list = Object.values(byUrl);
+      const oracleAny = list.some(x=>x.oracle>0);
+      return { oracleAny, urls:list };
+    }
+    
+    const bridges = getBridges();
+    /* 获取所有检测到的Bridge：调用getBridges()函数 */
+    const includeFetch = document.getElementById('oracleIncludeFetch')?.checked !== false;
+    /* 是否包含fetch()测试：默认true，用于对比基线 */
+    const events = [];
+    /* 测试事件列表：存储所有测试结果 */
+    
+    for (const u of targets){
+      /* 遍历每个测试目标URL */
+      for (const b of bridges){ 
+        /* 遍历每个Bridge */
+        events.push(await tryBridge(b,u)); 
+        /* 尝试用Bridge调用URL，将结果添加到events列表 */
+      }
+      if (includeFetch) events.push(await tryFetch(u));
+      /* 如果包含fetch()测试，也用fetch()调用URL，将结果添加到events列表 */
+    }
+    
+    const report = {
+      /* 生成测试报告对象 */
+      type:'oracle-leak',
+      /* 报告类型：oracle-leak（Oracle泄露测试） */
+      meta: {
+        /* 元数据：测试的基本信息 */
+        time: new Date().toISOString(),
+        /* 测试时间：ISO格式的时间戳 */
+        ua: navigator.userAgent,
+        /* 用户代理：浏览器/WebView标识 */
+        bridges: bridges.map(b=>b.name),
+        /* 使用的Bridge列表：提取所有Bridge的名称 */
+        includeFetch
+        /* 是否包含fetch()测试 */
+      },
+      events,
+      /* 测试事件列表：所有测试的详细结果 */
+      summary: summarizeOracle(events)
+      /* 摘要：调用summarizeOracle()汇总测试结果 */
+    };
+    
+    results.runs.push(report);
+    /* 将报告保存到results.runs数组 */
+    last = report;
+    /* 更新last变量：保存最新的测试结果 */
+    
+    const lines = events.map(e=>{
+      /* 格式化输出行：将每个测试事件转换为可读文本 */
+      const tag = (e.fulfilled? '✅ OK' : '❌ ERR');
+      /* 状态标签：成功显示✅ OK，失败显示❌ ERR */
+      const leak = classifyLeak(e);
+      /* 分类泄露：调用classifyLeak()判断是否泄露 */
+      let line = `${tag} ${e.method} ${e.url}`;
+      /* 基础行：状态标签 + 方法名 + URL */
+      if (e.status !== undefined) {
+        line += ` [状态码: ${e.status}]`;
+        /* 如果有状态码，显示状态码 */
+      }
+      if (e.bodySnippet) {
+        line += `\n   响应体: ${e.bodySnippet}`;
+        /* 如果有响应体片段，显示响应体（前300字符） */
+      }
+      if (leak.oracle) {
+        line += `\n   ⚠️ [泄露: ${leak.reasons.join(', ')}]`;
+        /* 如果有泄露，显示泄露警告 */
+      }
+      return line;
+      /* 返回格式化的行 */
+    });
+    out.textContent = lines.join('\n') || '无结果';
+    /* 显示输出：将所有行用换行符连接，如果没有结果显示"无结果" */
+    raw.textContent = JSON.stringify(report, null, 2);
+    /* 显示原始数据：将报告对象转换为格式化的JSON字符串 */
+    
+    const any = report.summary.oracleAny;
+    /* 获取是否有泄露：从报告摘要中提取oracleAny字段 */
+    summary.className = 'card ' + (any ? 'warn' : 'ok');
+    /* 设置摘要样式：如果有泄露使用警告样式（红色），否则使用成功样式（绿色） */
+    summary.innerHTML = any
+      ? `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`
+      /* 如果有泄露：显示警告信息，包含泄露的URL数量 */
+      : `✅ Oracle测试完成：未发现明显的泄露信号。`;
+      /* 如果没有泄露：显示成功信息 */
+    autoSendWebhook();
+    /* 自动发送到webhook：如果配置了webhook URL，自动发送结果 */
+  }
+  
+  // Bridge detailed analysis function
+  async function analyzeBridges(){
+    let analysisOutput;
+    try {
+      analysisOutput = document.getElementById('bridgeAnalysis');
+      if (analysisOutput) {
+        analysisOutput.style.display = 'block';
+        analysisOutput.textContent = '🔍 正在分析检测到的Bridge...';
+      }
+    } catch(e) {
+      // Element might not exist when called from runAllTests, that's OK
+      analysisOutput = null;
+    }
+    
+    // Get probe results
+    const probeRun = results.runs.find(r => r.type === 'probe');
+    if (!probeRun || !probeRun.report || !probeRun.report.findings) {
+      if (analysisOutput) analysisOutput.textContent = '❌ 未找到probe结果，请先运行"Run"按钮扫描Bridge';
+      return;
+    }
+    
+    const findings = probeRun.report.findings;
+    let bridgeFindings = findings.filter(f => 
+      /bridge|native|invoke|callback|pcm/i.test(f.name) || 
+      (f.type === 'function' && f.name && !['window', 'self', 'frames', 'top', 'parent'].includes(f.name))
+    );
+    
+    // Also check window.keys for objects that might be bridges (like __fb_i)
+    const windowFinding = findings.find(f => f.name === 'window');
+    if (windowFinding && windowFinding.keys) {
+      for (const key of windowFinding.keys) {
+        if (/^__|bridge|native|fb|pcm/i.test(key) && !bridgeFindings.find(f => f.name === key)) {
+          try {
+            const obj = window[key];
+            if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+              let objKeys = undefined;
+              if (typeof obj === 'object') {
+                try {
+                  objKeys = Object.keys(obj).slice(0, 30);
+                } catch(e2) {
+                  // Object.keys might fail for some objects, try to get property names another way
+                  try {
+                    objKeys = [];
+                    for (let k in obj) {
+                      if (objKeys.length >= 30) break;
+                      try {
+                        if (obj.hasOwnProperty(k)) objKeys.push(k);
+                      } catch(e3) {}
+                    }
+                  } catch(e3) {}
+                }
+              }
+              bridgeFindings.push({
+                name: key,
+                type: typeof obj === 'function' ? 'function' : 'object',
+                keys: objKeys
+              });
+            }
+          } catch(e) {
+            // Ignore access errors, but log for debugging
+            console.log('Bridge analysis: failed to access', key, e);
+          }
+        }
+      }
+    }
+    
+    // Explicitly check for __fb_i even if not in window.keys (might be non-enumerable)
+    if (!bridgeFindings.find(f => f.name === '__fb_i')) {
+      try {
+        // Check if __fb_i exists
+        if ('__fb_i' in window) {
+          const fb_i = window.__fb_i;
+          if (fb_i && typeof fb_i === 'object') {
+            let objKeys = undefined;
+            try {
+              objKeys = Object.keys(fb_i).slice(0, 30);
+            } catch(e2) {
+              try {
+                objKeys = [];
+                for (let k in fb_i) {
+                  if (objKeys.length >= 30) break;
+                  try {
+                    if (Object.prototype.hasOwnProperty.call(fb_i, k)) objKeys.push(k);
+                  } catch(e3) {}
+                }
+              } catch(e3) {}
+            }
+            bridgeFindings.push({
+              name: '__fb_i',
+              type: 'object',
+              keys: objKeys,
+              exists: true
+            });
+          } else if (fb_i === null || fb_i === undefined) {
+            // Log that __fb_i exists but is null/undefined
+            bridgeFindings.push({
+              name: '__fb_i',
+              type: typeof fb_i === 'undefined' ? 'undefined' : 'null',
+              exists: true,
+              value: fb_i
+            });
+          }
+        }
+      } catch(e) {
+        // Even if access fails, record that we tried
+        bridgeFindings.push({
+          name: '__fb_i',
+          type: 'error',
+          analysis: { accessError: String(e.message || e) }
+        });
+      }
+    }
+    
+    if (bridgeFindings.length === 0) {
+      if (analysisOutput) analysisOutput.textContent = '❌ 未检测到Bridge对象';
+      return;
+    }
+    
+    const analysis = {
+      timestamp: new Date().toISOString(),
+      bridges: []
+    };
+    
+    for (const finding of bridgeFindings) {
+      const bridgeInfo = {
+        name: finding.name,
+        type: finding.type,
+        analysis: {}
+      };
+      
+      try {
+        // 1. Get the actual object
+        let bridgeObj = null;
+        try {
+          if (finding.name === '__fb_i') {
+            // Special handling for __fb_i - use 'in' operator first
+            if ('__fb_i' in window) {
+              bridgeObj = window.__fb_i;
+              // Check if it's actually undefined or null
+              if (bridgeObj === undefined || bridgeObj === null) {
+                bridgeInfo.analysis.existsButUndefined = true;
+                // Try to get property descriptor to understand why
+                try {
+                  const desc = Object.getOwnPropertyDescriptor(window, '__fb_i');
+                  if (desc) {
+                    bridgeInfo.analysis.propertyDescriptor = {
+                      enumerable: desc.enumerable,
+                      configurable: desc.configurable,
+                      hasGetter: !!desc.get,
+                      hasSetter: !!desc.set,
+                      writable: desc.writable
+                    };
+                  }
+                } catch(e) {}
+              }
+            } else {
+              bridgeInfo.analysis.notInWindow = true;
+            }
+          } else {
+            bridgeObj = window[finding.name];
+          }
+        } catch(e) {
+          bridgeInfo.analysis.accessError = String(e.message || e);
+        }
+        
+        // Even if bridgeObj is undefined, we should still analyze it if it exists
+        if (finding.name === '__fb_i' && bridgeInfo.analysis.existsButUndefined) {
+          // Try to access it through other means
+          try {
+            // Try Object.getOwnPropertyDescriptor
+            const desc = Object.getOwnPropertyDescriptor(window, '__fb_i');
+            if (desc && desc.get) {
+              bridgeInfo.analysis.hasGetter = true;
+              try {
+                const value = desc.get();
+                if (value !== undefined && value !== null) {
+                  bridgeObj = value;
+                  bridgeInfo.analysis.accessedViaGetter = true;
+                }
+              } catch(e) {
+                bridgeInfo.analysis.getterError = String(e.message || e);
+              }
+            }
+          } catch(e) {}
+        }
+        
+        if (bridgeObj !== null && bridgeObj !== undefined) {
+          // 2. Check if it's a function
+          if (typeof bridgeObj === 'function') {
+            bridgeInfo.analysis.isFunction = true;
+            bridgeInfo.analysis.functionLength = bridgeObj.length; // Number of parameters
+            
+            // 3. Try to inspect function signature
+            const funcStr = bridgeObj.toString();
+            bridgeInfo.analysis.functionSignature = funcStr.slice(0, 200);
+            
+            // 4. Try calling with different patterns
+            const testPatterns = [
+              { name: 'no-args', call: ()=>bridgeObj() },
+              { name: 'url-string', call: ()=>bridgeObj('https://httpbin.org/status/200') },
+              { name: 'url-object', call: ()=>bridgeObj({url: 'https://httpbin.org/status/200'}) },
+              { name: 'url-with-callback', call: ()=>new Promise((r,rej)=>{
+                try {
+                  bridgeObj('https://httpbin.org/status/200', (result)=>{ r(result); });
+                  setTimeout(()=>rej(new Error('timeout')), 2000);
+                } catch(e) { rej(e); }
+              }) },
+              { name: 'json-string', call: ()=>bridgeObj(JSON.stringify({url: 'https://httpbin.org/status/200'})) }
+            ];
+            
+            for (const pattern of testPatterns) {
+              try {
+                const result = await Promise.race([
+                  Promise.resolve(pattern.call()),
+                  new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+                ]);
+                bridgeInfo.analysis[pattern.name] = {
+                  success: true,
+                  result: typeof result === 'object' ? JSON.stringify(result).slice(0, 200) : String(result).slice(0, 200)
+                };
+                break; // Stop on first success
+              } catch(e) {
+                bridgeInfo.analysis[pattern.name] = {
+                  success: false,
+                  error: String(e.message || e).slice(0, 100)
+                };
+              }
+            }
+          } else if (typeof bridgeObj === 'object') {
+            // 5. If it's an object, list all properties
+            bridgeInfo.analysis.isObject = true;
+            try {
+              const keys = Object.keys(bridgeObj).slice(0, 30);
+              bridgeInfo.analysis.objectKeys = keys;
+              
+              // Check for common Bridge methods
+              const commonMethods = ['invoke', 'call', 'request', 'fetch', 'post', 'get', '_invokeMethod', 'nativeFetch', 'send', 'httpRequest'];
+              bridgeInfo.analysis.detectedMethods = keys.filter(k => commonMethods.some(m => k.toLowerCase().includes(m.toLowerCase())));
+              
+              // Also check for methods with network-related keywords
+              const networkKeywords = ['request', 'fetch', 'http', 'network', 'send', 'post', 'get', 'ajax'];
+              const networkMethods = keys.filter(k => 
+                typeof bridgeObj[k] === 'function' && 
+                networkKeywords.some(kw => k.toLowerCase().includes(kw))
+              );
+              if (networkMethods.length > 0) {
+                bridgeInfo.analysis.networkMethods = networkMethods;
+              }
+              
+              // Try to call detected methods
+              const methodsToTest = bridgeInfo.analysis.detectedMethods.length > 0 
+                ? bridgeInfo.analysis.detectedMethods 
+                : (networkMethods.length > 0 ? networkMethods.slice(0, 3) : []);
+              
+              for (const method of methodsToTest.slice(0, 3)) {
+                try {
+                  const methodObj = bridgeObj[method];
+                  if (typeof methodObj === 'function') {
+                    // Try different calling patterns
+                    const patterns = [
+                      ()=>methodObj('https://httpbin.org/status/200'),
+                      ()=>methodObj({url: 'https://httpbin.org/status/200'}),
+                      ()=>new Promise((r,rej)=>{
+                        try {
+                          methodObj('https://httpbin.org/status/200', (result)=>{ r(result); });
+                          setTimeout(()=>rej(new Error('timeout')), 2000);
+                        } catch(e) { rej(e); }
+                      })
+                    ];
+                    for (const pattern of patterns) {
+                      try {
+                        const testResult = await Promise.race([
+                          Promise.resolve(pattern()),
+                          new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 2000))
+                        ]);
+                        bridgeInfo.analysis[`${method}_result`] = String(testResult).slice(0, 200);
+                        break;
+                      } catch(e) {
+                        bridgeInfo.analysis[`${method}_error`] = String(e.message || e).slice(0, 100);
+                      }
+                    }
+                  }
+                } catch(e) {
+                  bridgeInfo.analysis[`${method}_error`] = String(e.message || e).slice(0, 100);
+                }
+              }
+            } catch(e) {
+              bridgeInfo.analysis.objectInspectError = String(e.message || e);
+            }
+          }
+        }
+      } catch(e) {
+        bridgeInfo.analysis.generalError = String(e.message || e);
+      }
+      
+      analysis.bridges.push(bridgeInfo);
+    }
+    
+    // Display results
+    const lines = [];
+    lines.push(`📊 Bridge分析报告 (${analysis.bridges.length}个)`);
+    lines.push('='.repeat(50));
+    
+    for (const bridge of analysis.bridges) {
+      lines.push(`\n🔹 ${bridge.name} [${bridge.type}]`);
+      if (bridge.analysis.isFunction) {
+        lines.push(`   ✓ 是函数，参数数量: ${bridge.analysis.functionLength || '?'}`);
+        if (bridge.analysis.functionSignature) {
+          lines.push(`   函数签名: ${bridge.analysis.functionSignature}`);
+        }
+        // Show test results
+        for (const [pattern, result] of Object.entries(bridge.analysis)) {
+          if (['isFunction', 'functionLength', 'functionSignature'].includes(pattern)) continue;
+          if (result && typeof result === 'object') {
+            lines.push(`   ${pattern}: ${result.success ? '✅ ' + result.result : '❌ ' + result.error}`);
+          }
+        }
+      } else if (bridge.analysis.isObject) {
+        lines.push(`   ✓ 是对象`);
+        if (bridge.analysis.objectKeys) {
+          lines.push(`   属性: ${bridge.analysis.objectKeys.join(', ')}`);
+        }
+        if (bridge.analysis.detectedMethods && bridge.analysis.detectedMethods.length > 0) {
+          lines.push(`   检测到的方法: ${bridge.analysis.detectedMethods.join(', ')}`);
+        }
+      }
+    }
+    
+    if (analysisOutput) {
+      analysisOutput.textContent = lines.join('\n');
+    }
+    
+    // Save to results
+    const bridgeAnalysisRun = { type: 'bridge-analysis', report: { analysis }, timestamp: new Date().toISOString() };
+    results.runs.push(bridgeAnalysisRun);
+    pushRaw({ type: 'bridge-analysis', analysis });
+    
+    // Only auto-send if not in batch mode
+    if (typeof autoSendEnabled === 'undefined' || autoSendEnabled) {
+      autoSendWebhook();
+    }
+    
+    return bridgeAnalysisRun;
+  }
+  
+  document.getElementById('analyzeBridges').onclick = analyzeBridges;
+  document.getElementById('runOracle').onclick = runOracleInline;
+  
+  // 快速测试真实网站功能
+  // 网站配置
+  const testSites = {
+    weibo: {
+      name: '微博',
+      url: 'https://weibo.com',
+      testUrl: 'https://weibo.com',
+      apiUrls: ['https://weibo.com', 'https://m.weibo.cn/api/config'],
+      color: '#ff6b6b'
+    },
+    zhihu: {
+      name: '知乎',
+      url: 'https://www.zhihu.com',
+      testUrl: 'https://www.zhihu.com',
+      apiUrls: ['https://www.zhihu.com', 'https://www.zhihu.com/api/v4/me'],
+      color: '#0084ff'
+    },
+    bilibili: {
+      name: 'B站',
+      url: 'https://www.bilibili.com',
+      testUrl: 'https://api.bilibili.com/x/web-interface/nav',
+      apiUrls: [
+        'https://api.bilibili.com/x/web-interface/nav',  // 用户信息API
+        'https://api.bilibili.com/x/space/myinfo',       // 我的空间信息
+        'https://www.bilibili.com'                        // 首页（备用）
+      ],
+      color: '#fb7299'
+    },
+    douban: {
+      name: '豆瓣',
+      url: 'https://www.douban.com',
+      testUrl: 'https://www.douban.com',
+      apiUrls: ['https://www.douban.com', 'https://frodo.douban.com/api/v2/user/~me'],
+      color: '#42bd56'
+    },
+    twitter: {
+      name: 'Twitter / X',
+      url: 'https://x.com',
+      testUrl: 'https://x.com',
+      apiUrls: [
+        'https://api.twitter.com/1.1/account/verify_credentials.json',
+        'https://api.twitter.com/1.1/account/settings.json',
+        'https://x.com'
+      ],
+      color: '#000000'
+    },
+    facebook: {
+      name: 'Facebook',
+      url: 'https://www.facebook.com',
+      testUrl: 'https://www.facebook.com',
+      apiUrls: [
+        'https://graph.facebook.com/me?fields=id,name',
+        'https://m.facebook.com/api/graphql/',
+        'https://www.facebook.com'
+      ],
+      color: '#1877f2'
+    },
+    instagram: {
+      name: 'Instagram',
+      url: 'https://www.instagram.com',
+      testUrl: 'https://www.instagram.com',
+      apiUrls: [
+        'https://www.instagram.com/api/v1/accounts/current_user/',
+        'https://www.instagram.com/accounts/edit/',
+        'https://www.instagram.com'
+      ],
+      color: '#f77737'
+    },
+    reddit: {
+      name: 'Reddit',
+      url: 'https://www.reddit.com',
+      testUrl: 'https://www.reddit.com',
+      apiUrls: [
+        'https://oauth.reddit.com/api/v1/me',
+        'https://www.reddit.com/api/v1/me',
+        'https://www.reddit.com'
+      ],
+      color: '#ff4500'
+    },
+    amazon: {
+      name: 'Amazon',
+      url: 'https://www.amazon.com',
+      testUrl: 'https://www.amazon.com',
+      apiUrls: [
+        'https://www.amazon.com/gp/css/homepage.html',
+        'https://www.amazon.com/gp/css/order-history',
+        'https://www.amazon.com'
+      ],
+      color: '#146eb4'
+    }
+  };
+  
+  // 打开网站并登录，同时将URL写入测试框
+  function openSiteForLogin(siteKey) {
+    const site = testSites[siteKey];
+    if (!site) return;
+    
+    // 将API URL写入Oracle测试框（优先使用API端点）
+    const targetsInput = document.getElementById('oracleTargets');
+    if (targetsInput) {
+      const currentValue = targetsInput.value.trim();
+      // 添加所有API URL（如果不在框中）
+      const urlsToAdd = site.apiUrls || [site.testUrl];
+      let newUrls = [];
+      for (const url of urlsToAdd) {
+        if (!currentValue.includes(url)) {
+          newUrls.push(url);
+        }
+      }
+      if (newUrls.length > 0) {
+        targetsInput.value = newUrls.join('\n') + (currentValue ? '\n' + currentValue : '');
+      }
+    }
+    
+    // 显示iframe容器
+    const container = document.getElementById('siteFrameContainer');
+    const frame = document.getElementById('siteFrame');
+    const title = document.getElementById('siteFrameTitle');
+    
+    if (container && frame && title) {
+      container.style.display = 'block';
+      title.textContent = `${site.name} - 请在此登录`;
+      frame.src = site.url;
+      
+      // 滚动到iframe位置
+      container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } else {
+      // 如果iframe不存在，尝试在新窗口中打开
+      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+      if (newWindow) {
+        alert(`已打开${site.name}，请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+      } else {
+        // 如果新窗口也无法打开，尝试在当前页面导航
+        if (confirm(`无法打开新窗口，是否在当前页面中打开${site.name}？\n\n注意：打开后需要手动返回此测试页面。`)) {
+          window.location.href = site.url;
+        }
+      }
+    }
+  }
+  
+  // 关闭网站iframe（使用事件委托，因为按钮可能还不存在）
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'closeSiteFrame') {
+      const container = document.getElementById('siteFrameContainer');
+      const frame = document.getElementById('siteFrame');
+      if (container && frame) {
+        container.style.display = 'none';
+        frame.src = 'about:blank';
+      }
+    }
+  });
+  
+  // 绑定事件（确保元素存在）
+  function bindQuickTestEvents() {
+    const openWeibo = document.getElementById('openWeibo');
+    const openZhihu = document.getElementById('openZhihu');
+    const openBilibili = document.getElementById('openBilibili');
+    const openDouban = document.getElementById('openDouban');
+    const openTwitter = document.getElementById('openTwitter');
+    const openFacebook = document.getElementById('openFacebook');
+    const openInstagram = document.getElementById('openInstagram');
+    const openReddit = document.getElementById('openReddit');
+    const openAmazon = document.getElementById('openAmazon');
+    
+    if (openWeibo) openWeibo.onclick = () => openSiteForLogin('weibo');
+    if (openZhihu) openZhihu.onclick = () => openSiteForLogin('zhihu');
+    if (openBilibili) openBilibili.onclick = () => openSiteForLogin('bilibili');
+    if (openDouban) openDouban.onclick = () => openSiteForLogin('douban');
+    if (openTwitter) openTwitter.onclick = () => openSiteForLogin('twitter');
+    if (openFacebook) openFacebook.onclick = () => openSiteForLogin('facebook');
+    if (openInstagram) openInstagram.onclick = () => openSiteForLogin('instagram');
+    if (openReddit) openReddit.onclick = () => openSiteForLogin('reddit');
+    if (openAmazon) openAmazon.onclick = () => openSiteForLogin('amazon');
+  }
+  
+  // 立即尝试绑定，如果DOM还没加载完成则等待
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bindQuickTestEvents);
+  } else {
+    bindQuickTestEvents();
+  }
+  
+  // Facebook Bridge 系统性测试功能
+  // 检测Facebook Bridge是否存在
+  function checkBridgeExists(bridgeName) {
+    return bridgeName in window;
+  }
+  
+  // 尝试不同的调用方式
+  async function tryCallBridge(bridge, url) {
+    const results = [];
+    const testUrl = url || 'https://httpbin.org/status/200';
+    
+    // 方式1：直接调用
+    try {
+      const start = performance.now();
+      const r1 = await Promise.race([
+        Promise.resolve(bridge(testUrl)),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+      ]);
+      const duration = performance.now() - start;
+      results.push({ 
+        method: 'direct', 
+        result: r1, 
+        type: typeof r1,
+        duration: duration,
+        success: true
+      });
+    } catch(e) {
+      results.push({ 
+        method: 'direct', 
+        error: e.message || String(e),
+        success: false
+      });
+    }
+    
+    // 方式2：带参数对象
+    try {
+      const start = performance.now();
+      const r2 = await Promise.race([
+        Promise.resolve(bridge(testUrl, {})),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+      ]);
+      const duration = performance.now() - start;
+      results.push({ 
+        method: 'with-params', 
+        result: r2, 
+        type: typeof r2,
+        duration: duration,
+        success: true
+      });
+    } catch(e) {
+      results.push({ 
+        method: 'with-params', 
+        error: e.message || String(e),
+        success: false
+      });
+    }
+    
+    // 方式3：回调方式
+    try {
+      const start = performance.now();
+      const r3 = await new Promise((resolve, reject) => {
+        try {
+          bridge(testUrl, (result) => {
+            resolve(result);
+          });
+          setTimeout(() => reject(new Error('timeout')), 3000);
+        } catch(e) {
+          reject(e);
+        }
+      });
+      const duration = performance.now() - start;
+      results.push({ 
+        method: 'callback', 
+        result: r3, 
+        type: typeof r3,
+        duration: duration,
+        success: true
+      });
+    } catch(e) {
+      results.push({ 
+        method: 'callback', 
+        error: e.message || String(e),
+        success: false
+      });
+    }
+    
+    // 方式4：带method参数
+    try {
+      const start = performance.now();
+      const r4 = await Promise.race([
+        Promise.resolve(bridge(testUrl, { method: 'GET' })),
+        new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+      ]);
+      const duration = performance.now() - start;
+      results.push({ 
+        method: 'with-method', 
+        result: r4, 
+        type: typeof r4,
+        duration: duration,
+        success: true
+      });
+    } catch(e) {
+      results.push({ 
+        method: 'with-method', 
+        error: e.message || String(e),
+        success: false
+      });
+    }
+    
+    return results;
+  }
+  
+  // 判断Bridge是否可用
+  function isBridgeUsable(testResults) {
+    const successful = testResults.filter(r => r.success && r.result !== undefined);
+    const failed = testResults.filter(r => !r.success || r.error);
+    
+    return {
+      usable: successful.length > 0,
+      canGetStatus: successful.some(r => r.result?.status !== undefined),
+      canMeasureTiming: successful.length > 0 || failed.length > 0, // 即使失败也能测时序
+      canMeasureTimingEvenIfUndefined: successful.some(r => r.result === undefined && r.duration !== undefined) || failed.length > 0,
+      results: testResults
+    };
+  }
+  
+  // 系统性测试Facebook Bridge
+  async function testFBBridge() {
+    const fbOutput = document.getElementById('fbTestResults');
+    if (fbOutput) {
+      fbOutput.style.display = 'block';
+      fbOutput.textContent = '🔍 正在检测Facebook Bridge...';
+    }
+    
+    const report = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      bridges: []
+    };
+    
+    // 步骤1：检测Facebook相关Bridge
+    const fbBridgeNames = ['__fb_i', '__fb_pcm', '_pcmBridgeCallbackHandler', 'FB', 'Facebook'];
+    const detectedBridges = [];
+    
+    for (const name of fbBridgeNames) {
+      if (checkBridgeExists(name)) {
+        try {
+          const obj = window[name];
+          if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+            detectedBridges.push({
+              name: name,
+              type: typeof obj,
+              exists: true,
+              obj: obj
+            });
+          } else if (obj === null || obj === undefined) {
+            detectedBridges.push({
+              name: name,
+              type: obj === null ? 'null' : 'undefined',
+              exists: true,
+              value: obj
+            });
+          }
+        } catch(e) {
+          detectedBridges.push({
+            name: name,
+            exists: true,
+            accessError: String(e.message || e)
+          });
+        }
+      }
+    }
+    
+    // 步骤2：如果找到了__fb_i，深入分析
+    if (detectedBridges.some(b => b.name === '__fb_i')) {
+      const fb_i = detectedBridges.find(b => b.name === '__fb_i');
+      if (fb_i && fb_i.exists) {
+        try {
+          const fbObj = window.__fb_i;
+          if (fbObj && typeof fbObj === 'object') {
+            // 获取所有属性
+            let objKeys = [];
+            try {
+              objKeys = Object.keys(fbObj).slice(0, 50);
+            } catch(e) {
+              try {
+                for (let k in fbObj) {
+                  if (objKeys.length >= 50) break;
+                  try {
+                    if (Object.prototype.hasOwnProperty.call(fbObj, k)) {
+                      objKeys.push(k);
+                    }
+                  } catch(e2) {}
+                }
+              } catch(e2) {}
+            }
+            
+            fb_i.keys = objKeys;
+            
+            // 查找可能的网络请求方法
+            const networkMethods = objKeys.filter(k => {
+              const lower = k.toLowerCase();
+              return /request|fetch|http|network|send|post|get|ajax/i.test(lower) && 
+                     typeof fbObj[k] === 'function';
+            });
+            
+            if (networkMethods.length > 0) {
+              fb_i.networkMethods = networkMethods;
+              
+              // 步骤3：测试每个网络方法
+              for (const method of networkMethods.slice(0, 3)) {
+                const methodObj = fbObj[method];
+                if (typeof methodObj === 'function') {
+                  const testResults = await tryCallBridge(methodObj, 'https://httpbin.org/status/200');
+                  const usability = isBridgeUsable(testResults);
+                  
+                  report.bridges.push({
+                    name: `__fb_i.${method}`,
+                    type: 'function',
+                    testResults: testResults,
+                    usability: usability
+                  });
+                }
+              }
+            } else {
+              // 如果没有找到网络方法，尝试直接调用__fb_i
+              if (typeof fbObj === 'function') {
+                const testResults = await tryCallBridge(fbObj, 'https://httpbin.org/status/200');
+                const usability = isBridgeUsable(testResults);
+                
+                report.bridges.push({
+                  name: '__fb_i',
+                  type: 'function',
+                  testResults: testResults,
+                  usability: usability
+                });
+              }
+            }
+          }
+        } catch(e) {
+          fb_i.analysisError = String(e.message || e);
+        }
+      }
+    }
+    
+    // 显示结果
+    const lines = [];
+    lines.push(`📘 Facebook Bridge 测试报告`);
+    lines.push('='.repeat(60));
+    lines.push(`\n🔍 检测到的Bridge:`);
+    
+    for (const bridge of detectedBridges) {
+      lines.push(`\n  ${bridge.exists ? '✅' : '❌'} ${bridge.name} [${bridge.type || 'unknown'}]`);
+      if (bridge.keys) {
+        lines.push(`    属性: ${bridge.keys.slice(0, 20).join(', ')}${bridge.keys.length > 20 ? '...' : ''}`);
+      }
+      if (bridge.networkMethods) {
+        lines.push(`    网络方法: ${bridge.networkMethods.join(', ')}`);
+      }
+      if (bridge.accessError) {
+        lines.push(`    访问错误: ${bridge.accessError}`);
+      }
+    }
+    
+    if (report.bridges.length > 0) {
+      lines.push(`\n\n🧪 测试结果:`);
+      for (const bridge of report.bridges) {
+        lines.push(`\n  ${bridge.name}:`);
+        lines.push(`    可用: ${bridge.usability.usable ? '✅' : '❌'}`);
+        lines.push(`    可获取状态: ${bridge.usability.canGetStatus ? '✅' : '❌'}`);
+        lines.push(`    可测时序: ${bridge.usability.canMeasureTiming ? '✅' : '❌'}`);
+        lines.push(`    即使undefined也能测时序: ${bridge.usability.canMeasureTimingEvenIfUndefined ? '✅' : '❌'}`);
+        
+        for (const test of bridge.testResults) {
+          if (test.success) {
+            lines.push(`    ${test.method}: ✅ duration=${test.duration?.toFixed(2)}ms, result=${test.result === undefined ? 'undefined' : JSON.stringify(test.result).slice(0, 50)}, type=${test.type}`);
+          } else {
+            lines.push(`    ${test.method}: ❌ ${test.error}`);
+          }
+        }
+      }
+    }
+    
+    if (fbOutput) {
+      fbOutput.textContent = lines.join('\n');
+    }
+    
+    // 保存结果
+    const fbTestRun = { type: 'fb-bridge-test', report: report, timestamp: new Date().toISOString() };
+    results.runs.push(fbTestRun);
+    pushRaw({ type: 'fb-bridge-test', report });
+    
+    autoSendWebhook();
+    return report;
+  }
+  
+  // 系统性测试所有Bridge
+  async function testFBAllBridges() {
+    const fbOutput = document.getElementById('fbTestResults');
+    if (fbOutput) {
+      fbOutput.style.display = 'block';
+      fbOutput.textContent = '🔍 正在检测所有Bridge...';
+    }
+    
+    const report = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      bridges: []
+    };
+    
+    // 步骤1：检测所有可能的Bridge
+    const bridgePatterns = [
+      /^__.*$/i,  // 以__开头的
+      /.*bridge.*/i,
+      /.*native.*/i,
+      /.*fb.*/i,
+      /.*facebook.*/i,
+      /.*pcm.*/i
+    ];
+    
+    const detectedBridges = [];
+    for (const key in window) {
+      if (bridgePatterns.some(p => p.test(key))) {
+        try {
+          const obj = window[key];
+          if (obj && (typeof obj === 'object' || typeof obj === 'function')) {
+            detectedBridges.push({
+              name: key,
+              type: typeof obj,
+              obj: obj
+            });
+          }
+        } catch(e) {}
+      }
+    }
+    
+    // 步骤2：测试每个Bridge
+    for (const bridge of detectedBridges.slice(0, 10)) { // 限制测试前10个
+      if (fbOutput) {
+        fbOutput.textContent = `🔍 正在测试 ${bridge.name}...`;
+      }
+      
+      try {
+        let testResults = [];
+        if (typeof bridge.obj === 'function') {
+          testResults = await tryCallBridge(bridge.obj, 'https://httpbin.org/status/200');
+        } else if (typeof bridge.obj === 'object') {
+          // 如果是对象，查找网络方法
+          let objKeys = [];
+          try {
+            objKeys = Object.keys(bridge.obj).slice(0, 30);
+          } catch(e) {
+            try {
+              for (let k in bridge.obj) {
+                if (objKeys.length >= 30) break;
+                try {
+                  if (Object.prototype.hasOwnProperty.call(bridge.obj, k)) {
+                    objKeys.push(k);
+                  }
+                } catch(e2) {}
+              }
+            } catch(e2) {}
+          }
+          
+          const networkMethods = objKeys.filter(k => {
+            const lower = k.toLowerCase();
+            return /request|fetch|http|network|send|post|get|ajax/i.test(lower) && 
+                   typeof bridge.obj[k] === 'function';
+          });
+          
+          if (networkMethods.length > 0) {
+            for (const method of networkMethods.slice(0, 2)) {
+              const methodObj = bridge.obj[method];
+              const methodResults = await tryCallBridge(methodObj, 'https://httpbin.org/status/200');
+              testResults = testResults.concat(methodResults.map(r => ({
+                ...r,
+                methodName: `${bridge.name}.${method}`
+              })));
+            }
+          }
+        }
+        
+        if (testResults.length > 0) {
+          const usability = isBridgeUsable(testResults);
+          report.bridges.push({
+            name: bridge.name,
+            type: bridge.type,
+            testResults: testResults,
+            usability: usability
+          });
+        }
+      } catch(e) {
+        report.bridges.push({
+          name: bridge.name,
+          type: bridge.type,
+          error: String(e.message || e)
+        });
+      }
+    }
+    
+    // 显示结果
+    const lines = [];
+    lines.push(`📘 所有Bridge测试报告`);
+    lines.push('='.repeat(60));
+    lines.push(`\n🔍 检测到 ${detectedBridges.length} 个可能的Bridge`);
+    lines.push(`🧪 测试了 ${report.bridges.length} 个Bridge\n`);
+    
+    for (const bridge of report.bridges) {
+      lines.push(`\n${bridge.name} [${bridge.type}]:`);
+      if (bridge.usability) {
+        lines.push(`  可用: ${bridge.usability.usable ? '✅' : '❌'}`);
+        lines.push(`  可获取状态: ${bridge.usability.canGetStatus ? '✅' : '❌'}`);
+        lines.push(`  可测时序: ${bridge.usability.canMeasureTiming ? '✅' : '❌'}`);
+        lines.push(`  即使undefined也能测时序: ${bridge.usability.canMeasureTimingEvenIfUndefined ? '✅' : '❌'}`);
+      }
+      if (bridge.error) {
+        lines.push(`  错误: ${bridge.error}`);
+      }
+    }
+    
+    if (fbOutput) {
+      fbOutput.textContent = lines.join('\n');
+    }
+    
+    // 保存结果
+    const allBridgesTestRun = { type: 'all-bridges-test', report: report, timestamp: new Date().toISOString() };
+    results.runs.push(allBridgesTestRun);
+    pushRaw({ type: 'all-bridges-test', report });
+    
+    autoSendWebhook();
+    return report;
+  }
+  
+  // 时序测试（即使返回undefined）
+  async function testFBTiming() {
+    const fbOutput = document.getElementById('fbTestResults');
+    if (fbOutput) {
+      fbOutput.style.display = 'block';
+      fbOutput.textContent = '⏱️ 正在进行时序测试（即使返回undefined）...';
+    }
+    
+    const report = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      timingTests: []
+    };
+    
+    // 测试目标URL
+    const testUrls = [
+      'https://httpbin.org/status/200',
+      'https://httpbin.org/status/401',
+      'https://httpbin.org/status/403',
+      'https://httpbin.org/delay/1'
+    ];
+    
+    // 查找Facebook Bridge
+    let fbBridge = null;
+    if ('__fb_i' in window && window.__fb_i && typeof window.__fb_i === 'object') {
+      const fbObj = window.__fb_i;
+      try {
+        const keys = Object.keys(fbObj);
+        const networkMethods = keys.filter(k => {
+          const lower = k.toLowerCase();
+          return /request|fetch|http|network|send/i.test(lower) && typeof fbObj[k] === 'function';
+        });
+        if (networkMethods.length > 0) {
+          fbBridge = {
+            name: `__fb_i.${networkMethods[0]}`,
+            fn: fbObj[networkMethods[0]]
+          };
+        }
+      } catch(e) {}
+    }
+    
+    if (!fbBridge) {
+      if (fbOutput) {
+        fbOutput.textContent = '❌ 未找到Facebook Bridge，无法进行时序测试';
+      }
+      return;
+    }
+    
+    // 对每个URL进行多次时序测试
+    for (const url of testUrls) {
+      const times = [];
+      const results = [];
+      
+      for (let i = 0; i < 20; i++) {
+        const start = performance.now();
+        try {
+          const result = await Promise.race([
+            Promise.resolve(fbBridge.fn(url)),
+            new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')), 3000))
+          ]);
+          const duration = performance.now() - start;
+          times.push(duration);
+          results.push({
+            call: i + 1,
+            duration: duration,
+            result: result,
+            type: typeof result,
+            success: true
+          });
+        } catch(e) {
+          const duration = performance.now() - start;
+          times.push(duration);
+          results.push({
+            call: i + 1,
+            duration: duration,
+            error: e.message || String(e),
+            success: false
+          });
+        }
+        
+        // 等待50ms再测下一次
+        await new Promise(r => setTimeout(r, 50));
+      }
+      
+      // 计算统计信息
+      const mean = times.reduce((a,b) => a+b) / times.length;
+      const variance = times.reduce((sum, t) => sum + Math.pow(t - mean, 2), 0) / times.length;
+      const stddev = Math.sqrt(variance);
+      const min = Math.min(...times);
+      const max = Math.max(...times);
+      const cv = mean > 0 ? stddev / mean : 0; // 变异系数
+      
+      report.timingTests.push({
+        url: url,
+        times: times,
+        statistics: {
+          mean: mean,
+          stddev: stddev,
+          min: min,
+          max: max,
+          cv: cv,
+          stable: cv < 0.2 // 如果变异系数小于0.2，认为时间稳定
+        },
+        results: results
+      });
+    }
+    
+    // 显示结果
+    const lines = [];
+    lines.push(`⏱️ 时序测试报告（即使返回undefined）`);
+    lines.push('='.repeat(60));
+    lines.push(`\n测试的Bridge: ${fbBridge.name}`);
+    
+    for (const test of report.timingTests) {
+      lines.push(`\n${test.url}:`);
+      lines.push(`  平均时间: ${test.statistics.mean.toFixed(2)}ms`);
+      lines.push(`  标准差: ${test.statistics.stddev.toFixed(2)}ms`);
+      lines.push(`  最小: ${test.statistics.min.toFixed(2)}ms`);
+      lines.push(`  最大: ${test.statistics.max.toFixed(2)}ms`);
+      lines.push(`  变异系数: ${test.statistics.cv.toFixed(3)}`);
+      lines.push(`  时间稳定: ${test.statistics.stable ? '✅' : '❌'}`);
+      
+      // 显示返回结果统计
+      const undefinedCount = test.results.filter(r => r.result === undefined).length;
+      const successCount = test.results.filter(r => r.success).length;
+      lines.push(`  返回undefined: ${undefinedCount}/${test.results.length}`);
+      lines.push(`  成功调用: ${successCount}/${test.results.length}`);
+      
+      // 即使返回undefined，如果时间差异明显，可能有时序泄漏
+      if (undefinedCount > 0 && test.statistics.stable) {
+        lines.push(`  ⚠️ 警告: 即使返回undefined，时间稳定，可能存在时序泄漏！`);
+      }
+    }
+    
+    if (fbOutput) {
+      fbOutput.textContent = lines.join('\n');
+    }
+    
+    // 保存结果
+    const timingTestRun = { type: 'fb-timing-test', report: report, timestamp: new Date().toISOString() };
+    results.runs.push(timingTestRun);
+    pushRaw({ type: 'fb-timing-test', report });
+    
+    autoSendWebhook();
+    return report;
+  }
+  
+  // 绑定按钮事件
+  document.getElementById('testFBBridge').onclick = testFBBridge;
+  document.getElementById('testFBAllBridges').onclick = testFBAllBridges;
+  document.getElementById('testFBTiming').onclick = testFBTiming;
+  
+  // Parse URL parameters and auto-fill webhook URL
+  (function(){
+    try{
+      const p = new URLSearchParams(location.search);
+      const webhookUrl = p.get('webhook');
+      if (webhookUrl) {
+        const hookInput = document.getElementById('hook');
+        if (hookInput) {
+          hookInput.value = decodeURIComponent(webhookUrl);
+        }
+      }
+    }catch{}
+  })();
+})();
+</script>
+</body>
+</html>

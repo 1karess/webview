@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebView Tests</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; padding: 24px; max-width: 880px; margin: 0 auto; }
+    h1 { margin-bottom: 12px; }
+    .card { padding: 16px; border: 1px solid #ddd; border-radius: 8px; margin: 12px 0; }
+    a { color: #0a66c2; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background:#f6f8fa; padding:2px 6px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>WebView Tests</h1>
+  <p>Use this repo to host standalone, pure frontend test pages for in-app WebViews.</p>
+
+  <div class="card">
+    <h3>Storage隔离测试</h3>
+    <p>检测WebView中localStorage和sessionStorage的隔离情况，验证小程序/WebView之间的数据隔离是否有效。</p>
+    <p>
+      <a href="./tests/storage-isolation/index.html">🔒 主测试工具</a> | 
+      <a href="./tests/storage-isolation/cross-webview.html">🔗 跨WebView测试</a>
+    </p>
+    <p><small>用于研究小程序、App WebView之间的Storage隔离问题，检测潜在的隐私泄露风险。</small></p>
+  </div>
+
+  <div class="card">
+    <h3>Bridge检测工具</h3>
+    <p>检测WebView中注入的JS Bridge和特殊对象。</p>
+    <p>
+      <a href="./tests/bridge-probe/index.html">🔍 Bridge检测工具</a> | 
+      <a href="./tests/login-detection-test.html">🔐 登录状态检测测试</a>
+    </p>
+    <p><small>用于研究Bridge泄露和侧信道攻击风险。</small></p>
+  </div>
+
+  <div class="card">
+    <h3>Sample test</h3>
+    <p>A minimal template you can copy to create your own tests.</p>
+    <p><a href="./tests/sample/index.html">Open sample test</a></p>
+  </div>
+
+  <div class="card">
+    <h3>Telegram WebApp note</h3>
+    <p>To detect Telegram WebApp APIs, open the same page via a <strong>Bot WebApp button</strong>. Plain chat links won't inject <code>Telegram.WebApp</code>.</p>
+  </div>
+</body>
+</html>

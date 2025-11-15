@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Facebook Bridge 验证测试</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .step {
+      background: #f5f5f5;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border-left: 4px solid #0066cc;
+    }
+    .success {
+      border-left-color: #28a745;
+      background: #d4edda;
+    }
+    .error {
+      border-left-color: #dc3545;
+      background: #f8d7da;
+    }
+    .warning {
+      border-left-color: #ffc107;
+      background: #fff3cd;
+    }
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      background: #fff;
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .code {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      margin: 10px 0;
+    }
+    h1 { color: #0066cc; }
+    h2 { color: #333; margin-top: 20px; }
+    .check-item {
+      margin: 10px 0;
+      padding: 10px;
+      background: #fff;
+      border-radius: 5px;
+    }
+    .check-item.pass { border-left: 4px solid #28a745; }
+    .check-item.fail { border-left: 4px solid #dc3545; }
+    .check-item.unknown { border-left: 4px solid #ffc107; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Facebook Bridge 验证测试</h1>
+  <p><strong>目的：</strong>验证找到的Facebook Bridge是否真实可用</p>
+
+  <!-- 步骤1：检测Bridge是否存在 -->
+  <div class="step" id="step1">
+    <h2>步骤1：检测Bridge是否存在</h2>
+    <button onclick="step1_detectBridge()">检测 __fb_i</button>
+    <div id="step1Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 步骤2：等待异步初始化 -->
+  <div class="step" id="step2">
+    <h2>步骤2：等待异步初始化</h2>
+    <button onclick="step2_waitForInit()">等待初始化</button>
+    <div id="step2Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 步骤3：分析Bridge结构 -->
+  <div class="step" id="step3">
+    <h2>步骤3：分析Bridge结构</h2>
+    <button onclick="step3_analyzeBridge()">分析Bridge结构</button>
+    <div id="step3Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 步骤4：尝试调用Bridge -->
+  <div class="step" id="step4">
+    <h2>步骤4：尝试调用Bridge</h2>
+    <button onclick="step4_tryCall()">尝试调用Bridge</button>
+    <div id="step4Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 步骤5：验证Bridge功能 -->
+  <div class="step" id="step5">
+    <h2>步骤5：验证Bridge功能（多重验证）</h2>
+    <button onclick="step5_verifyBridge()">运行完整验证</button>
+    <div id="step5Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 步骤6：对比fetch() -->
+  <div class="step" id="step6">
+    <h2>步骤6：对比fetch()和Bridge</h2>
+    <button onclick="step6_compareFetch()">对比测试</button>
+    <div id="step6Result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- 完整测试 -->
+  <div class="step">
+    <h2>🚀 一键完整测试</h2>
+    <button onclick="runFullTest()">运行所有测试</button>
+    <div id="fullTestResult" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    let bridgeInfo = {
+      exists: false,
+      initialized: false,
+      obj: null,
+      methods: [],
+      testResults: {}
+    };
+
+    // 步骤1：检测Bridge是否存在
+    async function step1_detectBridge() {
+      const resultDiv = document.getElementById('step1Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在检测...';
+
+      const checks = [];
+      
+      // 检查1：__fb_i 是否存在
+      const exists = '__fb_i' in window;
+      checks.push({
+        name: '__fb_i 是否存在',
+        pass: exists,
+        value: exists ? '存在' : '不存在',
+        reason: exists ? '__fb_i 在 window 对象中' : '__fb_i 不在 window 对象中'
+      });
+
+      // 检查2：__fb_i 的值是什么
+      let value;
+      let valueType;
+      try {
+        value = window.__fb_i;
+        valueType = typeof value;
+      } catch (e) {
+        value = '访问失败';
+        valueType = 'error';
+      }
+
+      checks.push({
+        name: '__fb_i 的值类型',
+        pass: valueType === 'object' || valueType === 'function',
+        value: valueType,
+        reason: valueType === 'object' ? '是对象，可能包含方法' : 
+                valueType === 'function' ? '是函数，可以直接调用' : 
+                valueType === 'undefined' ? '是 undefined，可能需要等待初始化' : '无法访问'
+      });
+
+      // 检查3：__fb_i 的值是什么
+      checks.push({
+        name: '__fb_i 的值',
+        pass: value !== null && value !== undefined,
+        value: value === null ? 'null' : value === undefined ? 'undefined' : '有值',
+        reason: value === null ? '__fb_i 是 null' : 
+                value === undefined ? '__fb_i 是 undefined（可能需要等待初始化）' : 
+                '__fb_i 有值'
+      });
+
+      // 保存结果
+      bridgeInfo.exists = exists;
+      bridgeInfo.obj = value;
+      bridgeInfo.initialized = value !== null && value !== undefined;
+
+      // 显示结果
+      let html = '<h3>检测结果：</h3>';
+      checks.forEach(check => {
+        const statusClass = check.pass ? 'pass' : check.fail === false ? 'fail' : 'unknown';
+        html += `
+          <div class="check-item ${statusClass}">
+            <strong>${check.name}:</strong> ${check.value}<br>
+            <small>${check.reason}</small>
+          </div>
+        `;
+      });
+
+      resultDiv.innerHTML = html;
+      resultDiv.className = bridgeInfo.exists ? 'result success' : 'result error';
+    }
+
+    // 步骤2：等待异步初始化（改进版：增加等待时间和重试次数）
+    async function step2_waitForInit() {
+      const resultDiv = document.getElementById('step2Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在等待初始化...';
+
+      let attempts = 0;
+      const maxAttempts = 10;  // 增加到10次
+      let found = false;
+
+      const log = [];
+      log.push(`开始检测，最多尝试 ${maxAttempts} 次（每次等待500ms）...\n`);
+
+      // 先等待一下，给Bridge更多初始化时间
+      await new Promise(r => setTimeout(r, 500));
+      log.push(`初始等待500ms完成...\n`);
+
+      for (let i = 0; i < maxAttempts; i++) {
+        attempts++;
+        log.push(`第 ${attempts} 次检测...`);
+
+        // 检查1：__fb_i 是否在 window 中
+        const existsInWindow = '__fb_i' in window;
+        log.push(`   __fb_i 在 window 中：${existsInWindow}`);
+
+        if (existsInWindow) {
+          let fb_i;
+          try {
+            fb_i = window.__fb_i;
+            log.push(`   __fb_i 的值：${fb_i === null ? 'null' : fb_i === undefined ? 'undefined' : typeof fb_i}`);
+          } catch (e) {
+            log.push(`   访问 __fb_i 失败：${e.message}`);
+            fb_i = undefined;
+          }
+
+          // 检查2：值是否是有效的对象
+          if (fb_i && typeof fb_i === 'object' && fb_i !== null) {
+            log.push(`✅ 找到有效的 __fb_i 对象！`);
+            log.push(`   类型：${typeof fb_i}`);
+            log.push(`   是否为 null：${fb_i === null}`);
+            log.push(`   是否为 undefined：${fb_i === undefined}`);
+            
+            // 尝试获取属性（进一步验证）
+            try {
+              const keys = Object.keys(fb_i);
+              log.push(`   属性数量：${keys.length} 个`);
+              if (keys.length > 0) {
+                log.push(`   前5个属性：${keys.slice(0, 5).join(', ')}`);
+              }
+            } catch (e) {
+              log.push(`   无法获取属性：${e.message}`);
+            }
+            
+            bridgeInfo.initialized = true;
+            bridgeInfo.obj = fb_i;
+            found = true;
+            break;
+          } else if (fb_i === undefined) {
+            log.push(`   __fb_i 是 undefined（可能需要更多时间初始化）`);
+          } else if (fb_i === null) {
+            log.push(`   __fb_i 是 null（可能是未初始化）`);
+          } else {
+            log.push(`   __fb_i 存在，但类型不是object：${typeof fb_i}`);
+          }
+        } else {
+          log.push(`   __fb_i 不在 window 对象中`);
+        }
+
+        if (i < maxAttempts - 1) {
+          log.push(`   等待 500ms 后重试...`);
+          await new Promise(r => setTimeout(r, 500));  // 增加到500ms
+        }
+      }
+
+      if (found) {
+        log.push(`\n✅ 初始化完成！`);
+        resultDiv.className = 'result success';
+      } else {
+        log.push(`\n❌ 初始化失败：尝试 ${attempts} 次后仍未找到有效的 __fb_i 对象`);
+        log.push(`\n可能的原因：`);
+        log.push(`1. Facebook的Bridge确实不存在（普通浏览器中不会注入）`);
+        log.push(`2. 需要更长的初始化时间（可以手动等待后刷新页面）`);
+        log.push(`3. 需要特定的触发条件（如点击某个按钮）`);
+        log.push(`4. Facebook的Bridge可能使用了不同的名称`);
+        resultDiv.className = 'result error';
+      }
+
+      resultDiv.textContent = log.join('\n');
+    }
+
+    // 步骤3：分析Bridge结构（改进版：即使初始化失败也尝试）
+    async function step3_analyzeBridge() {
+      const resultDiv = document.getElementById('step3Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在分析...';
+
+      // 如果bridgeInfo.obj不存在，尝试直接从window获取
+      if (!bridgeInfo.obj) {
+        if ('__fb_i' in window) {
+          try {
+            const fb_i = window.__fb_i;
+            if (fb_i && typeof fb_i === 'object') {
+              bridgeInfo.obj = fb_i;
+              bridgeInfo.initialized = true;
+              resultDiv.textContent = '⚠️ 虽然步骤2失败，但检测到__fb_i对象，继续分析...';
+            }
+          } catch (e) {
+            resultDiv.textContent = `❌ 错误：__fb_i 对象不存在或无法访问：${e.message}\n\n建议：先运行步骤1和步骤2`;
+            resultDiv.className = 'result error';
+            return;
+          }
+        } else {
+          resultDiv.textContent = '❌ 错误：__fb_i 对象不存在，请先运行步骤1和步骤2';
+          resultDiv.className = 'result error';
+          return;
+        }
+      }
+
+      const fb_i = bridgeInfo.obj;
+      const analysis = [];
+
+      // 分析1：获取所有属性
+      let keys = [];
+      try {
+        keys = Object.keys(fb_i);
+        analysis.push(`✅ 成功获取属性列表：${keys.length} 个属性`);
+      } catch (e) {
+        analysis.push(`❌ 无法获取属性列表：${e.message}`);
+        try {
+          // 尝试用 for...in 遍历
+          keys = [];
+          for (const k in fb_i) {
+            keys.push(k);
+          }
+          analysis.push(`✅ 使用 for...in 获取到 ${keys.length} 个属性`);
+        } catch (e2) {
+          analysis.push(`❌ for...in 也失败：${e2.message}`);
+        }
+      }
+
+      // 分析2：找出所有函数
+      const methods = [];
+      keys.forEach(key => {
+        try {
+          const value = fb_i[key];
+          if (typeof value === 'function') {
+            methods.push(key);
+          }
+        } catch (e) {
+          // 忽略访问错误
+        }
+      });
+
+      analysis.push(`\n找到 ${methods.length} 个函数方法：`);
+      methods.forEach(method => {
+        analysis.push(`  - ${method}`);
+      });
+
+      // 分析3：找出网络相关的方法
+      const networkKeywords = ['request', 'fetch', 'http', 'network', 'send', 'post', 'get', 'ajax'];
+      const networkMethods = methods.filter(m => 
+        networkKeywords.some(kw => m.toLowerCase().includes(kw.toLowerCase()))
+      );
+
+      analysis.push(`\n网络相关的方法（${networkMethods.length}个）：`);
+      networkMethods.forEach(method => {
+        analysis.push(`  - ${method}`);
+      });
+
+      bridgeInfo.methods = methods;
+      bridgeInfo.networkMethods = networkMethods;
+
+      resultDiv.textContent = analysis.join('\n');
+      resultDiv.className = 'result success';
+    }
+
+    // 步骤4：尝试调用Bridge
+    async function step4_tryCall() {
+      const resultDiv = document.getElementById('step4Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在尝试调用...';
+
+      if (!bridgeInfo.obj) {
+        resultDiv.textContent = '❌ 错误：__fb_i 对象不存在，请先运行步骤1和步骤2';
+        resultDiv.className = 'result error';
+        return;
+      }
+
+      // 确保testResults已初始化
+      if (!bridgeInfo.testResults) {
+        bridgeInfo.testResults = {};
+      }
+
+      const fb_i = bridgeInfo.obj;
+      const testUrl = 'https://httpbin.org/status/200';
+      const results = [];
+
+      // 如果步骤3还没运行，先尝试所有常见方法
+      // 如果步骤3已运行，优先尝试网络相关方法
+      let methodsToTry = [];
+      if (bridgeInfo.methods && bridgeInfo.methods.length > 0) {
+        // 优先尝试网络相关方法
+        if (bridgeInfo.networkMethods && bridgeInfo.networkMethods.length > 0) {
+          methodsToTry = bridgeInfo.networkMethods;
+        } else {
+          methodsToTry = bridgeInfo.methods;
+        }
+      } else {
+        // 如果还没分析，尝试所有常见方法（扩展列表）
+        methodsToTry = [
+          'request', 'fetch', 'httpRequest', 'nativeFetch', 'send', 
+          'post', 'get', 'ajax', 'http', 'network', 'call', 'invoke',
+          'execute', 'perform', 'dispatch', 'sendRequest', 'makeRequest',
+          'doRequest', 'httpGet', 'httpPost', 'xhr', 'xmlHttpRequest'
+        ];
+      }
+      
+      // 如果__fb_i对象存在，先尝试直接访问所有属性
+      if (bridgeInfo.obj) {
+        try {
+          const allKeys = Object.keys(bridgeInfo.obj);
+          results.push(`\n检测到 __fb_i 对象，共有 ${allKeys.length} 个属性`);
+          results.push(`所有属性：${allKeys.join(', ')}`);
+          
+          // 找出所有函数类型的属性
+          const functionKeys = allKeys.filter(k => {
+            try {
+              return typeof bridgeInfo.obj[k] === 'function';
+            } catch {
+              return false;
+            }
+          });
+          results.push(`\n找到 ${functionKeys.length} 个函数：${functionKeys.join(', ')}`);
+          
+          // 如果找到了函数，优先尝试这些函数
+          if (functionKeys.length > 0) {
+            methodsToTry = [...new Set([...functionKeys, ...methodsToTry])];  // 去重，函数优先
+          }
+        } catch (e) {
+          results.push(`\n无法访问 __fb_i 对象的属性：${e.message}`);
+        }
+      }
+
+      results.push(`尝试调用方法（共${methodsToTry.length}个）：\n`);
+
+      for (const method of methodsToTry) {
+        // 如果已经分析过方法列表，只尝试存在的方法
+        if (bridgeInfo.methods && bridgeInfo.methods.length > 0 && !bridgeInfo.methods.includes(method)) {
+          continue;  // 跳过不存在的方法
+        }
+        
+        // 检查方法是否存在
+        let methodExists = false;
+        try {
+          methodExists = method in fb_i;
+        } catch (e) {
+          results.push(`\n尝试方法：${method}`);
+          results.push(`  ❌ 无法检查方法是否存在：${e.message}`);
+          continue;
+        }
+        
+        if (!methodExists) {
+          results.push(`\n尝试方法：${method}`);
+          results.push(`  ⚠️ 方法不存在`);
+          continue;
+        }
+
+        results.push(`\n尝试方法：${method}`);
+
+        try {
+          const methodFunc = fb_i[method];
+          if (typeof methodFunc !== 'function') {
+            results.push(`  ❌ ${method} 不是函数`);
+            continue;
+          }
+
+          // 尝试不同的调用方式
+          const callPatterns = [
+            {
+              name: '方式1: method(url)',
+              call: () => methodFunc(testUrl)
+            },
+            {
+              name: '方式2: method({url: url})',
+              call: () => methodFunc({url: testUrl})
+            },
+            {
+              name: '方式3: method({url, method: "GET"})',
+              call: () => methodFunc({url: testUrl, method: 'GET'})
+            },
+            {
+              name: '方式4: method(url, callback)',
+              call: () => new Promise((resolve, reject) => {
+                try {
+                  methodFunc(testUrl, (result) => {
+                    resolve(result);
+                  });
+                  setTimeout(() => reject(new Error('timeout')), 3000);
+                } catch (e) {
+                  reject(e);
+                }
+              })
+            },
+            {
+              name: '方式5: method({url}, callback)',
+              call: () => new Promise((resolve, reject) => {
+                try {
+                  methodFunc({url: testUrl}, (result) => {
+                    resolve(result);
+                  });
+                  setTimeout(() => reject(new Error('timeout')), 3000);
+                } catch (e) {
+                  reject(e);
+                }
+              })
+            }
+          ];
+
+          let success = false;
+          for (const pattern of callPatterns) {
+            try {
+              results.push(`  尝试 ${pattern.name}...`);
+              const result = await Promise.race([
+                Promise.resolve(pattern.call()),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+              ]);
+              
+              results.push(`  ✅ 成功！返回值：${JSON.stringify(result).slice(0, 200)}`);
+              bridgeInfo.testResults[method] = {
+                success: true,
+                result: result,
+                pattern: pattern.name
+              };
+              success = true;
+              break;
+            } catch (e) {
+              results.push(`  ❌ 失败：${e.message}`);
+            }
+          }
+
+          if (!success) {
+            results.push(`  ❌ 所有调用方式都失败`);
+            bridgeInfo.testResults[method] = { success: false };
+          }
+        } catch (e) {
+          results.push(`  ❌ 调用失败：${e.message}`);
+          bridgeInfo.testResults[method] = { success: false, error: e.message };
+        }
+      }
+
+      resultDiv.textContent = results.join('\n');
+      resultDiv.className = bridgeInfo.testResults && Object.values(bridgeInfo.testResults).some(r => r.success) 
+        ? 'result success' 
+        : 'result error';
+    }
+
+    // 步骤5：验证Bridge功能（多重验证）
+    async function step5_verifyBridge() {
+      const resultDiv = document.getElementById('step5Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在验证...';
+
+      const checks = [];
+      const testUrl = 'https://httpbin.org/status/401';
+
+      // 检查1：是否存在
+      checks.push({
+        name: 'Bridge是否存在',
+        pass: bridgeInfo.exists && bridgeInfo.obj !== null,
+        reason: bridgeInfo.exists ? '__fb_i 存在' : '__fb_i 不存在'
+      });
+
+      // 检查2：是否已初始化
+      checks.push({
+        name: '是否已初始化',
+        pass: bridgeInfo.initialized,
+        reason: bridgeInfo.initialized ? '__fb_i 已初始化' : '__fb_i 未初始化'
+      });
+
+      // 检查3：是否有网络相关方法
+      checks.push({
+        name: '是否有网络相关方法',
+        pass: bridgeInfo.networkMethods && bridgeInfo.networkMethods.length > 0,
+        reason: bridgeInfo.networkMethods && bridgeInfo.networkMethods.length > 0 
+          ? `找到 ${bridgeInfo.networkMethods.length} 个网络相关方法` 
+          : '没有找到网络相关方法'
+      });
+
+      // 检查4：是否能成功调用
+      const hasSuccessfulCall = bridgeInfo.testResults && 
+        Object.keys(bridgeInfo.testResults).length > 0 &&
+        Object.values(bridgeInfo.testResults).some(r => r && r.success);
+      checks.push({
+        name: '是否能成功调用',
+        pass: hasSuccessfulCall,
+        reason: hasSuccessfulCall 
+          ? `至少有一个方法调用成功（${Object.keys(bridgeInfo.testResults || {}).filter(m => bridgeInfo.testResults[m] && bridgeInfo.testResults[m].success).length}个）` 
+          : '所有方法调用都失败（请先运行步骤4）'
+      });
+
+      // 检查5：是否能发送网络请求
+      let canSendRequest = false;
+      let requestResult = null;
+      let requestError = null;
+      if (hasSuccessfulCall && bridgeInfo.obj) {
+        try {
+          // 尝试用找到的方法发送请求
+          const fb_i = bridgeInfo.obj;
+          const workingMethod = Object.keys(bridgeInfo.testResults || {})
+            .find(m => bridgeInfo.testResults[m] && bridgeInfo.testResults[m].success);
+          
+          if (workingMethod) {
+            const methodFunc = fb_i[workingMethod];
+            const successfulPattern = bridgeInfo.testResults[workingMethod].pattern;
+            
+            // 根据成功的调用方式再次调用
+            if (successfulPattern.includes('callback')) {
+              // 回调方式
+              requestResult = await new Promise((resolve, reject) => {
+                try {
+                  methodFunc(testUrl, (result) => {
+                    resolve(result);
+                  });
+                  setTimeout(() => reject(new Error('timeout')), 5000);
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            } else if (successfulPattern.includes('{url')) {
+              // 对象方式
+              requestResult = await Promise.race([
+                Promise.resolve(methodFunc({url: testUrl})),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+              ]);
+            } else {
+              // 字符串方式
+              requestResult = await Promise.race([
+                Promise.resolve(methodFunc(testUrl)),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+              ]);
+            }
+            
+            canSendRequest = requestResult !== null && requestResult !== undefined;
+          }
+        } catch (e) {
+          requestError = e.message;
+          canSendRequest = false;
+        }
+      }
+
+      checks.push({
+        name: '是否能发送网络请求',
+        pass: canSendRequest,
+        reason: canSendRequest 
+          ? '能发送网络请求' 
+          : requestError 
+            ? `无法发送网络请求：${requestError}` 
+            : '无法发送网络请求（请先运行步骤4）',
+        result: requestResult ? JSON.stringify(requestResult).slice(0, 200) : null
+      });
+
+      // 检查6：是否能获取状态码
+      let canGetStatus = false;
+      if (requestResult) {
+        if (typeof requestResult.status === 'number') {
+          canGetStatus = true;
+        } else if (requestResult.data || requestResult.body) {
+          // 可能返回了数据，虽然没有status字段
+          canGetStatus = true;
+        }
+      }
+
+      checks.push({
+        name: '是否能获取状态码或响应数据',
+        pass: canGetStatus,
+        reason: canGetStatus ? '能获取状态码或响应数据' : '无法获取状态码或响应数据',
+        value: requestResult ? (requestResult.status || '无status字段，但有数据') : null
+      });
+
+      // 显示结果
+      let html = '<h3>多重验证结果：</h3>';
+      checks.forEach((check, index) => {
+        const statusClass = check.pass ? 'pass' : 'fail';
+        html += `
+          <div class="check-item ${statusClass}">
+            <strong>检查 ${index + 1}：${check.name}</strong><br>
+            <small>${check.reason}</small>
+            ${check.value ? `<br>值：${check.value}` : ''}
+            ${check.result ? `<br>结果：${check.result}` : ''}
+          </div>
+        `;
+      });
+
+      const allPass = checks.every(c => c.pass);
+      const passCount = checks.filter(c => c.pass).length;
+      
+      html += `<hr><strong>总结：</strong>通过 ${passCount}/${checks.length} 项检查`;
+      if (allPass) {
+        html += `<br>✅ 这是真正的Bridge！`;
+      } else if (passCount >= 3) {
+        html += `<br>⚠️ 可能是Bridge，但需要进一步验证`;
+      } else {
+        html += `<br>❌ 可能不是Bridge，或功能不完整`;
+      }
+
+      resultDiv.innerHTML = html;
+      resultDiv.className = allPass ? 'result success' : 
+                          passCount >= 3 ? 'result warning' : 'result error';
+    }
+
+    // 步骤6：对比fetch()和Bridge
+    async function step6_compareFetch() {
+      const resultDiv = document.getElementById('step6Result');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在对比...';
+
+      const testUrl = 'https://httpbin.org/status/401';
+      const results = [];
+
+      // 测试fetch()
+      results.push('=== fetch() 测试 ===');
+      let fetchResult = {};
+      try {
+        const response = await fetch(testUrl, {
+          mode: 'cors',
+          credentials: 'omit',
+          cache: 'no-store'
+        });
+        fetchResult = {
+          success: true,
+          status: response.status,
+          statusText: response.statusText,
+          hasStatus: true,
+          hasBody: true
+        };
+        results.push(`✅ fetch() 成功`);
+        results.push(`  状态码：${response.status}`);
+        results.push(`  状态文本：${response.statusText}`);
+      } catch (error) {
+        fetchResult = {
+          success: false,
+          error: error.message,
+          hasStatus: false,
+          hasBody: false
+        };
+        results.push(`❌ fetch() 失败：${error.message}`);
+      }
+
+      // 测试Bridge
+      results.push('\n=== Bridge 测试 ===');
+      let bridgeResult = {};
+      if (bridgeInfo.testResults && Object.values(bridgeInfo.testResults).some(r => r && r.success)) {
+        try {
+          const fb_i = bridgeInfo.obj;
+          const workingMethod = Object.keys(bridgeInfo.testResults || {})
+            .find(m => bridgeInfo.testResults[m] && bridgeInfo.testResults[m].success);
+          
+          if (workingMethod && fb_i) {
+            const methodFunc = fb_i[workingMethod];
+            const successfulPattern = bridgeInfo.testResults[workingMethod].pattern;
+            
+            let result;
+            // 根据成功的调用方式调用
+            if (successfulPattern.includes('callback')) {
+              result = await new Promise((resolve, reject) => {
+                try {
+                  methodFunc(testUrl, (res) => {
+                    resolve(res);
+                  });
+                  setTimeout(() => reject(new Error('timeout')), 5000);
+                } catch (e) {
+                  reject(e);
+                }
+              });
+            } else if (successfulPattern.includes('{url')) {
+              result = await Promise.race([
+                Promise.resolve(methodFunc({url: testUrl})),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+              ]);
+            } else {
+              result = await Promise.race([
+                Promise.resolve(methodFunc(testUrl)),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000))
+              ]);
+            }
+
+            bridgeResult = {
+              success: true,
+              status: result.status,
+              body: result.body || result.data,
+              hasStatus: typeof result.status === 'number',
+              hasBody: !!(result.body || result.data),
+              fullResult: result
+            };
+
+            results.push(`✅ Bridge 成功（使用 ${workingMethod} 方法）`);
+            results.push(`  状态码：${bridgeResult.status || '无'}`);
+            results.push(`  响应体：${bridgeResult.body ? '有' : '无'}`);
+            if (bridgeResult.fullResult) {
+              results.push(`  完整结果：${JSON.stringify(bridgeResult.fullResult).slice(0, 300)}`);
+            }
+          } else {
+            results.push(`❌ 无法找到可用的方法`);
+          }
+        } catch (error) {
+          bridgeResult = {
+            success: false,
+            error: error.message,
+            hasStatus: false,
+            hasBody: false
+          };
+          results.push(`❌ Bridge 失败：${error.message}`);
+        }
+      } else {
+        bridgeResult = {
+          success: false,
+          hasStatus: false,
+          hasBody: false
+        };
+        results.push(`❌ Bridge 无法调用（没有找到可用的方法，请先运行步骤4）`);
+      }
+
+      // 对比
+      results.push('\n=== 对比结果 ===');
+      if (bridgeResult.hasStatus && !fetchResult.hasStatus) {
+        results.push(`⚠️ 泄露！Bridge返回了状态码，fetch()拿不到`);
+        results.push(`  → 这是侧信道攻击的风险！`);
+      } else if (bridgeResult.hasStatus && fetchResult.hasStatus) {
+        results.push(`✅ 两者都能获取状态码（可能不是跨域请求）`);
+      } else if (!bridgeResult.hasStatus && fetchResult.hasStatus) {
+        results.push(`✅ fetch()能获取状态码，Bridge拿不到`);
+      } else {
+        results.push(`❌ 两者都拿不到状态码`);
+      }
+
+      resultDiv.textContent = results.join('\n');
+      resultDiv.className = bridgeResult.hasStatus && !fetchResult.hasStatus 
+        ? 'result warning' 
+        : bridgeResult.success ? 'result success' : 'result error';
+    }
+
+    // 一键完整测试
+    async function runFullTest() {
+      const resultDiv = document.getElementById('fullTestResult');
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '正在运行完整测试...\n\n';
+
+      const log = [];
+      log.push('=== Facebook Bridge 完整验证测试 ===\n');
+
+      // 步骤1
+      log.push('步骤1：检测Bridge是否存在...');
+      await step1_detectBridge();
+      log.push(bridgeInfo.exists ? '✅ Bridge存在' : '❌ Bridge不存在');
+      log.push('');
+
+      // 步骤2
+      if (bridgeInfo.exists) {
+        log.push('步骤2：等待异步初始化...');
+        await step2_waitForInit();
+        log.push(bridgeInfo.initialized ? '✅ 初始化完成' : '❌ 初始化失败');
+        log.push('');
+      }
+
+      // 步骤3
+      if (bridgeInfo.initialized) {
+        log.push('步骤3：分析Bridge结构...');
+        await step3_analyzeBridge();
+        log.push(`✅ 找到 ${bridgeInfo.methods.length} 个方法`);
+        if (bridgeInfo.networkMethods) {
+          log.push(`   其中 ${bridgeInfo.networkMethods.length} 个是网络相关方法`);
+        }
+        log.push('');
+      }
+
+      // 步骤4
+      if (bridgeInfo.methods.length > 0) {
+        log.push('步骤4：尝试调用Bridge...');
+        await step4_tryCall();
+        const successfulMethods = Object.keys(bridgeInfo.testResults || {})
+          .filter(m => bridgeInfo.testResults[m].success);
+        log.push(successfulMethods.length > 0 
+          ? `✅ ${successfulMethods.length} 个方法调用成功` 
+          : '❌ 所有方法调用都失败');
+        log.push('');
+      }
+
+      // 步骤5
+      log.push('步骤5：多重验证...');
+      await step5_verifyBridge();
+      log.push('');
+
+      // 步骤6
+      log.push('步骤6：对比fetch()和Bridge...');
+      await step6_compareFetch();
+      log.push('');
+
+      log.push('=== 测试完成 ===');
+      resultDiv.textContent = log.join('\n');
+    }
+
+    // 页面加载时自动检测
+    window.addEventListener('load', () => {
+      console.log('页面加载完成，可以开始测试');
+      console.log('当前环境：', navigator.userAgent);
+    });
+  </script>
+</body>
+</html>
+

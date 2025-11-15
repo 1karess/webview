@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Storage隔离测试工具</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      padding: 16px;
+      max-width: 960px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 12px 0;
+      background: #fff;
+    }
+    .card.danger {
+      background: #fff5f0;
+      border-color: #ff6b6b;
+    }
+    .card.success {
+      background: #e6ffed;
+      border-color: #52c41a;
+    }
+    .card.warning {
+      background: #fffbe6;
+      border-color: #faad14;
+    }
+    .card.info {
+      background: #e6f7ff;
+      border-color: #1890ff;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+    h1 {
+      color: #1890ff;
+      border-bottom: 2px solid #1890ff;
+      padding-bottom: 8px;
+    }
+    button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      margin: 4px;
+      transition: all 0.2s;
+    }
+    button.primary {
+      background: #1890ff;
+      color: white;
+    }
+    button.primary:hover {
+      background: #40a9ff;
+    }
+    button.danger {
+      background: #ff4d4f;
+      color: white;
+    }
+    button.danger:hover {
+      background: #ff7875;
+    }
+    button.success {
+      background: #52c41a;
+      color: white;
+    }
+    button.secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    button.secondary:hover {
+      background: #d9d9d9;
+    }
+    pre {
+      background: #f6f8fa;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    code {
+      background: #f0f3f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin: 4px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.danger {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status.warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 8px 0;
+    }
+    .test-result {
+      margin: 8px 0;
+      padding: 8px;
+      background: #fafafa;
+      border-left: 3px solid #1890ff;
+      border-radius: 4px;
+    }
+    .test-result.vulnerable {
+      border-left-color: #ff4d4f;
+      background: #fff1f0;
+    }
+    .test-result.isolated {
+      border-left-color: #52c41a;
+      background: #f6ffed;
+    }
+    input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 100%;
+      max-width: 400px;
+      margin: 4px 0;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 12px;
+      }
+      button {
+        width: 100%;
+        min-height: 44px;
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🔒 WebView Storage隔离测试工具</h1>
+  
+  <div class="card info">
+    <h3>📋 测试说明</h3>
+    <p>此工具用于检测WebView中localStorage和sessionStorage的隔离情况。</p>
+    <p><strong>测试流程：</strong></p>
+    <ol>
+      <li><strong>步骤1：</strong>在当前WebView中写入测试数据</li>
+      <li><strong>步骤2：</strong>切换到另一个WebView/小程序</li>
+      <li><strong>步骤3：</strong>在另一个WebView中打开此页面，尝试读取数据</li>
+      <li><strong>步骤4：</strong>查看检测结果，判断是否存在隔离问题</li>
+    </ol>
+  </div>
+
+  <!-- 测试模式选择 -->
+  <div class="card">
+    <h3>🎯 测试模式</h3>
+    <div class="row">
+      <button class="primary" id="modeWrite">模式1: 写入测试数据</button>
+      <button class="primary" id="modeRead">模式2: 读取并检测</button>
+      <button class="secondary" id="modeAuto">自动检测模式</button>
+    </div>
+    <p id="currentMode" style="margin-top: 12px; color: #666; font-size: 14px;">
+      当前模式: <strong>未选择</strong>
+    </p>
+  </div>
+
+  <!-- 写入测试数据区域 -->
+  <div class="card" id="writeSection">
+    <h3>📝 写入测试数据</h3>
+    <p>在当前WebView中写入带有唯一标识的测试数据</p>
+    <div style="margin: 12px 0;">
+      <label>测试标识符（可选）：</label>
+      <input type="text" id="testId" placeholder="例如: test_001" value="">
+    </div>
+    <div class="row">
+      <button class="success" id="writeLocalStorage">写入 localStorage</button>
+      <button class="success" id="writeSessionStorage">写入 sessionStorage</button>
+      <button class="success" id="writeBoth">同时写入两者</button>
+    </div>
+    <div id="writeResult" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- 读取和检测区域 -->
+  <div class="card" id="readSection">
+    <h3>🔍 读取并检测</h3>
+    <p>尝试读取之前写入的测试数据，检测是否存在隔离问题</p>
+    <div style="margin: 12px 0;">
+      <label>测试标识符（如果之前指定过）：</label>
+      <input type="text" id="readTestId" placeholder="留空则自动检测所有测试数据">
+    </div>
+    <div class="row">
+      <button class="primary" id="readLocalStorage">检测 localStorage</button>
+      <button class="primary" id="readSessionStorage">检测 sessionStorage</button>
+      <button class="primary" id="readBoth">检测两者</button>
+      <button class="secondary" id="clearAll">清除所有测试数据</button>
+    </div>
+    <div id="readResult" style="margin-top: 12px;"></div>
+  </div>
+
+  <!-- 环境信息 -->
+  <div class="card">
+    <h3>🌐 环境信息</h3>
+    <div id="envInfo"></div>
+  </div>
+
+  <!-- 测试结果汇总 -->
+  <div class="card" id="resultsSection" style="display: none;">
+    <h3>📊 测试结果汇总</h3>
+    <div id="resultsSummary"></div>
+  </div>
+
+  <!-- 数据导出 -->
+  <div class="card">
+    <h3>💾 导出测试结果</h3>
+    <div class="row">
+      <button class="secondary" id="exportJSON">导出 JSON</button>
+      <button class="secondary" id="copyJSON">复制 JSON</button>
+      <button class="secondary" id="exportReport">导出测试报告</button>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // 生成唯一标识符
+      function generateTestId() {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 9);
+        return `test_${timestamp}_${random}`;
+      }
+
+      // 获取当前测试标识符
+      function getTestId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('testId') || generateTestId();
+      }
+
+      // 存储测试配置
+      const TEST_CONFIG = {
+        localStorageKey: 'webview_storage_test',
+        sessionStorageKey: 'webview_storage_test',
+        cookieKey: 'webview_storage_test',
+      };
+
+      // 当前模式
+      let currentMode = null;
+
+      // DOM元素
+      const elements = {
+        modeWrite: document.getElementById('modeWrite'),
+        modeRead: document.getElementById('modeRead'),
+        modeAuto: document.getElementById('modeAuto'),
+        currentMode: document.getElementById('currentMode'),
+        writeSection: document.getElementById('writeSection'),
+        readSection: document.getElementById('readSection'),
+        writeResult: document.getElementById('writeResult'),
+        readResult: document.getElementById('readResult'),
+        envInfo: document.getElementById('envInfo'),
+        resultsSection: document.getElementById('resultsSection'),
+        resultsSummary: document.getElementById('resultsSummary'),
+        testId: document.getElementById('testId'),
+        readTestId: document.getElementById('readTestId'),
+        writeLocalStorage: document.getElementById('writeLocalStorage'),
+        writeSessionStorage: document.getElementById('writeSessionStorage'),
+        writeBoth: document.getElementById('writeBoth'),
+        readLocalStorage: document.getElementById('readLocalStorage'),
+        readSessionStorage: document.getElementById('readSessionStorage'),
+        readBoth: document.getElementById('readBoth'),
+        clearAll: document.getElementById('clearAll'),
+        exportJSON: document.getElementById('exportJSON'),
+        copyJSON: document.getElementById('copyJSON'),
+        exportReport: document.getElementById('exportReport'),
+      };
+
+      // 初始化
+      function init() {
+        // 设置默认测试ID
+        const testId = getTestId();
+        elements.testId.value = testId;
+        elements.readTestId.value = testId;
+
+        // 显示环境信息
+        displayEnvInfo();
+
+        // 自动检测模式
+        autoDetect();
+
+        // 绑定事件
+        bindEvents();
+      }
+
+      // 显示环境信息
+      function displayEnvInfo() {
+        const env = {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          cookieEnabled: navigator.cookieEnabled,
+          localStorageEnabled: testStorage('localStorage'),
+          sessionStorageEnabled: testStorage('sessionStorage'),
+          origin: window.location.origin,
+          href: window.location.href,
+          referrer: document.referrer,
+          timestamp: new Date().toISOString(),
+        };
+
+        elements.envInfo.innerHTML = `
+          <pre>${JSON.stringify(env, null, 2)}</pre>
+        `;
+      }
+
+      // 测试Storage是否可用
+      function testStorage(type) {
+        try {
+          const storage = type === 'localStorage' ? window.localStorage : window.sessionStorage;
+          const testKey = '__storage_test__';
+          storage.setItem(testKey, 'test');
+          storage.removeItem(testKey);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      // 自动检测模式
+      function autoDetect() {
+        const testId = getTestId();
+        const hasLocalData = localStorage.getItem(TEST_CONFIG.localStorageKey);
+        const hasSessionData = sessionStorage.getItem(TEST_CONFIG.sessionStorageKey);
+
+        if (hasLocalData || hasSessionData) {
+          // 发现测试数据，自动进入读取模式
+          setMode('read');
+          elements.readTestId.value = testId;
+        } else {
+          // 没有测试数据，进入写入模式
+          setMode('write');
+        }
+      }
+
+      // 设置模式
+      function setMode(mode) {
+        currentMode = mode;
+        
+        if (mode === 'write') {
+          elements.currentMode.innerHTML = '当前模式: <strong style="color: #52c41a;">写入模式</strong>';
+          elements.writeSection.style.display = 'block';
+          elements.readSection.style.display = 'none';
+        } else if (mode === 'read') {
+          elements.currentMode.innerHTML = '当前模式: <strong style="color: #1890ff;">读取模式</strong>';
+          elements.writeSection.style.display = 'none';
+          elements.readSection.style.display = 'block';
+        } else {
+          elements.currentMode.innerHTML = '当前模式: <strong style="color: #faad14;">自动模式</strong>';
+          elements.writeSection.style.display = 'block';
+          elements.readSection.style.display = 'block';
+        }
+      }
+
+      // 写入数据
+      function writeData(type, testId) {
+        const timestamp = Date.now();
+        const data = {
+          testId: testId,
+          timestamp: timestamp,
+          origin: window.location.origin,
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          url: window.location.href,
+        };
+
+        try {
+          if (type === 'localStorage' || type === 'both') {
+            localStorage.setItem(TEST_CONFIG.localStorageKey, JSON.stringify(data));
+          }
+          if (type === 'sessionStorage' || type === 'both') {
+            sessionStorage.setItem(TEST_CONFIG.sessionStorageKey, JSON.stringify(data));
+          }
+
+          return {
+            success: true,
+            type: type,
+            testId: testId,
+            data: data,
+          };
+        } catch (e) {
+          return {
+            success: false,
+            error: e.message,
+          };
+        }
+      }
+
+      // 读取数据
+      function readData(type) {
+        const results = {
+          localStorage: null,
+          sessionStorage: null,
+        };
+
+        try {
+          if (type === 'localStorage' || type === 'both') {
+            const localData = localStorage.getItem(TEST_CONFIG.localStorageKey);
+            if (localData) {
+              results.localStorage = JSON.parse(localData);
+            }
+          }
+          if (type === 'sessionStorage' || type === 'both') {
+            const sessionData = sessionStorage.getItem(TEST_CONFIG.sessionStorageKey);
+            if (sessionData) {
+              results.sessionStorage = JSON.parse(sessionData);
+            }
+          }
+        } catch (e) {
+          return {
+            success: false,
+            error: e.message,
+          };
+        }
+
+        return {
+          success: true,
+          results: results,
+        };
+      }
+
+      // 检测隔离问题
+      function detectIsolationIssue(readResult) {
+        const issues = [];
+
+        if (readResult.results.localStorage) {
+          const localData = readResult.results.localStorage;
+          const currentOrigin = window.location.origin;
+          
+          if (localData.origin !== currentOrigin) {
+            issues.push({
+              type: 'localStorage',
+              severity: 'high',
+              message: `发现localStorage跨域访问！数据来自: ${localData.origin}，当前域名: ${currentOrigin}`,
+              data: localData,
+            });
+          } else {
+            // 同源但需要检查其他问题
+            issues.push({
+              type: 'localStorage',
+              severity: 'info',
+              message: 'localStorage数据可访问（同源）',
+              data: localData,
+            });
+          }
+        }
+
+        if (readResult.results.sessionStorage) {
+          const sessionData = readResult.results.sessionStorage;
+          const currentOrigin = window.location.origin;
+          
+          if (sessionData.origin !== currentOrigin) {
+            issues.push({
+              type: 'sessionStorage',
+              severity: 'high',
+              message: `发现sessionStorage跨域访问！数据来自: ${sessionData.origin}，当前域名: ${currentOrigin}`,
+              data: sessionData,
+            });
+          } else {
+            issues.push({
+              type: 'sessionStorage',
+              severity: 'info',
+              message: 'sessionStorage数据可访问（同源）',
+              data: sessionData,
+            });
+          }
+        }
+
+        return issues;
+      }
+
+      // 显示写入结果
+      function displayWriteResult(result) {
+        if (result.success) {
+          elements.writeResult.innerHTML = `
+            <div class="test-result isolated">
+              <p><strong>✅ 写入成功</strong></p>
+              <p>类型: ${result.type}</p>
+              <p>测试ID: <code>${result.testId}</code></p>
+              <p>时间戳: ${new Date(result.data.timestamp).toLocaleString()}</p>
+              <pre>${JSON.stringify(result.data, null, 2)}</pre>
+              <p style="margin-top: 12px;">
+                <strong>下一步：</strong>切换到另一个WebView/小程序，然后打开此页面进行读取检测。
+              </p>
+            </div>
+          `;
+        } else {
+          elements.writeResult.innerHTML = `
+            <div class="test-result vulnerable">
+              <p><strong>❌ 写入失败</strong></p>
+              <p>错误: ${result.error}</p>
+            </div>
+          `;
+        }
+      }
+
+      // 显示读取结果
+      function displayReadResult(readResult) {
+        if (!readResult.success) {
+          elements.readResult.innerHTML = `
+            <div class="test-result vulnerable">
+              <p><strong>❌ 读取失败</strong></p>
+              <p>错误: ${readResult.error}</p>
+            </div>
+          `;
+          return;
+        }
+
+        const hasLocal = !!readResult.results.localStorage;
+        const hasSession = !!readResult.results.sessionStorage;
+
+        if (!hasLocal && !hasSession) {
+          elements.readResult.innerHTML = `
+            <div class="test-result isolated">
+              <p><strong>✅ 隔离正常</strong></p>
+              <p>未检测到跨WebView的Storage数据，隔离机制有效。</p>
+            </div>
+          `;
+          return;
+        }
+
+        // 检测隔离问题
+        const issues = detectIsolationIssue(readResult);
+        const hasHighRisk = issues.some(i => i.severity === 'high');
+
+        let html = `
+          <div class="test-result ${hasHighRisk ? 'vulnerable' : 'isolated'}">
+            <p><strong>${hasHighRisk ? '⚠️ 发现隔离问题' : 'ℹ️ 检测结果'}</strong></p>
+        `;
+
+        issues.forEach(issue => {
+          const severityClass = issue.severity === 'high' ? 'danger' : issue.severity === 'info' ? 'success' : 'warning';
+          html += `
+            <div style="margin: 8px 0; padding: 8px; background: #fafafa; border-radius: 4px;">
+              <span class="status ${severityClass}">${issue.type}</span>
+              <p>${issue.message}</p>
+              <details style="margin-top: 8px;">
+                <summary style="cursor: pointer; color: #1890ff;">查看详细数据</summary>
+                <pre style="margin-top: 8px;">${JSON.stringify(issue.data, null, 2)}</pre>
+              </details>
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+
+        elements.readResult.innerHTML = html;
+
+        // 更新汇总结果
+        updateResultsSummary(issues);
+      }
+
+      // 更新结果汇总
+      function updateResultsSummary(issues) {
+        elements.resultsSection.style.display = 'block';
+        
+        const highRiskCount = issues.filter(i => i.severity === 'high').length;
+        const totalCount = issues.length;
+
+        elements.resultsSummary.innerHTML = `
+          <div class="test-result ${highRiskCount > 0 ? 'vulnerable' : 'isolated'}">
+            <h4>检测统计</h4>
+            <p>高风险问题: <strong>${highRiskCount}</strong></p>
+            <p>总检测项: <strong>${totalCount}</strong></p>
+            <p>测试时间: ${new Date().toLocaleString()}</p>
+          </div>
+        `;
+      }
+
+      // 清除所有测试数据
+      function clearAllTestData() {
+        try {
+          localStorage.removeItem(TEST_CONFIG.localStorageKey);
+          sessionStorage.removeItem(TEST_CONFIG.sessionStorageKey);
+          elements.readResult.innerHTML = `
+            <div class="test-result isolated">
+              <p><strong>✅ 已清除所有测试数据</strong></p>
+            </div>
+          `;
+        } catch (e) {
+          alert('清除失败: ' + e.message);
+        }
+      }
+
+      // 导出JSON
+      function exportJSON() {
+        const readResult = readData('both');
+        const env = {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          origin: window.location.origin,
+          timestamp: new Date().toISOString(),
+        };
+
+        const data = {
+          environment: env,
+          readResult: readResult,
+          issues: readResult.success ? detectIsolationIssue(readResult) : [],
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `storage-isolation-test-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // 复制JSON
+      function copyJSON() {
+        const readResult = readData('both');
+        const env = {
+          userAgent: navigator.userAgent,
+          platform: navigator.platform,
+          origin: window.location.origin,
+          timestamp: new Date().toISOString(),
+        };
+
+        const data = {
+          environment: env,
+          readResult: readResult,
+          issues: readResult.success ? detectIsolationIssue(readResult) : [],
+        };
+
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(() => {
+          alert('已复制到剪贴板');
+        }).catch(e => {
+          alert('复制失败: ' + e.message);
+        });
+      }
+
+      // 导出测试报告
+      function exportReport() {
+        const readResult = readData('both');
+        const issues = readResult.success ? detectIsolationIssue(readResult) : [];
+        const highRiskCount = issues.filter(i => i.severity === 'high').length;
+
+        let report = `# WebView Storage隔离测试报告\n\n`;
+        report += `**测试时间**: ${new Date().toLocaleString()}\n\n`;
+        report += `**环境信息**:\n`;
+        report += `- User Agent: ${navigator.userAgent}\n`;
+        report += `- Platform: ${navigator.platform}\n`;
+        report += `- Origin: ${window.location.origin}\n\n`;
+        report += `**检测结果**:\n`;
+        report += `- 高风险问题: ${highRiskCount}\n`;
+        report += `- 总检测项: ${issues.length}\n\n`;
+
+        if (issues.length > 0) {
+          report += `**详细问题**:\n\n`;
+          issues.forEach((issue, index) => {
+            report += `### ${index + 1}. ${issue.type}\n\n`;
+            report += `**严重程度**: ${issue.severity}\n\n`;
+            report += `**描述**: ${issue.message}\n\n`;
+            report += `**数据**:\n\`\`\`json\n${JSON.stringify(issue.data, null, 2)}\n\`\`\`\n\n`;
+          });
+        } else {
+          report += `**结论**: 未发现Storage隔离问题，隔离机制有效。\n\n`;
+        }
+
+        const blob = new Blob([report], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `storage-isolation-report-${Date.now()}.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      // 绑定事件
+      function bindEvents() {
+        elements.modeWrite.addEventListener('click', () => setMode('write'));
+        elements.modeRead.addEventListener('click', () => setMode('read'));
+        elements.modeAuto.addEventListener('click', () => setMode('auto'));
+
+        elements.writeLocalStorage.addEventListener('click', () => {
+          const testId = elements.testId.value || getTestId();
+          const result = writeData('localStorage', testId);
+          displayWriteResult(result);
+        });
+
+        elements.writeSessionStorage.addEventListener('click', () => {
+          const testId = elements.testId.value || getTestId();
+          const result = writeData('sessionStorage', testId);
+          displayWriteResult(result);
+        });
+
+        elements.writeBoth.addEventListener('click', () => {
+          const testId = elements.testId.value || getTestId();
+          const result = writeData('both', testId);
+          displayWriteResult(result);
+        });
+
+        elements.readLocalStorage.addEventListener('click', () => {
+          const result = readData('localStorage');
+          displayReadResult(result);
+        });
+
+        elements.readSessionStorage.addEventListener('click', () => {
+          const result = readData('sessionStorage');
+          displayReadResult(result);
+        });
+
+        elements.readBoth.addEventListener('click', () => {
+          const result = readData('both');
+          displayReadResult(result);
+        });
+
+        elements.clearAll.addEventListener('click', clearAllTestData);
+        elements.exportJSON.addEventListener('click', exportJSON);
+        elements.copyJSON.addEventListener('click', copyJSON);
+        elements.exportReport.addEventListener('click', exportReport);
+      }
+
+      // 启动
+      init();
+    })();
+  </script>
+</body>
+</html>

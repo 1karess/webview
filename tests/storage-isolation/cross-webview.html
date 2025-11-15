@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>跨WebView Storage测试</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 16px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 12px 0;
+    }
+    .card.warning {
+      background: #fffbe6;
+      border-color: #faad14;
+    }
+    button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background: #1890ff;
+      color: white;
+      margin: 4px;
+    }
+    pre {
+      background: #f6f8fa;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔗 跨WebView Storage测试辅助工具</h1>
+  
+  <div class="card warning">
+    <h3>⚠️ 使用说明</h3>
+    <p>此页面用于测试同一宿主App（如微信）内不同小程序之间的Storage共享情况。</p>
+    <p><strong>测试步骤：</strong></p>
+    <ol>
+      <li>在<strong>小程序A</strong>中打开主测试页面，写入测试数据</li>
+      <li>切换到<strong>小程序B</strong>，打开此页面</li>
+      <li>点击"检测Storage共享"按钮</li>
+      <li>查看是否能读取到小程序A的数据</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>检测结果</h3>
+    <button id="detectBtn">检测Storage共享</button>
+    <div id="result" style="margin-top: 16px;"></div>
+  </div>
+
+  <script>
+    (function() {
+      const TEST_KEY = 'webview_storage_test';
+      
+      function detectStorage() {
+        const results = {
+          localStorage: null,
+          sessionStorage: null,
+          cookies: null,
+          timestamp: new Date().toISOString(),
+          origin: window.location.origin,
+          userAgent: navigator.userAgent,
+        };
+
+        try {
+          const localData = localStorage.getItem(TEST_KEY);
+          if (localData) {
+            results.localStorage = JSON.parse(localData);
+          }
+        } catch (e) {
+          results.localStorage = { error: e.message };
+        }
+
+        try {
+          const sessionData = sessionStorage.getItem(TEST_KEY);
+          if (sessionData) {
+            results.sessionStorage = JSON.parse(sessionData);
+          }
+        } catch (e) {
+          results.sessionStorage = { error: e.message };
+        }
+
+        try {
+          results.cookies = document.cookie;
+        } catch (e) {
+          results.cookies = { error: e.message };
+        }
+
+        return results;
+      }
+
+      function displayResult(result) {
+        const hasData = !!(result.localStorage || result.sessionStorage);
+        const isShared = hasData && (
+          (result.localStorage && result.localStorage.origin !== window.location.origin) ||
+          (result.sessionStorage && result.sessionStorage.origin !== window.location.origin)
+        );
+
+        let html = '';
+        
+        if (isShared) {
+          html += '<div style="background: #fff1f0; padding: 12px; border-radius: 6px; border-left: 3px solid #ff4d4f;">';
+          html += '<h4 style="color: #ff4d4f; margin-top: 0;">⚠️ 发现Storage共享问题！</h4>';
+          html += '<p>检测到跨小程序的Storage数据访问，存在隐私风险。</p>';
+        } else if (hasData) {
+          html += '<div style="background: #f6ffed; padding: 12px; border-radius: 6px; border-left: 3px solid #52c41a;">';
+          html += '<h4 style="color: #52c41a; margin-top: 0;">ℹ️ 检测到同源数据</h4>';
+          html += '<p>检测到Storage数据，但为同源访问（正常情况）。</p>';
+        } else {
+          html += '<div style="background: #e6f7ff; padding: 12px; border-radius: 6px; border-left: 3px solid #1890ff;">';
+          html += '<h4 style="color: #1890ff; margin-top: 0;">✅ 未检测到共享数据</h4>';
+          html += '<p>未检测到跨WebView的Storage数据，隔离机制可能有效。</p>';
+        }
+
+        html += '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        html += '</div>';
+
+        document.getElementById('result').innerHTML = html;
+      }
+
+      document.getElementById('detectBtn').addEventListener('click', () => {
+        const result = detectStorage();
+        displayResult(result);
+      });
+
+      // 自动检测一次
+      const result = detectStorage();
+      displayResult(result);
+    })();
+  </script>
+</body>
+</html>

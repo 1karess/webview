@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <title>登录状态检测测试 - Bridge泄露测试</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 16px;
+      max-width: 960px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 12px 0;
+      background: #fff;
+    }
+    .card.warning {
+      background: #fff5f0;
+      border-color: #ff6b6b;
+    }
+    .card.success {
+      background: #e6ffed;
+      border-color: #52c41a;
+    }
+    .card.info {
+      background: #e6f7ff;
+      border-color: #1890ff;
+    }
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+    button {
+      padding: 10px 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      margin: 4px;
+      background: #1890ff;
+      color: white;
+    }
+    button:hover {
+      background: #40a9ff;
+    }
+    button:disabled {
+      background: #d9d9d9;
+      cursor: not-allowed;
+    }
+    .result-item {
+      margin: 8px 0;
+      padding: 12px;
+      background: #fafafa;
+      border-left: 3px solid #1890ff;
+      border-radius: 4px;
+    }
+    .result-item.logged-in {
+      border-left-color: #52c41a;
+      background: #f6ffed;
+    }
+    .result-item.not-logged-in {
+      border-left-color: #faad14;
+      background: #fffbe6;
+    }
+    .result-item.error {
+      border-left-color: #ff4d4f;
+      background: #fff1f0;
+    }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin: 4px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .status.danger {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    pre {
+      background: #f6f8fa;
+      padding: 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+    .loading {
+      color: #1890ff;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 登录状态检测测试</h1>
+  
+  <div class="card warning">
+    <h3>⚠️ 测试说明</h3>
+    <p>此页面用于测试Bridge泄露是否真的能判断用户是否登录了某个网站。</p>
+    <p><strong>测试原理：</strong></p>
+    <ul>
+      <li>用Bridge访问需要登录的页面</li>
+      <li>根据状态码判断登录状态：200=已登录，401=未登录，403=已登录但无权限</li>
+      <li>对比fetch()的结果，验证Bridge是否泄露了更多信息</li>
+    </ul>
+    <p><strong>注意：</strong>这只是安全研究测试，不会收集或发送任何数据。</p>
+  </div>
+
+  <div class="card info">
+    <h3>🌐 检测目标网站</h3>
+    <p>选择要检测的网站（需要登录才能访问的页面）：</p>
+    <div id="targets">
+      <label><input type="checkbox" name="target" value="github" checked /> GitHub (个人设置页面)</label><br>
+      <label><input type="checkbox" name="target" value="weibo" checked /> 微博 (个人主页)</label><br>
+      <label><input type="checkbox" name="target" value="taobao" checked /> 淘宝 (会员中心)</label><br>
+      <label><input type="checkbox" name="target" value="zhihu" checked /> 知乎 (个人主页)</label><br>
+      <label><input type="checkbox" name="target" value="bilibili" checked /> B站 (个人中心)</label><br>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>🚀 开始测试</h3>
+    <button id="runTest">▶ 运行测试</button>
+    <button id="clearResults">清除结果</button>
+    <div id="status" style="margin-top: 12px;"></div>
+  </div>
+
+  <div class="card" id="resultsCard" style="display: none;">
+    <h3>📊 测试结果</h3>
+    <div id="results"></div>
+  </div>
+
+  <div class="card" id="summaryCard" style="display: none;">
+    <h3>📈 测试摘要</h3>
+    <div id="summary"></div>
+  </div>
+
+  <script>
+    (function() {
+      'use strict';
+
+      // 检测目标网站配置
+      const targets = {
+        github: {
+          name: 'GitHub',
+          url: 'https://github.com/settings/profile',
+          description: 'GitHub个人设置页面'
+        },
+        weibo: {
+          name: '微博',
+          url: 'https://weibo.com/u/your-id', // 需要替换为实际用户ID
+          description: '微博个人主页'
+        },
+        taobao: {
+          name: '淘宝',
+          url: 'https://www.taobao.com/member/',
+          description: '淘宝会员中心'
+        },
+        zhihu: {
+          name: '知乎',
+          url: 'https://www.zhihu.com/people/your-id', // 需要替换为实际用户ID
+          description: '知乎个人主页'
+        },
+        bilibili: {
+          name: 'B站',
+          url: 'https://space.bilibili.com/your-id', // 需要替换为实际用户ID
+          description: 'B站个人中心'
+        }
+      };
+
+      // 检查Bridge是否存在
+      function checkBridge() {
+        if (typeof window.TXWebKitNativeFetch === 'function') {
+          return 'TXWebKitNativeFetch';
+        }
+        if (window.byted_mixrender_native && typeof window.byted_mixrender_native.invoke === 'function') {
+          return 'byted_mixrender_native.invoke';
+        }
+        if (window.TelegramWebview && typeof window.TelegramWebview.nativeFetch === 'function') {
+          return 'TelegramWebview.nativeFetch';
+        }
+        return null;
+      }
+
+      // 用Bridge访问URL
+      async function bridgeFetch(url) {
+        const bridgeName = checkBridge();
+        if (!bridgeName) {
+          return { error: '未找到Bridge' };
+        }
+
+        try {
+          if (bridgeName === 'TXWebKitNativeFetch') {
+            // TXWebKitNativeFetch返回Promise，需要等待
+            const promise = window.TXWebKitNativeFetch(url);
+            
+            // 等待结果，设置超时
+            const result = await Promise.race([
+              Promise.resolve(promise),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000))
+            ]);
+
+            // 尝试从结果中提取状态码和响应体
+            let status = null;
+            let body = null;
+            let bodySnippet = null;
+            
+            if (result && typeof result === 'object') {
+              // 提取状态码
+              status = result.status || result.statusCode || result.code;
+              
+              // 提取响应体
+              if (typeof result.body === 'string') {
+                body = result.body;
+                bodySnippet = result.body.slice(0, 500);
+              } else if (typeof result.data === 'string') {
+                body = result.data;
+                bodySnippet = result.data.slice(0, 500);
+              } else if (typeof result.response === 'string') {
+                body = result.response;
+                bodySnippet = result.response.slice(0, 500);
+              }
+              
+              // 如果result有text()方法（类似Response对象）
+              if (typeof result.text === 'function') {
+                try {
+                  const text = await result.text();
+                  body = text;
+                  bodySnippet = text.slice(0, 500);
+                } catch (e) {
+                  // 忽略错误
+                }
+              }
+            } else if (typeof result === 'number') {
+              status = result;
+            } else if (result === 'ok' || result === true) {
+              status = 200; // 假设成功
+            }
+
+            return {
+              success: true,
+              status: status || null,
+              body: body || '',
+              bodySnippet: bodySnippet || '',
+              raw: result,
+              via: 'TXWebKitNativeFetch'
+            };
+          }
+          // 其他Bridge的实现...
+          return { error: 'Bridge类型不支持' };
+        } catch (e) {
+          return { error: e.message || 'Bridge调用失败' };
+        }
+      }
+
+      // 用fetch()访问URL（作为对比）
+      async function normalFetch(url) {
+        try {
+          const response = await fetch(url, {
+            mode: 'no-cors',
+            cache: 'no-store',
+            credentials: 'omit'
+          });
+          return {
+            success: true,
+            status: response.status || 'unknown',
+            via: 'fetch'
+          };
+        } catch (e) {
+          return {
+            success: false,
+            error: e.message || 'fetch()失败',
+            via: 'fetch'
+          };
+        }
+      }
+
+      // 判断登录状态
+      function interpretStatus(status, url) {
+        if (!status) return { status: 'unknown', message: '无法获取状态码' };
+        
+        if (status === 200) {
+          return { status: 'logged-in', message: '✅ 可能已登录（状态码200）' };
+        } else if (status === 401) {
+          return { status: 'not-logged-in', message: '⚠️ 未登录（状态码401）' };
+        } else if (status === 403) {
+          return { status: 'logged-in-no-permission', message: '✅ 可能已登录但无权限（状态码403）' };
+        } else if (status >= 400 && status < 500) {
+          return { status: 'error', message: `❌ 客户端错误（状态码${status}）` };
+        } else if (status >= 500) {
+          return { status: 'error', message: `❌ 服务器错误（状态码${status}）` };
+        } else {
+          return { status: 'unknown', message: `状态码：${status}` };
+        }
+      }
+
+      // 运行测试
+      async function runTest() {
+        const bridgeName = checkBridge();
+        if (!bridgeName) {
+          document.getElementById('status').innerHTML = '<div class="result-item error">❌ 未找到Bridge！请在QQ、微信等App中打开此页面。</div>';
+          return;
+        }
+
+        document.getElementById('status').innerHTML = '<div class="loading">⏳ 正在检测Bridge...</div>';
+        document.getElementById('resultsCard').style.display = 'block';
+        document.getElementById('results').innerHTML = '';
+
+        const selectedTargets = Array.from(document.querySelectorAll('input[name="target"]:checked'))
+          .map(input => input.value);
+
+        if (selectedTargets.length === 0) {
+          document.getElementById('status').innerHTML = '<div class="result-item error">❌ 请至少选择一个检测目标</div>';
+          return;
+        }
+
+        document.getElementById('status').innerHTML = `<div class="loading">✅ 找到Bridge: ${bridgeName}</div>`;
+        document.getElementById('status').innerHTML += `<div class="loading">⏳ 开始测试 ${selectedTargets.length} 个目标...</div>`;
+
+        const results = [];
+        let loggedInCount = 0;
+        let notLoggedInCount = 0;
+        let errorCount = 0;
+
+        for (const targetKey of selectedTargets) {
+          const target = targets[targetKey];
+          if (!target) continue;
+
+          const resultItem = document.createElement('div');
+          resultItem.className = 'result-item';
+          resultItem.innerHTML = `<h4>${target.name} (${target.description})</h4><div class="loading">⏳ 正在测试...</div>`;
+          document.getElementById('results').appendChild(resultItem);
+
+          // 用Bridge测试
+          const bridgeResult = await bridgeFetch(target.url);
+          
+          // 用fetch()测试（作为对比）
+          const fetchResult = await normalFetch(target.url);
+
+          // 判断登录状态
+          let statusInfo = { status: 'unknown', message: '无法判断' };
+          if (bridgeResult.success) {
+            statusInfo = interpretStatus(bridgeResult.status, target.url);
+            if (statusInfo.status === 'logged-in' || statusInfo.status === 'logged-in-no-permission') {
+              loggedInCount++;
+            } else if (statusInfo.status === 'not-logged-in') {
+              notLoggedInCount++;
+            } else {
+              errorCount++;
+            }
+          } else {
+            errorCount++;
+            statusInfo = { status: 'error', message: bridgeResult.error || '测试失败' };
+          }
+
+          // 显示结果
+          resultItem.className = `result-item ${statusInfo.status}`;
+          let html = `<h4>${target.name} (${target.description})</h4>`;
+          html += `<p><strong>URL:</strong> <code>${target.url}</code></p>`;
+          
+          if (bridgeResult.success) {
+            html += `<p><span class="status success">Bridge测试</span> 状态码: <strong>${bridgeResult.status || '未知'}</strong></p>`;
+            html += `<p>${statusInfo.message}</p>`;
+            
+            // 显示响应体（如果有）
+            if (bridgeResult.bodySnippet) {
+              html += `<p><span class="status success">响应体</span> (前500字符):</p>`;
+              html += `<pre style="font-size: 11px; max-height: 200px; overflow-y: auto;">${bridgeResult.bodySnippet}</pre>`;
+            }
+            
+            // 对比fetch()结果
+            if (fetchResult.success) {
+              html += `<p><span class="status warning">fetch()测试</span> 状态码: <strong>${fetchResult.status || '未知'}</strong></p>`;
+              if (bridgeResult.status !== fetchResult.status) {
+                html += `<p><span class="status danger">⚠️ 泄露！</span> Bridge返回的状态码与fetch()不同</p>`;
+              }
+              // 检查响应体泄露
+              if (bridgeResult.bodySnippet && !fetchResult.body) {
+                html += `<p><span class="status danger">⚠️ 泄露！</span> Bridge能获取响应体，而fetch()无法获取</p>`;
+              }
+            } else {
+              html += `<p><span class="status warning">fetch()测试</span> ${fetchResult.error || '失败'}</p>`;
+              html += `<p><span class="status danger">⚠️ 泄露！</span> Bridge能获取状态码，而fetch()无法获取</p>`;
+            }
+          } else {
+            html += `<p><span class="status danger">❌ 测试失败</span> ${bridgeResult.error || '未知错误'}</p>`;
+          }
+
+          html += `<details style="margin-top: 8px;"><summary style="cursor: pointer; color: #1890ff;">查看详细信息</summary><pre>Bridge结果: ${JSON.stringify(bridgeResult, null, 2)}\n\nfetch()结果: ${JSON.stringify(fetchResult, null, 2)}</pre></details>`;
+          
+          resultItem.innerHTML = html;
+
+          results.push({
+            target: target.name,
+            url: target.url,
+            bridgeResult,
+            fetchResult,
+            statusInfo
+          });
+
+          // 延迟一下，避免请求过快
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // 显示摘要
+        document.getElementById('summaryCard').style.display = 'block';
+        let summaryHtml = `<p><strong>测试完成！</strong></p>`;
+        summaryHtml += `<p>✅ 可能已登录: ${loggedInCount} 个网站</p>`;
+        summaryHtml += `<p>⚠️ 未登录: ${notLoggedInCount} 个网站</p>`;
+        summaryHtml += `<p>❌ 测试失败: ${errorCount} 个网站</p>`;
+        summaryHtml += `<p><strong>Bridge:</strong> ${bridgeName}</p>`;
+        
+        if (loggedInCount > 0) {
+          summaryHtml += `<p style="color: #ff4d4f; font-weight: bold;">⚠️ 警告：检测到你可能已登录 ${loggedInCount} 个网站，这证明了Bridge泄露的风险！</p>`;
+        }
+        
+        document.getElementById('summary').innerHTML = summaryHtml;
+        document.getElementById('status').innerHTML = '<div class="result-item success">✅ 测试完成！</div>';
+      }
+
+      // 清除结果
+      function clearResults() {
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('summary').innerHTML = '';
+        document.getElementById('resultsCard').style.display = 'none';
+        document.getElementById('summaryCard').style.display = 'none';
+        document.getElementById('status').innerHTML = '';
+      }
+
+      // 绑定事件
+      document.getElementById('runTest').addEventListener('click', runTest);
+      document.getElementById('clearResults').addEventListener('click', clearResults);
+
+      // 检查Bridge
+      const bridgeName = checkBridge();
+      if (bridgeName) {
+        document.getElementById('status').innerHTML = `<div class="result-item success">✅ 找到Bridge: ${bridgeName}</div>`;
+      } else {
+        document.getElementById('status').innerHTML = '<div class="result-item error">❌ 未找到Bridge！请在QQ、微信等App中打开此页面。</div>';
+      }
+    })();
+  </script>
+</body>
+</html>
+
