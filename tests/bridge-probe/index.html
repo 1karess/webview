@@ -1329,18 +1329,75 @@ https://httpbin.org/anything</textarea>
     last = report;
     /* 更新last变量：保存最新的测试结果 */
     
+    // 判断登录状态的辅助函数
+    function detectLoginStatus(event, url) {
+      if (!event.fulfilled) return null;
+      
+      // 优先检查响应体内容（更准确）
+      if (event.bodySnippet) {
+        const body = event.bodySnippet.toLowerCase();
+        
+        // Reddit API 特征：已登录时返回用户数据
+        // 检查是否包含用户特征、用户ID、用户名等
+        const hasUserData = body.includes('"features"') || 
+                           body.includes('"id"') && body.includes('"name"') ||
+                           body.includes('"username"') ||
+                           body.includes('"user"') && !body.includes('"error"');
+        
+        // 检查是否是错误信息（未登录）
+        const hasError = body.includes('"error"') || 
+                        body.includes('unauthorized') || 
+                        body.includes('forbidden') ||
+                        body.includes('access token') ||
+                        body.includes('authentication') ||
+                        body.includes('login required');
+        
+        if (hasUserData && !hasError) {
+          return '已登录';
+        }
+        if (hasError) {
+          return '未登录';
+        }
+      }
+      
+      // 如果没有响应体，检查状态码
+      if (event.status === 401) {
+        return '未登录';
+      } else if (event.status === 403) {
+        return '未登录（无权限）';
+      } else if (event.status === 200) {
+        // 200但没有响应体或无法判断内容
+        if (!event.bodySnippet) {
+          return '状态200（无响应体，无法判断）';
+        }
+        // 有响应体但内容不确定
+        return '状态200（内容不确定）';
+      }
+      return null;
+    }
+    
     const lines = events.map(e=>{
       /* 格式化输出行：将每个测试事件转换为可读文本 */
       const tag = (e.fulfilled? '✅ OK' : '❌ ERR');
       /* 状态标签：成功显示✅ OK，失败显示❌ ERR */
       const leak = classifyLeak(e);
       /* 分类泄露：调用classifyLeak()判断是否泄露 */
+      const loginStatus = detectLoginStatus(e, e.url);
+      /* 检测登录状态 */
+      
       let line = `${tag} ${e.method} ${e.url}`;
       /* 基础行：状态标签 + 方法名 + URL */
       if (e.status !== undefined) {
         line += ` [状态码: ${e.status}]`;
         /* 如果有状态码，显示状态码 */
       }
+      
+      // 显示登录状态（如果检测到）
+      if (loginStatus) {
+        const statusEmoji = loginStatus === '已登录' ? '🔓' : loginStatus === '未登录' ? '🔒' : '❓';
+        line += `\n   ${statusEmoji} 登录状态: ${loginStatus}`;
+      }
+      
       if (e.bodySnippet) {
         line += `\n   响应体: ${e.bodySnippet}`;
         /* 如果有响应体片段，显示响应体（前300字符） */
@@ -1359,13 +1416,76 @@ https://httpbin.org/anything</textarea>
     
     const any = report.summary.oracleAny;
     /* 获取是否有泄露：从报告摘要中提取oracleAny字段 */
+    
+    // 分析登录状态（更严格的判断）
+    const bridgeEvents = events.filter(e => e.method !== 'fetch' && e.fulfilled);
+    const fetchEvents = events.filter(e => e.method === 'fetch' && e.fulfilled);
+    
+    // 检查Bridge返回的响应体，判断是否包含用户数据
+    const loginDetected = bridgeEvents.some(e => {
+      if (e.bodySnippet) {
+        const body = e.bodySnippet.toLowerCase();
+        // 必须包含用户数据特征，且不包含错误信息
+        const hasUserData = (body.includes('"features"') || 
+                            (body.includes('"id"') && body.includes('"name"')) ||
+                            body.includes('"username"') ||
+                            (body.includes('"user"') && !body.includes('"error"')));
+        const hasError = body.includes('"error"') || 
+                        body.includes('unauthorized') || 
+                        body.includes('forbidden') ||
+                        body.includes('access token') ||
+                        body.includes('authentication');
+        return hasUserData && !hasError;
+      }
+      return false;
+    });
+    
+    // 检查是否明确未登录（401或响应体包含错误）
+    const notLoggedIn = bridgeEvents.some(e => {
+      if (e.status === 401 || e.status === 403) return true;
+      if (e.bodySnippet) {
+        const body = e.bodySnippet.toLowerCase();
+        return body.includes('"error"') || 
+               body.includes('unauthorized') || 
+               body.includes('forbidden') ||
+               body.includes('access token') ||
+               body.includes('authentication') ||
+               body.includes('login required');
+      }
+      return false;
+    });
+    
     summary.className = 'card ' + (any ? 'warn' : 'ok');
     /* 设置摘要样式：如果有泄露使用警告样式（红色），否则使用成功样式（绿色） */
-    summary.innerHTML = any
-      ? `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`
-      /* 如果有泄露：显示警告信息，包含泄露的URL数量 */
-      : `✅ Oracle测试完成：未发现明显的泄露信号。`;
-      /* 如果没有泄露：显示成功信息 */
+    
+    let summaryText = '';
+    if (any) {
+      summaryText = `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`;
+    } else {
+      summaryText = `✅ Oracle测试完成：未发现明显的泄露信号。`;
+    }
+    
+    // 添加登录状态提示
+    if (loginDetected) {
+      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。`;
+    } else if (notLoggedIn) {
+      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。`;
+    } else {
+      // 检查是否所有请求都返回200但没有用户数据
+      const all200NoData = bridgeEvents.length > 0 && 
+                          bridgeEvents.every(e => e.status === 200) &&
+                          !bridgeEvents.some(e => e.bodySnippet && 
+                            (e.bodySnippet.toLowerCase().includes('"features"') || 
+                             e.bodySnippet.toLowerCase().includes('"username"')));
+      
+      if (all200NoData) {
+        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br>💡 <strong>建议：</strong>对比登录前后的响应体内容差异，或检查响应体是否包含错误信息。`;
+      } else {
+        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。`;
+      }
+    }
+    
+    summary.innerHTML = summaryText;
     autoSendWebhook();
     /* 自动发送到webhook：如果配置了webhook URL，自动发送结果 */
   }
