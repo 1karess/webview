@@ -153,11 +153,17 @@
         <button id="openAmazon" style="background:#146eb4;color:white">Open Amazon</button>
       </div>
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:8px;margin:8px 0;font-size:12px">
-        <strong>⚠️ 提示：</strong>某些网站（如B站）可能有严格的安全策略，即使使用Bridge也无法访问。这是正常现象，说明该网站有良好的安全防护。如果所有请求都失败，建议：
+        <strong>⚠️ 提示：</strong>
         <ul style="margin:4px 0;padding-left:20px">
-          <li>尝试测试其他网站（微博、知乎等）</li>
-          <li>使用 <code>httpbin.org</code> 验证工具是否正常工作</li>
-          <li>在报告中记录该网站的防护情况</li>
+          <li><strong>Reddit登录问题：</strong>Reddit可能阻止iframe嵌入（X-Frame-Options），工具会自动使用新窗口打开。如果新窗口也无法登录，请手动在新标签页打开Reddit登录页面，登录后返回此页面运行测试。</li>
+          <li><strong>安全策略：</strong>某些网站（如B站）可能有严格的安全策略，即使使用Bridge也无法访问。这是正常现象，说明该网站有良好的安全防护。</li>
+          <li><strong>如果所有请求都失败：</strong>
+            <ul style="margin:2px 0;padding-left:20px">
+              <li>尝试测试其他网站（微博、知乎、亚马逊等）</li>
+              <li>使用 <code>httpbin.org</code> 验证工具是否正常工作</li>
+              <li>在报告中记录该网站的防护情况</li>
+            </ul>
+          </li>
         </ul>
       </div>
       <div id="siteFrameContainer" style="display:none;margin-top:12px;border:2px solid #1890ff;border-radius:6px;overflow:hidden">
@@ -1766,14 +1772,22 @@ https://httpbin.org/anything</textarea>
     },
     reddit: {
       name: 'Reddit',
-      url: 'https://www.reddit.com',
-      testUrl: 'https://www.reddit.com',
+      url: 'https://www.reddit.com/login',
+      testUrl: 'https://www.reddit.com/login',
+      // Reddit可能阻止iframe，提供多个备用URL
+      fallbackUrls: [
+        'https://old.reddit.com/login',
+        'https://m.reddit.com/login',
+        'https://www.reddit.com/login'
+      ],
       apiUrls: [
         'https://oauth.reddit.com/api/v1/me',
         'https://www.reddit.com/api/v1/me',
         'https://www.reddit.com'
       ],
-      color: '#ff4500'
+      color: '#ff4500',
+      // 标记为可能需要新窗口登录
+      preferNewWindow: true
     },
     amazon: {
       name: 'Amazon',
@@ -1810,6 +1824,20 @@ https://httpbin.org/anything</textarea>
       }
     }
     
+    // 如果网站标记为preferNewWindow（如Reddit），直接使用新窗口
+    if (site.preferNewWindow) {
+      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+      if (newWindow) {
+        alert(`已在新窗口打开${site.name}登录页面。\n\n提示：某些网站（如Reddit）可能阻止iframe嵌入，因此使用新窗口。\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+      } else {
+        // 如果新窗口被阻止，尝试在当前页面导航
+        if (confirm(`${site.name}可能阻止iframe嵌入。是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
+          window.location.href = site.url;
+        }
+      }
+      return;
+    }
+    
     // 显示iframe容器
     const container = document.getElementById('siteFrameContainer');
     const frame = document.getElementById('siteFrame');
@@ -1818,6 +1846,55 @@ https://httpbin.org/anything</textarea>
     if (container && frame && title) {
       container.style.display = 'block';
       title.textContent = `${site.name} - 请在此登录`;
+      
+      // 检测iframe是否被阻止
+      let iframeBlocked = false;
+      let loadTimeout = null;
+      
+      // 设置加载超时检测
+      loadTimeout = setTimeout(() => {
+        try {
+          // 尝试访问iframe内容，如果被阻止会抛出异常
+          const iframeDoc = frame.contentDocument || frame.contentWindow.document;
+          if (!iframeDoc || iframeDoc.location.href === 'about:blank') {
+            iframeBlocked = true;
+            handleIframeBlocked(site, container, frame, title);
+          }
+        } catch (e) {
+          // 跨域异常，说明iframe可能被阻止
+          iframeBlocked = true;
+          handleIframeBlocked(site, container, frame, title);
+        }
+      }, 3000);
+      
+      // 监听iframe加载
+      frame.onload = function() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        
+        try {
+          const iframeDoc = frame.contentDocument || frame.contentWindow.document;
+          // 检查是否显示X-Frame-Options错误页面
+          if (iframeDoc && iframeDoc.body) {
+            const bodyText = iframeDoc.body.textContent || iframeDoc.body.innerText || '';
+            if (bodyText.includes('X-Frame-Options') || 
+                bodyText.includes('refused to connect') ||
+                bodyText.includes('frame') && bodyText.includes('denied')) {
+              iframeBlocked = true;
+              handleIframeBlocked(site, container, frame, title);
+              return;
+            }
+          }
+        } catch (e) {
+          // 跨域异常，可能是正常的，继续尝试
+        }
+      };
+      
+      frame.onerror = function() {
+        if (loadTimeout) clearTimeout(loadTimeout);
+        iframeBlocked = true;
+        handleIframeBlocked(site, container, frame, title);
+      };
+      
       frame.src = site.url;
       
       // 滚动到iframe位置
@@ -1830,6 +1907,51 @@ https://httpbin.org/anything</textarea>
       } else {
         // 如果新窗口也无法打开，尝试在当前页面导航
         if (confirm(`无法打开新窗口，是否在当前页面中打开${site.name}？\n\n注意：打开后需要手动返回此测试页面。`)) {
+          window.location.href = site.url;
+        }
+      }
+    }
+  }
+  
+  // 处理iframe被阻止的情况
+  function handleIframeBlocked(site, container, frame, title) {
+    // 隐藏iframe
+    container.style.display = 'none';
+    frame.src = 'about:blank';
+    
+    // 尝试使用备用URL（如果有）
+    if (site.fallbackUrls && site.fallbackUrls.length > 0) {
+      let triedUrls = [site.url];
+      let currentIndex = 0;
+      
+      const tryNextUrl = () => {
+        if (currentIndex < site.fallbackUrls.length) {
+          const nextUrl = site.fallbackUrls[currentIndex];
+          triedUrls.push(nextUrl);
+          currentIndex++;
+          
+          // 尝试在新窗口打开备用URL
+          const newWindow = window.open(nextUrl, '_blank', 'width=800,height=600');
+          if (newWindow) {
+            alert(`${site.name}的iframe被阻止。已尝试使用备用URL在新窗口打开：\n${nextUrl}\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+          } else {
+            tryNextUrl();
+          }
+        } else {
+          // 所有备用URL都失败，提示用户
+          alert(`${site.name}无法在iframe中加载，且所有备用URL都失败。\n\n已尝试的URL：\n${triedUrls.join('\n')}\n\n建议：\n1. 手动在新标签页打开 ${site.url}\n2. 登录后返回此页面\n3. 点击"运行Oracle测试"按钮`);
+        }
+      };
+      
+      tryNextUrl();
+    } else {
+      // 没有备用URL，直接使用新窗口
+      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+      if (newWindow) {
+        alert(`${site.name}的iframe被阻止（可能是X-Frame-Options或CSP策略）。\n\n已在新窗口打开登录页面。请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+      } else {
+        // 如果新窗口也被阻止，提示用户手动操作
+        if (confirm(`${site.name}无法在iframe中加载，且无法打开新窗口。\n\n是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
           window.location.href = site.url;
         }
       }
