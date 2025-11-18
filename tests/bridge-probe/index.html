@@ -174,6 +174,38 @@
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
       </div>
       <small style="color:#666;display:block;margin-top:8px">步骤：1. 点击"打开XX并登录" → 2. 在下方iframe中登录 → 3. 点击下方"运行Oracle测试"按钮</small>
+      
+      <!-- 新窗口登录提示区域 -->
+      <div id="newWindowLoginPrompt" style="display:none;background:#fff3cd;border:3px solid #ff9800;border-radius:8px;padding:16px;margin-top:12px;position:relative;animation:pulse 2s infinite">
+        <div style="display:flex;align-items:center;margin-bottom:12px">
+          <span style="font-size:24px;margin-right:8px">🔔</span>
+          <h4 style="margin:0;color:#e65100;font-size:18px">登录提示</h4>
+        </div>
+        <p style="margin:8px 0;font-size:14px;line-height:1.6">
+          <strong id="loginPromptSiteName">网站</strong>的登录窗口已在新窗口打开。
+        </p>
+        <p style="margin:8px 0;font-size:14px;line-height:1.6">
+          <strong>📋 操作步骤：</strong>
+        </p>
+        <ol style="margin:8px 0;padding-left:24px;font-size:14px;line-height:1.8">
+          <li>在新窗口中完成登录</li>
+          <li>登录成功后，<strong>切换回此页面</strong>（此页面会保持打开）</li>
+          <li>点击下方醒目的 <strong style="color:#ff4500">"我已登录，开始测试"</strong> 按钮</li>
+        </ol>
+        <div style="margin-top:16px;text-align:center">
+          <button id="loginCompleteBtn" style="background:#ff4500;color:white;font-size:18px;font-weight:bold;padding:16px 32px;border:none;border-radius:8px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);min-height:56px;width:100%;max-width:400px">
+            ✅ 我已登录，开始测试
+          </button>
+        </div>
+        <button id="dismissLoginPrompt" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,0.1);border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:18px;line-height:1;color:#666">×</button>
+      </div>
+      
+      <style>
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7); }
+          50% { box-shadow: 0 0 0 10px rgba(255, 152, 0, 0); }
+        }
+      </style>
     </div>
     
     <div style="margin-top:8px">
@@ -1828,7 +1860,22 @@ https://httpbin.org/anything</textarea>
     if (site.preferNewWindow) {
       const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
       if (newWindow) {
-        alert(`已在新窗口打开${site.name}登录页面。\n\n提示：某些网站（如Reddit）可能阻止iframe嵌入，因此使用新窗口。\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+        // 显示登录提示区域
+        showLoginPrompt(site);
+        
+        // 尝试监听新窗口关闭事件（如果可能）
+        const checkWindowClosed = setInterval(() => {
+          if (newWindow.closed) {
+            clearInterval(checkWindowClosed);
+            // 窗口已关闭，提示用户
+            showLoginCompletePrompt(site);
+          }
+        }, 500);
+        
+        // 30秒后停止检查（避免内存泄漏）
+        setTimeout(() => clearInterval(checkWindowClosed), 30000);
+        
+        alert(`已在新窗口打开${site.name}登录页面。\n\n📌 重要提示：\n1. 请在打开的新窗口中完成登录\n2. 登录完成后，关闭新窗口或切换回此页面\n3. 然后点击下方醒目的"我已登录，开始测试"按钮\n\n💡 提示：此页面会保持打开，不会自动关闭。`);
       } else {
         // 如果新窗口被阻止，尝试在当前页面导航
         if (confirm(`${site.name}可能阻止iframe嵌入。是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
@@ -1958,6 +2005,33 @@ https://httpbin.org/anything</textarea>
     }
   }
   
+  // 显示登录提示区域
+  function showLoginPrompt(site) {
+    const prompt = document.getElementById('newWindowLoginPrompt');
+    const siteName = document.getElementById('loginPromptSiteName');
+    if (prompt && siteName) {
+      siteName.textContent = site.name;
+      prompt.style.display = 'block';
+      // 滚动到提示区域
+      prompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+  
+  // 显示登录完成提示
+  function showLoginCompletePrompt(site) {
+    const prompt = document.getElementById('newWindowLoginPrompt');
+    if (prompt) {
+      prompt.style.display = 'block';
+      // 更新提示内容
+      const siteName = document.getElementById('loginPromptSiteName');
+      if (siteName) {
+        siteName.textContent = site.name;
+      }
+      // 滚动到提示区域
+      prompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+  
   // 关闭网站iframe（使用事件委托，因为按钮可能还不存在）
   document.addEventListener('click', function(e) {
     if (e.target && e.target.id === 'closeSiteFrame') {
@@ -1967,6 +2041,56 @@ https://httpbin.org/anything</textarea>
         container.style.display = 'none';
         frame.src = 'about:blank';
       }
+    }
+    
+    // 处理"我已登录，开始测试"按钮
+    if (e.target && e.target.id === 'loginCompleteBtn') {
+      // 隐藏提示
+      const prompt = document.getElementById('newWindowLoginPrompt');
+      if (prompt) {
+        prompt.style.display = 'none';
+      }
+      // 自动滚动到Oracle测试按钮并高亮
+      const oracleBtn = document.getElementById('runOracle');
+      if (oracleBtn) {
+        oracleBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 高亮按钮
+        oracleBtn.style.background = '#52c41a';
+        oracleBtn.style.transform = 'scale(1.05)';
+        oracleBtn.style.transition = 'all 0.3s';
+        setTimeout(() => {
+          oracleBtn.style.background = '';
+          oracleBtn.style.transform = '';
+        }, 2000);
+        // 提示用户点击
+        alert('✅ 很好！现在请点击下方高亮的"运行Oracle测试"按钮开始测试。');
+      }
+    }
+    
+    // 处理关闭提示按钮
+    if (e.target && e.target.id === 'dismissLoginPrompt') {
+      const prompt = document.getElementById('newWindowLoginPrompt');
+      if (prompt) {
+        prompt.style.display = 'none';
+      }
+    }
+  });
+  
+  // 监听窗口焦点变化，当用户切换回来时提醒
+  let wasBlurred = false;
+  window.addEventListener('blur', function() {
+    wasBlurred = true;
+  });
+  
+  window.addEventListener('focus', function() {
+    if (wasBlurred) {
+      // 检查是否有登录提示显示
+      const prompt = document.getElementById('newWindowLoginPrompt');
+      if (prompt && prompt.style.display !== 'none') {
+        // 用户切换回来了，滚动到提示区域
+        prompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      wasBlurred = false;
     }
   });
   
