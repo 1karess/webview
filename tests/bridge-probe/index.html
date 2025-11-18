@@ -193,8 +193,40 @@ https://httpbin.org/anything</textarea>
       <!-- 按钮行容器：顶部间距8px -->
       <button id="runOracle">▶ 运行Oracle测试</button>
       <!-- Oracle测试按钮：执行Oracle测试，对比Bridge和fetch()的响应 -->
+      <button id="compareResponses" style="background:#52c41a;color:white">📊 对比响应体</button>
+      <!-- 对比响应体按钮：对比未登录和已登录时的响应体差异 -->
       <label><input type="checkbox" id="oracleIncludeFetch" checked /> 同时测试fetch()基线</label>
       <!-- 复选框：默认选中，决定是否同时测试fetch()作为对比基线 -->
+    </div>
+    <div id="responseComparison" style="display:none;margin-top:12px;padding:12px;background:#f6f8fa;border-radius:6px;border:1px solid #ddd">
+      <h4 style="margin-top:0">📊 响应体对比</h4>
+      <p style="font-size:13px;color:#666;margin:8px 0">用于验证登录状态判断的准确性。先保存未登录时的响应体，登录后再对比。</p>
+      <div class="row" style="margin:8px 0">
+        <button id="saveNotLoggedIn" style="background:#ff4d4f;color:white;font-size:13px">保存未登录响应体</button>
+        <button id="saveLoggedIn" style="background:#52c41a;color:white;font-size:13px">保存已登录响应体</button>
+        <button id="clearComparison" style="background:#f0f0f0;color:#333;font-size:13px">清空对比</button>
+      </div>
+      <div id="comparisonResult" style="margin-top:8px;font-size:12px"></div>
+    </div>
+    
+    <!-- 清除登录状态功能 -->
+    <div style="margin-top:12px;padding:12px;background:#fff5f0;border-radius:6px;border:1px solid #ffccc7">
+      <h4 style="margin-top:0;color:#ff4d4f">🔓 清除登录状态</h4>
+      <p style="font-size:13px;color:#666;margin:8px 0">如果已登录但无法退出，可以使用以下方法清除登录状态：</p>
+      <div class="row" style="margin:8px 0">
+        <button id="clearCookies" style="background:#ff4d4f;color:white;font-size:13px">清除Cookie</button>
+        <button id="clearStorage" style="background:#ff7875;color:white;font-size:13px">清除Storage</button>
+        <button id="clearAllData" style="background:#ff4d4f;color:white;font-size:13px">清除所有数据</button>
+      </div>
+      <div id="clearStatus" style="margin-top:8px;font-size:12px;color:#666"></div>
+      <small style="color:#999;display:block;margin-top:8px">
+        💡 提示：清除后需要刷新页面。如果还是无法退出，可能需要：
+        <ul style="margin:4px 0;padding-left:20px">
+          <li>在Reddit网站中手动退出登录</li>
+          <li>清除浏览器/WebView的缓存和数据</li>
+          <li>重新打开WebView</li>
+        </ul>
+      </small>
     </div>
   </div>
 
@@ -1399,15 +1431,14 @@ https://httpbin.org/anything</textarea>
       }
       
       if (e.bodySnippet) {
-        // 显示完整的响应体（用于验证）
-        const bodyPreview = e.bodySnippet.length > 500 ? e.bodySnippet.slice(0, 500) + '...' : e.bodySnippet;
-        line += `\n   响应体: ${bodyPreview}`;
-        /* 如果有响应体片段，显示响应体（前500字符） */
-        
-        // 如果是已登录状态，添加验证提示
-        if (loginStatus === '已登录') {
-          line += `\n   💡 验证方法：检查响应体是否包含用户数据（如"features"、"id"、"name"等字段）`;
+        // 显示响应体片段，并添加"查看完整响应体"提示
+        const bodyLength = e.bodySnippet.length;
+        const isTruncated = bodyLength >= 300;
+        line += `\n   响应体 (${isTruncated ? '前300字符，已截断' : '完整'}): ${e.bodySnippet}`;
+        if (isTruncated) {
+          line += `\n   💡 提示: 响应体已截断，完整内容请查看Raw数据或导出JSON`;
         }
+        /* 如果有响应体片段，显示响应体（前300字符） */
       }
       if (leak.oracle) {
         line += `\n   ⚠️ [泄露: ${leak.reasons.join(', ')}]`;
@@ -1472,40 +1503,11 @@ https://httpbin.org/anything</textarea>
       summaryText = `✅ Oracle测试完成：未发现明显的泄露信号。`;
     }
     
-    // 添加登录状态提示和验证方法
+    // 添加登录状态提示
     if (loginDetected) {
-      // 找到包含用户数据的响应体示例
-      const userDataExample = bridgeEvents.find(e => {
-        if (e.bodySnippet) {
-          const body = e.bodySnippet.toLowerCase();
-          return body.includes('"features"') || body.includes('"username"');
-        }
-        return false;
-      });
-      
-      let verifyInfo = '';
-      if (userDataExample && userDataExample.bodySnippet) {
-        // 提取关键字段用于验证
-        const body = userDataExample.bodySnippet;
-        const hasFeatures = body.includes('"features"');
-        const hasId = body.includes('"id"');
-        const hasName = body.includes('"name"');
-        const hasUsername = body.includes('"username"');
-        
-        verifyInfo = '<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px">';
-        verifyInfo += '<li><strong>检查响应体内容：</strong>查看上方的"响应体"部分</li>';
-        if (hasFeatures) verifyInfo += '<li>✅ 包含 "features" 字段（用户特征设置）</li>';
-        if (hasId) verifyInfo += '<li>✅ 包含 "id" 字段（用户ID）</li>';
-        if (hasName) verifyInfo += '<li>✅ 包含 "name" 字段（用户名）</li>';
-        if (hasUsername) verifyInfo += '<li>✅ 包含 "username" 字段（用户名）</li>';
-        verifyInfo += '<li><strong>对比测试：</strong>退出登录后重新测试，对比响应体差异</li>';
-        verifyInfo += '<li><strong>手动验证：</strong>在Reddit网页中确认是否真的已登录</li>';
-        verifyInfo += '</ul>';
-      }
-      
-      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。${verifyInfo}`;
+      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。`;
     } else if (notLoggedIn) {
-      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li>检查响应体是否包含 "error"、"unauthorized" 等错误信息</li><li>尝试登录后重新测试，对比结果差异</li></ul>`;
+      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。`;
     } else {
       // 检查是否所有请求都返回200但没有用户数据
       const all200NoData = bridgeEvents.length > 0 && 
@@ -1515,9 +1517,9 @@ https://httpbin.org/anything</textarea>
                              e.bodySnippet.toLowerCase().includes('"username"')));
       
       if (all200NoData) {
-        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li><strong>对比测试：</strong>先退出登录测试一次，再登录后测试一次，对比响应体内容</li><li><strong>检查响应体：</strong>查看上方的"响应体"部分，确认是否包含用户数据（如"features"字段）</li><li><strong>手动验证：</strong>在Reddit网页中确认当前登录状态</li><li><strong>查看Raw数据：</strong>点击下方"Raw"标签，查看完整的JSON响应</li></ul>`;
+        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br>💡 <strong>建议：</strong>对比登录前后的响应体内容差异，或检查响应体是否包含错误信息。`;
       } else {
-        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li>查看上方的"响应体"部分</li><li>点击下方"Raw"标签查看完整JSON数据</li><li>对比登录前后的测试结果</li></ul>`;
+        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。`;
       }
     }
     
@@ -1873,6 +1875,302 @@ https://httpbin.org/anything</textarea>
   
   document.getElementById('analyzeBridges').onclick = analyzeBridges;
   document.getElementById('runOracle').onclick = runOracleInline;
+  
+  // 响应体对比功能
+  let responseComparison = {
+    notLoggedIn: null,
+    loggedIn: null
+  };
+  
+  // 显示/隐藏对比区域
+  document.getElementById('compareResponses').onclick = function() {
+    const container = document.getElementById('responseComparison');
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+  };
+  
+  // 获取最新的Oracle测试结果
+  function getLatestOracleEvents() {
+    // 从last对象获取（如果存在）
+    if (last && last.events && Array.isArray(last.events)) {
+      return last.events;
+    }
+    // 从results.runs中查找最新的Oracle测试
+    const oracleRun = results.runs.slice().reverse().find(r => r.type === 'oracle-leak');
+    if (oracleRun && oracleRun.events && Array.isArray(oracleRun.events)) {
+      return oracleRun.events;
+    }
+    return [];
+  }
+  
+  // 保存未登录响应体
+  document.getElementById('saveNotLoggedIn').onclick = function() {
+    const allEvents = getLatestOracleEvents();
+    const bridgeEvents = allEvents.filter(e => e.method !== 'fetch' && e.fulfilled && e.bodySnippet);
+    if (bridgeEvents.length === 0) {
+      alert('请先运行Oracle测试，确保有响应体数据。');
+      return;
+    }
+    
+    // 找到第一个有响应体的Bridge事件
+    const event = bridgeEvents[0];
+    responseComparison.notLoggedIn = {
+      url: event.url,
+      status: event.status,
+      bodySnippet: event.bodySnippet,
+      timestamp: new Date().toISOString()
+    };
+    
+    updateComparisonDisplay();
+    alert('已保存未登录时的响应体。请登录后再次运行测试并保存已登录响应体。');
+  };
+  
+  // 保存已登录响应体
+  document.getElementById('saveLoggedIn').onclick = function() {
+    const allEvents = getLatestOracleEvents();
+    const bridgeEvents = allEvents.filter(e => e.method !== 'fetch' && e.fulfilled && e.bodySnippet);
+    if (bridgeEvents.length === 0) {
+      alert('请先运行Oracle测试，确保有响应体数据。');
+      return;
+    }
+    
+    // 找到第一个有响应体的Bridge事件
+    const event = bridgeEvents[0];
+    responseComparison.loggedIn = {
+      url: event.url,
+      status: event.status,
+      bodySnippet: event.bodySnippet,
+      timestamp: new Date().toISOString()
+    };
+    
+    updateComparisonDisplay();
+    alert('已保存已登录时的响应体。');
+  };
+  
+  // 清空对比
+  document.getElementById('clearComparison').onclick = function() {
+    responseComparison.notLoggedIn = null;
+    responseComparison.loggedIn = null;
+    updateComparisonDisplay();
+  };
+  
+  // 更新对比显示
+  function updateComparisonDisplay() {
+    const resultDiv = document.getElementById('comparisonResult');
+    
+    if (!responseComparison.notLoggedIn && !responseComparison.loggedIn) {
+      resultDiv.innerHTML = '<p style="color:#999">暂无对比数据。请先保存未登录和已登录时的响应体。</p>';
+      return;
+    }
+    
+    let html = '<div style="background:white;padding:12px;border-radius:4px;border:1px solid #ddd">';
+    
+    if (responseComparison.notLoggedIn) {
+      html += `<h5 style="margin-top:0;color:#ff4d4f">🔒 未登录时 (${new Date(responseComparison.notLoggedIn.timestamp).toLocaleTimeString()})</h5>`;
+      html += `<p><strong>URL:</strong> <code>${responseComparison.notLoggedIn.url}</code></p>`;
+      html += `<p><strong>状态码:</strong> ${responseComparison.notLoggedIn.status}</p>`;
+      html += `<p><strong>响应体:</strong></p>`;
+      html += `<pre style="background:#fff5f0;padding:8px;border-radius:4px;font-size:11px;max-height:200px;overflow-y:auto">${escapeHtml(responseComparison.notLoggedIn.bodySnippet)}</pre>`;
+      
+      // 分析未登录响应体
+      const body = responseComparison.notLoggedIn.bodySnippet.toLowerCase();
+      const hasError = body.includes('"error"') || body.includes('unauthorized') || body.includes('forbidden');
+      const hasUserData = body.includes('"features"') || body.includes('"username"');
+      html += `<p style="margin-top:8px"><strong>分析:</strong> `;
+      if (hasError) {
+        html += `<span style="color:#ff4d4f">包含错误信息 → 判断为未登录 ✓</span>`;
+      } else if (hasUserData) {
+        html += `<span style="color:#faad14">包含用户数据 → 判断可能有问题 ⚠️</span>`;
+      } else {
+        html += `<span style="color:#999">无明确特征 → 无法判断</span>`;
+      }
+      html += `</p>`;
+    }
+    
+    if (responseComparison.loggedIn) {
+      html += `<h5 style="margin-top:16px;color:#52c41a">🔓 已登录时 (${new Date(responseComparison.loggedIn.timestamp).toLocaleTimeString()})</h5>`;
+      html += `<p><strong>URL:</strong> <code>${responseComparison.loggedIn.url}</code></p>`;
+      html += `<p><strong>状态码:</strong> ${responseComparison.loggedIn.status}</p>`;
+      html += `<p><strong>响应体:</strong></p>`;
+      html += `<pre style="background:#f6ffed;padding:8px;border-radius:4px;font-size:11px;max-height:200px;overflow-y:auto">${escapeHtml(responseComparison.loggedIn.bodySnippet)}</pre>`;
+      
+      // 分析已登录响应体
+      const body = responseComparison.loggedIn.bodySnippet.toLowerCase();
+      const hasUserData = body.includes('"features"') || body.includes('"username"') || body.includes('"id"');
+      const hasError = body.includes('"error"') || body.includes('unauthorized');
+      html += `<p style="margin-top:8px"><strong>分析:</strong> `;
+      if (hasUserData && !hasError) {
+        html += `<span style="color:#52c41a">包含用户数据 → 判断为已登录 ✓</span>`;
+      } else if (hasError) {
+        html += `<span style="color:#ff4d4f">包含错误信息 → 判断可能有问题 ⚠️</span>`;
+      } else {
+        html += `<span style="color:#999">无明确特征 → 无法判断</span>`;
+      }
+      html += `</p>`;
+    }
+    
+    // 对比分析
+    if (responseComparison.notLoggedIn && responseComparison.loggedIn) {
+      html += `<h5 style="margin-top:16px;color:#1890ff">📊 对比分析</h5>`;
+      
+      const notLoggedBody = responseComparison.notLoggedIn.bodySnippet.toLowerCase();
+      const loggedBody = responseComparison.loggedIn.bodySnippet.toLowerCase();
+      
+      const notLoggedHasError = notLoggedBody.includes('"error"') || notLoggedBody.includes('unauthorized');
+      const loggedHasUserData = loggedBody.includes('"features"') || loggedBody.includes('"username"');
+      
+      if (notLoggedHasError && loggedHasUserData) {
+        html += `<p style="color:#52c41a">✅ <strong>判断准确：</strong>未登录时包含错误信息，已登录时包含用户数据。登录状态检测逻辑正确。</p>`;
+      } else if (responseComparison.notLoggedIn.status === 200 && responseComparison.loggedIn.status === 200) {
+        html += `<p style="color:#faad14">⚠️ <strong>注意：</strong>未登录和已登录都返回200状态码，但响应体内容不同：</p>`;
+        html += `<ul style="margin:4px 0;padding-left:20px">`;
+        if (notLoggedHasError) {
+          html += `<li>未登录：响应体包含错误信息</li>`;
+        } else {
+          html += `<li>未登录：响应体不包含用户数据特征</li>`;
+        }
+        if (loggedHasUserData) {
+          html += `<li>已登录：响应体包含用户数据（features、id、name等）</li>`;
+        } else {
+          html += `<li>已登录：响应体可能不完整或格式不同</li>`;
+        }
+        html += `</ul>`;
+        html += `<p style="color:#1890ff">💡 <strong>结论：</strong>工具通过分析响应体内容（而非状态码）来判断登录状态，这是正确的做法。</p>`;
+      } else {
+        html += `<p style="color:#999">状态码不同：未登录=${responseComparison.notLoggedIn.status}，已登录=${responseComparison.loggedIn.status}</p>`;
+      }
+    }
+    
+    html += '</div>';
+    resultDiv.innerHTML = html;
+  }
+  
+  // HTML转义函数
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // 清除登录状态功能
+  document.getElementById('clearCookies').onclick = function() {
+    const statusDiv = document.getElementById('clearStatus');
+    try {
+      // 获取所有Cookie
+      const cookies = document.cookie.split(';');
+      let cleared = 0;
+      
+      // 清除所有Cookie
+      cookies.forEach(cookie => {
+        const eqPos = cookie.indexOf('=');
+        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+        if (name) {
+          // 清除当前域名的Cookie
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname}`;
+          cleared++;
+        }
+      });
+      
+      // 清除Reddit相关的Cookie（跨域Cookie可能无法直接清除，但尝试一下）
+      const redditDomains = ['.reddit.com', 'reddit.com', '.www.reddit.com', 'www.reddit.com', '.oauth.reddit.com', 'oauth.reddit.com'];
+      const commonCookieNames = ['reddit_session', 'session', 'token', 'auth', 'login', 'user'];
+      
+      redditDomains.forEach(domain => {
+        commonCookieNames.forEach(name => {
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${domain}`;
+        });
+      });
+      
+      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除 ${cleared} 个Cookie。请刷新页面查看效果。</p>`;
+      setTimeout(() => {
+        if (confirm('Cookie已清除。是否刷新页面？')) {
+          window.location.reload();
+        }
+      }, 500);
+    } catch (e) {
+      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除Cookie失败：${e.message}</p>`;
+    }
+  };
+  
+  document.getElementById('clearStorage').onclick = function() {
+    const statusDiv = document.getElementById('clearStatus');
+    try {
+      let cleared = 0;
+      
+      // 清除localStorage
+      try {
+        const localKeys = Object.keys(localStorage);
+        localKeys.forEach(key => {
+          if (key.toLowerCase().includes('reddit') || key.toLowerCase().includes('auth') || key.toLowerCase().includes('login')) {
+            localStorage.removeItem(key);
+            cleared++;
+          }
+        });
+      } catch (e) {}
+      
+      // 清除sessionStorage
+      try {
+        const sessionKeys = Object.keys(sessionStorage);
+        sessionKeys.forEach(key => {
+          if (key.toLowerCase().includes('reddit') || key.toLowerCase().includes('auth') || key.toLowerCase().includes('login')) {
+            sessionStorage.removeItem(key);
+            cleared++;
+          }
+        });
+      } catch (e) {}
+      
+      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除 ${cleared} 个Storage项。请刷新页面查看效果。</p>`;
+      setTimeout(() => {
+        if (confirm('Storage已清除。是否刷新页面？')) {
+          window.location.reload();
+        }
+      }, 500);
+    } catch (e) {
+      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除Storage失败：${e.message}</p>`;
+    }
+  };
+  
+  document.getElementById('clearAllData').onclick = function() {
+    const statusDiv = document.getElementById('clearStatus');
+    if (!confirm('确定要清除所有Cookie和Storage数据吗？\n\n这将清除当前页面的所有存储数据，可能需要重新登录。')) {
+      return;
+    }
+    
+    try {
+      let cleared = 0;
+      
+      // 清除所有Cookie
+      const cookies = document.cookie.split(';');
+      cookies.forEach(cookie => {
+        const eqPos = cookie.indexOf('=');
+        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+        if (name) {
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+          cleared++;
+        }
+      });
+      
+      // 清除所有localStorage
+      try {
+        localStorage.clear();
+        cleared++;
+      } catch (e) {}
+      
+      // 清除所有sessionStorage
+      try {
+        sessionStorage.clear();
+        cleared++;
+      } catch (e) {}
+      
+      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除所有数据（${cleared}项）。页面将在3秒后自动刷新...</p>`;
+      setTimeout(() => {
+        window.location.reload();
+      }, 3000);
+    } catch (e) {
+      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除失败：${e.message}</p>`;
+    }
+  };
   
   // 快速测试真实网站功能
   // 网站配置
