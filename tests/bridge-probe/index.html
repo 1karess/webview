@@ -208,26 +208,6 @@ https://httpbin.org/anything</textarea>
       </div>
       <div id="comparisonResult" style="margin-top:8px;font-size:12px"></div>
     </div>
-    
-    <!-- 清除登录状态功能 -->
-    <div style="margin-top:12px;padding:12px;background:#fff5f0;border-radius:6px;border:1px solid #ffccc7">
-      <h4 style="margin-top:0;color:#ff4d4f">🔓 清除登录状态</h4>
-      <p style="font-size:13px;color:#666;margin:8px 0">如果已登录但无法退出，可以使用以下方法清除登录状态：</p>
-      <div class="row" style="margin:8px 0">
-        <button id="clearCookies" style="background:#ff4d4f;color:white;font-size:13px">清除Cookie</button>
-        <button id="clearStorage" style="background:#ff7875;color:white;font-size:13px">清除Storage</button>
-        <button id="clearAllData" style="background:#ff4d4f;color:white;font-size:13px">清除所有数据</button>
-      </div>
-      <div id="clearStatus" style="margin-top:8px;font-size:12px;color:#666"></div>
-      <small style="color:#999;display:block;margin-top:8px">
-        💡 提示：清除后需要刷新页面。如果还是无法退出，可能需要：
-        <ul style="margin:4px 0;padding-left:20px">
-          <li>在Reddit网站中手动退出登录</li>
-          <li>清除浏览器/WebView的缓存和数据</li>
-          <li>重新打开WebView</li>
-        </ul>
-      </small>
-    </div>
   </div>
 
   <!-- Facebook Bridge 系统性测试 -->
@@ -2051,127 +2031,6 @@ https://httpbin.org/anything</textarea>
     return div.innerHTML;
   }
   
-  // 清除登录状态功能
-  document.getElementById('clearCookies').onclick = function() {
-    const statusDiv = document.getElementById('clearStatus');
-    try {
-      // 获取所有Cookie
-      const cookies = document.cookie.split(';');
-      let cleared = 0;
-      
-      // 清除所有Cookie
-      cookies.forEach(cookie => {
-        const eqPos = cookie.indexOf('=');
-        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-        if (name) {
-          // 清除当前域名的Cookie
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`;
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.${window.location.hostname}`;
-          cleared++;
-        }
-      });
-      
-      // 清除Reddit相关的Cookie（跨域Cookie可能无法直接清除，但尝试一下）
-      const redditDomains = ['.reddit.com', 'reddit.com', '.www.reddit.com', 'www.reddit.com', '.oauth.reddit.com', 'oauth.reddit.com'];
-      const commonCookieNames = ['reddit_session', 'session', 'token', 'auth', 'login', 'user'];
-      
-      redditDomains.forEach(domain => {
-        commonCookieNames.forEach(name => {
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${domain}`;
-        });
-      });
-      
-      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除 ${cleared} 个Cookie。请刷新页面查看效果。</p>`;
-      setTimeout(() => {
-        if (confirm('Cookie已清除。是否刷新页面？')) {
-          window.location.reload();
-        }
-      }, 500);
-    } catch (e) {
-      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除Cookie失败：${e.message}</p>`;
-    }
-  };
-  
-  document.getElementById('clearStorage').onclick = function() {
-    const statusDiv = document.getElementById('clearStatus');
-    try {
-      let cleared = 0;
-      
-      // 清除localStorage
-      try {
-        const localKeys = Object.keys(localStorage);
-        localKeys.forEach(key => {
-          if (key.toLowerCase().includes('reddit') || key.toLowerCase().includes('auth') || key.toLowerCase().includes('login')) {
-            localStorage.removeItem(key);
-            cleared++;
-          }
-        });
-      } catch (e) {}
-      
-      // 清除sessionStorage
-      try {
-        const sessionKeys = Object.keys(sessionStorage);
-        sessionKeys.forEach(key => {
-          if (key.toLowerCase().includes('reddit') || key.toLowerCase().includes('auth') || key.toLowerCase().includes('login')) {
-            sessionStorage.removeItem(key);
-            cleared++;
-          }
-        });
-      } catch (e) {}
-      
-      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除 ${cleared} 个Storage项。请刷新页面查看效果。</p>`;
-      setTimeout(() => {
-        if (confirm('Storage已清除。是否刷新页面？')) {
-          window.location.reload();
-        }
-      }, 500);
-    } catch (e) {
-      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除Storage失败：${e.message}</p>`;
-    }
-  };
-  
-  document.getElementById('clearAllData').onclick = function() {
-    const statusDiv = document.getElementById('clearStatus');
-    if (!confirm('确定要清除所有Cookie和Storage数据吗？\n\n这将清除当前页面的所有存储数据，可能需要重新登录。')) {
-      return;
-    }
-    
-    try {
-      let cleared = 0;
-      
-      // 清除所有Cookie
-      const cookies = document.cookie.split(';');
-      cookies.forEach(cookie => {
-        const eqPos = cookie.indexOf('=');
-        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-        if (name) {
-          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
-          cleared++;
-        }
-      });
-      
-      // 清除所有localStorage
-      try {
-        localStorage.clear();
-        cleared++;
-      } catch (e) {}
-      
-      // 清除所有sessionStorage
-      try {
-        sessionStorage.clear();
-        cleared++;
-      } catch (e) {}
-      
-      statusDiv.innerHTML = `<p style="color:#52c41a">✅ 已清除所有数据（${cleared}项）。页面将在3秒后自动刷新...</p>`;
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-    } catch (e) {
-      statusDiv.innerHTML = `<p style="color:#ff4d4f">❌ 清除失败：${e.message}</p>`;
-    }
-  };
-  
   // 快速测试真实网站功能
   // 网站配置
   const testSites = {
@@ -2286,22 +2145,24 @@ https://httpbin.org/anything</textarea>
       }
     }
     
-    // 如果网站标记为preferNewWindow（如Reddit），直接使用新窗口
+    // 如果网站标记为preferNewWindow（如Reddit），提供选项
     if (site.preferNewWindow) {
-      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
-      if (newWindow) {
-        alert(`已在新窗口打开${site.name}登录页面。\n\n重要提示：\n1. 在打开的页面中完成登录\n2. 登录后，Cookie会在同一个WebView中共享\n3. 关闭新窗口，返回此测试页面\n4. 点击"运行Oracle测试"按钮\n\n💡 如果登录后测试仍然显示未登录，可能是Cookie未共享。建议在当前页面直接导航到登录页面（点击"确定"）。`);
-        
-        // 提供一个选项：如果用户想直接在当前页面登录（确保Cookie共享）
-        setTimeout(() => {
-          if (confirm(`是否也在当前页面打开${site.name}登录页面？\n\n这样可以确保Cookie在同一个上下文中，登录状态更容易被检测到。\n\n点击"确定"在当前页面打开，点击"取消"继续使用新窗口。`)) {
+      // 提供两个选项：新窗口或当前页面
+      const choice = confirm(`${site.name}可能阻止iframe嵌入。\n\n选择打开方式：\n\n点击"确定" → 在当前页面打开（推荐，方便退出登录）\n点击"取消" → 在新窗口打开\n\n💡 提示：在当前页面打开后，可以在${site.name}网站中退出登录，然后使用浏览器返回按钮回到测试页面。`);
+      
+      if (choice) {
+        // 在当前页面打开（推荐，方便退出登录）
+        window.location.href = site.url;
+      } else {
+        // 在新窗口打开
+        const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+        if (newWindow) {
+          alert(`已在新窗口打开${site.name}。\n\n重要提示：\n1. 在打开的页面中完成登录或退出登录\n2. 登录/退出后，Cookie会在同一个WebView中共享\n3. 关闭新窗口，返回此测试页面\n4. 点击"运行Oracle测试"按钮`);
+        } else {
+          // 如果新窗口被阻止，回退到当前页面
+          if (confirm(`无法打开新窗口，是否在当前页面中打开${site.name}？\n\n注意：打开后可以使用浏览器返回按钮回到测试页面。`)) {
             window.location.href = site.url;
           }
-        }, 2000);
-      } else {
-        // 如果新窗口被阻止，尝试在当前页面导航
-        if (confirm(`${site.name}可能阻止iframe嵌入。是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
-          window.location.href = site.url;
         }
       }
       return;
