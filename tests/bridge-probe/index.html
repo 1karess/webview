@@ -1399,8 +1399,15 @@ https://httpbin.org/anything</textarea>
       }
       
       if (e.bodySnippet) {
-        line += `\n   响应体: ${e.bodySnippet}`;
-        /* 如果有响应体片段，显示响应体（前300字符） */
+        // 显示完整的响应体（用于验证）
+        const bodyPreview = e.bodySnippet.length > 500 ? e.bodySnippet.slice(0, 500) + '...' : e.bodySnippet;
+        line += `\n   响应体: ${bodyPreview}`;
+        /* 如果有响应体片段，显示响应体（前500字符） */
+        
+        // 如果是已登录状态，添加验证提示
+        if (loginStatus === '已登录') {
+          line += `\n   💡 验证方法：检查响应体是否包含用户数据（如"features"、"id"、"name"等字段）`;
+        }
       }
       if (leak.oracle) {
         line += `\n   ⚠️ [泄露: ${leak.reasons.join(', ')}]`;
@@ -1465,11 +1472,40 @@ https://httpbin.org/anything</textarea>
       summaryText = `✅ Oracle测试完成：未发现明显的泄露信号。`;
     }
     
-    // 添加登录状态提示
+    // 添加登录状态提示和验证方法
     if (loginDetected) {
-      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。`;
+      // 找到包含用户数据的响应体示例
+      const userDataExample = bridgeEvents.find(e => {
+        if (e.bodySnippet) {
+          const body = e.bodySnippet.toLowerCase();
+          return body.includes('"features"') || body.includes('"username"');
+        }
+        return false;
+      });
+      
+      let verifyInfo = '';
+      if (userDataExample && userDataExample.bodySnippet) {
+        // 提取关键字段用于验证
+        const body = userDataExample.bodySnippet;
+        const hasFeatures = body.includes('"features"');
+        const hasId = body.includes('"id"');
+        const hasName = body.includes('"name"');
+        const hasUsername = body.includes('"username"');
+        
+        verifyInfo = '<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px">';
+        verifyInfo += '<li><strong>检查响应体内容：</strong>查看上方的"响应体"部分</li>';
+        if (hasFeatures) verifyInfo += '<li>✅ 包含 "features" 字段（用户特征设置）</li>';
+        if (hasId) verifyInfo += '<li>✅ 包含 "id" 字段（用户ID）</li>';
+        if (hasName) verifyInfo += '<li>✅ 包含 "name" 字段（用户名）</li>';
+        if (hasUsername) verifyInfo += '<li>✅ 包含 "username" 字段（用户名）</li>';
+        verifyInfo += '<li><strong>对比测试：</strong>退出登录后重新测试，对比响应体差异</li>';
+        verifyInfo += '<li><strong>手动验证：</strong>在Reddit网页中确认是否真的已登录</li>';
+        verifyInfo += '</ul>';
+      }
+      
+      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。${verifyInfo}`;
     } else if (notLoggedIn) {
-      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。`;
+      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li>检查响应体是否包含 "error"、"unauthorized" 等错误信息</li><li>尝试登录后重新测试，对比结果差异</li></ul>`;
     } else {
       // 检查是否所有请求都返回200但没有用户数据
       const all200NoData = bridgeEvents.length > 0 && 
@@ -1479,9 +1515,9 @@ https://httpbin.org/anything</textarea>
                              e.bodySnippet.toLowerCase().includes('"username"')));
       
       if (all200NoData) {
-        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br>💡 <strong>建议：</strong>对比登录前后的响应体内容差异，或检查响应体是否包含错误信息。`;
+        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li><strong>对比测试：</strong>先退出登录测试一次，再登录后测试一次，对比响应体内容</li><li><strong>检查响应体：</strong>查看上方的"响应体"部分，确认是否包含用户数据（如"features"字段）</li><li><strong>手动验证：</strong>在Reddit网页中确认当前登录状态</li><li><strong>查看Raw数据：</strong>点击下方"Raw"标签，查看完整的JSON响应</li></ul>`;
       } else {
-        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。`;
+        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。<br><br><strong>🔍 验证方法：</strong><ul style="margin:4px 0;padding-left:20px"><li>查看上方的"响应体"部分</li><li>点击下方"Raw"标签查看完整JSON数据</li><li>对比登录前后的测试结果</li></ul>`;
       }
     }
     
