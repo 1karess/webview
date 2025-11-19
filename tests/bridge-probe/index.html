@@ -1779,7 +1779,10 @@ https://httpbin.org/anything</textarea>
         'https://www.reddit.com/api/v1/me',
         'https://www.reddit.com'
       ],
-      color: '#ff4500'
+      color: '#ff4500',
+      // Reddit可能阻止iframe，使用新窗口登录，但登录后可以在iframe中展示
+      preferNewWindow: true,
+      allowReturnToIframe: true  // 允许登录后返回iframe
     },
     amazon: {
       name: 'Amazon',
@@ -1816,9 +1819,12 @@ https://httpbin.org/anything</textarea>
       }
     }
     
+    // 存储当前登录的网站信息，用于返回iframe功能
+    window.currentLoginSite = site;
+    
     // 如果网站标记为preferNewWindow（如Reddit、Facebook），使用新窗口
     if (site.preferNewWindow) {
-      // 如果允许返回iframe（如Facebook），显示iframe容器并准备返回功能
+      // 如果允许返回iframe（如Facebook、Reddit），显示iframe容器并准备返回功能
       if (site.allowReturnToIframe) {
         const container = document.getElementById('siteFrameContainer');
         const frame = document.getElementById('siteFrame');
@@ -1834,13 +1840,6 @@ https://httpbin.org/anything</textarea>
           // 显示返回iframe按钮
           if (returnBtn) {
             returnBtn.style.display = 'block';
-            // 移除旧的事件监听器，添加新的
-            returnBtn.onclick = () => {
-              // 在iframe中加载已登录的页面
-              frame.src = site.url;
-              title.textContent = `${site.name} - 已登录（iframe中）`;
-              returnBtn.style.display = 'none';
-            };
           }
           
           // 滚动到iframe位置
@@ -1848,11 +1847,12 @@ https://httpbin.org/anything</textarea>
         }
       }
       
-      // 在新窗口打开登录页面
-      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+      // 在新窗口打开登录页面（使用登录URL）
+      const loginUrl = site.url.includes('/login') ? site.url : (site.url + '/login');
+      const newWindow = window.open(loginUrl, '_blank', 'width=800,height=600');
       if (newWindow) {
         if (site.allowReturnToIframe) {
-          alert(`已在新窗口打开${site.name}登录页面。\n\n📋 使用说明：\n1. 在新窗口中完成登录\n2. 登录成功后，点击iframe上方的"↩️ 返回iframe"按钮\n3. 页面将在iframe中加载，显示已登录状态\n4. 然后点击下方"运行Oracle测试"按钮进行测试`);
+          alert(`已在新窗口打开${site.name}登录页面。\n\n📋 使用说明：\n1. 在新窗口中完成登录\n2. 登录成功后，点击iframe上方的"↩️ 返回iframe"按钮\n3. 页面将在iframe中加载，显示已登录状态\n4. 然后点击下方"运行Oracle测试"按钮进行测试\n\n💡 提示：如果新窗口被关闭，会自动在iframe中加载已登录页面`);
           
           // 监听新窗口关闭（如果用户关闭新窗口，自动返回iframe）
           const checkWindowClosed = setInterval(() => {
@@ -1862,20 +1862,24 @@ https://httpbin.org/anything</textarea>
               const frame = document.getElementById('siteFrame');
               const title = document.getElementById('siteFrameTitle');
               const returnBtn = document.getElementById('returnToIframe');
-              if (frame && title) {
-                frame.src = site.url;
+              const container = document.getElementById('siteFrameContainer');
+              if (frame && title && container) {
+                // 使用主页URL而不是登录URL
+                const mainUrl = site.url.replace('/login', '').replace(/\/login$/, '');
+                frame.src = mainUrl;
                 title.textContent = `${site.name} - 已登录（iframe中）`;
                 if (returnBtn) returnBtn.style.display = 'none';
+                container.style.display = 'block';
               }
             }
           }, 500);
         } else {
-          alert(`已在新窗口打开${site.name}登录页面。\n\n提示：某些网站（如Reddit）可能阻止iframe嵌入，因此使用新窗口。\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+          alert(`已在新窗口打开${site.name}登录页面。\n\n提示：某些网站可能阻止iframe嵌入，因此使用新窗口。\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
         }
       } else {
         // 如果新窗口被阻止，尝试在当前页面导航
         if (confirm(`${site.name}可能阻止iframe嵌入。是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
-          window.location.href = site.url;
+          window.location.href = loginUrl;
         }
       }
       return;
@@ -1913,13 +1917,43 @@ https://httpbin.org/anything</textarea>
   
   // 关闭网站iframe（使用事件委托，因为按钮可能还不存在）
   document.addEventListener('click', function(e) {
+    // 关闭iframe容器（只是隐藏，不退出webview）
     if (e.target && e.target.id === 'closeSiteFrame') {
+      e.preventDefault();
+      e.stopPropagation();
       const container = document.getElementById('siteFrameContainer');
       const frame = document.getElementById('siteFrame');
+      const returnBtn = document.getElementById('returnToIframe');
       if (container && frame) {
         container.style.display = 'none';
         frame.src = 'about:blank';
+        // 隐藏返回按钮
+        if (returnBtn) returnBtn.style.display = 'none';
       }
+      return false;
+    }
+    
+    // 返回iframe按钮
+    if (e.target && e.target.id === 'returnToIframe') {
+      e.preventDefault();
+      e.stopPropagation();
+      const frame = document.getElementById('siteFrame');
+      const title = document.getElementById('siteFrameTitle');
+      const returnBtn = document.getElementById('returnToIframe');
+      const container = document.getElementById('siteFrameContainer');
+      
+      // 获取当前网站配置（从存储的变量中获取）
+      if (window.currentLoginSite && frame && title) {
+        // 使用主页URL而不是登录URL
+        const mainUrl = window.currentLoginSite.url.replace('/login', '').replace(/\/login$/, '');
+        frame.src = mainUrl;
+        title.textContent = `${window.currentLoginSite.name} - 已登录（iframe中）`;
+        if (returnBtn) returnBtn.style.display = 'none';
+        if (container) container.style.display = 'block';
+        // 滚动到iframe位置
+        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+      return false;
     }
   });
   
