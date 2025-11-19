@@ -163,7 +163,10 @@
       <div id="siteFrameContainer" style="display:none;margin-top:12px;border:2px solid #1890ff;border-radius:6px;overflow:hidden">
         <div style="background:#1890ff;color:white;padding:8px;display:flex;justify-content:space-between;align-items:center">
           <span id="siteFrameTitle" style="font-weight:bold">正在加载...</span>
-          <button id="closeSiteFrame" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">关闭</button>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button id="returnToIframe" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;display:none;font-size:12px">↩️ 返回iframe</button>
+            <button id="closeSiteFrame" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">关闭</button>
+          </div>
         </div>
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
       </div>
@@ -1751,7 +1754,10 @@ https://httpbin.org/anything</textarea>
         'https://m.facebook.com/api/graphql/',
         'https://www.facebook.com'
       ],
-      color: '#1877f2'
+      color: '#1877f2',
+      // Facebook可能阻止iframe，使用新窗口登录，但登录后可以在iframe中展示
+      preferNewWindow: true,
+      allowReturnToIframe: true  // 允许登录后返回iframe
     },
     instagram: {
       name: 'Instagram',
@@ -1810,10 +1816,79 @@ https://httpbin.org/anything</textarea>
       }
     }
     
-    // 显示iframe容器
+    // 如果网站标记为preferNewWindow（如Reddit、Facebook），使用新窗口
+    if (site.preferNewWindow) {
+      // 如果允许返回iframe（如Facebook），显示iframe容器并准备返回功能
+      if (site.allowReturnToIframe) {
+        const container = document.getElementById('siteFrameContainer');
+        const frame = document.getElementById('siteFrame');
+        const title = document.getElementById('siteFrameTitle');
+        const returnBtn = document.getElementById('returnToIframe');
+        
+        if (container && frame && title) {
+          // 显示iframe容器，但先显示提示信息
+          container.style.display = 'block';
+          title.textContent = `${site.name} - 等待登录...`;
+          frame.src = 'about:blank';
+          
+          // 显示返回iframe按钮
+          if (returnBtn) {
+            returnBtn.style.display = 'block';
+            // 移除旧的事件监听器，添加新的
+            returnBtn.onclick = () => {
+              // 在iframe中加载已登录的页面
+              frame.src = site.url;
+              title.textContent = `${site.name} - 已登录（iframe中）`;
+              returnBtn.style.display = 'none';
+            };
+          }
+          
+          // 滚动到iframe位置
+          container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+      
+      // 在新窗口打开登录页面
+      const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
+      if (newWindow) {
+        if (site.allowReturnToIframe) {
+          alert(`已在新窗口打开${site.name}登录页面。\n\n📋 使用说明：\n1. 在新窗口中完成登录\n2. 登录成功后，点击iframe上方的"↩️ 返回iframe"按钮\n3. 页面将在iframe中加载，显示已登录状态\n4. 然后点击下方"运行Oracle测试"按钮进行测试`);
+          
+          // 监听新窗口关闭（如果用户关闭新窗口，自动返回iframe）
+          const checkWindowClosed = setInterval(() => {
+            if (newWindow.closed) {
+              clearInterval(checkWindowClosed);
+              // 新窗口已关闭，自动在iframe中加载
+              const frame = document.getElementById('siteFrame');
+              const title = document.getElementById('siteFrameTitle');
+              const returnBtn = document.getElementById('returnToIframe');
+              if (frame && title) {
+                frame.src = site.url;
+                title.textContent = `${site.name} - 已登录（iframe中）`;
+                if (returnBtn) returnBtn.style.display = 'none';
+              }
+            }
+          }, 500);
+        } else {
+          alert(`已在新窗口打开${site.name}登录页面。\n\n提示：某些网站（如Reddit）可能阻止iframe嵌入，因此使用新窗口。\n\n请在打开的页面中登录，登录完成后点击下方"运行Oracle测试"按钮。`);
+        }
+      } else {
+        // 如果新窗口被阻止，尝试在当前页面导航
+        if (confirm(`${site.name}可能阻止iframe嵌入。是否在当前页面中打开登录页面？\n\n注意：打开后需要手动返回此测试页面。`)) {
+          window.location.href = site.url;
+        }
+      }
+      return;
+    }
+    
+    // 显示iframe容器（普通网站）
     const container = document.getElementById('siteFrameContainer');
     const frame = document.getElementById('siteFrame');
     const title = document.getElementById('siteFrameTitle');
+    const returnBtn = document.getElementById('returnToIframe');
+    
+    // 隐藏返回iframe按钮（普通网站不需要）
+    if (returnBtn) returnBtn.style.display = 'none';
     
     if (container && frame && title) {
       container.style.display = 'block';
