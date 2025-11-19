@@ -167,15 +167,7 @@
         </div>
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
       </div>
-      <small style="color:#666;display:block;margin-top:8px">
-        <strong>步骤：</strong><br>
-        1. 点击"打开XX并登录"按钮<br>
-        2. 在打开的页面（iframe或新窗口）中登录<br>
-        3. <strong>重要：</strong>如果使用新窗口登录，登录后关闭新窗口，返回此页面<br>
-        4. 点击下方"运行Oracle测试"按钮<br>
-        <br>
-        <strong>💡 Cookie共享说明：</strong>在同一个WebView中，Cookie会自动共享。如果登录后测试仍显示未登录，建议在当前页面直接导航到登录页面（工具会提供选项）。
-      </small>
+      <small style="color:#666;display:block;margin-top:8px">步骤：1. 点击"打开XX并登录" → 2. 在下方iframe中登录 → 3. 点击下方"运行Oracle测试"按钮</small>
     </div>
     
     <div style="margin-top:8px">
@@ -193,20 +185,8 @@ https://httpbin.org/anything</textarea>
       <!-- 按钮行容器：顶部间距8px -->
       <button id="runOracle">▶ 运行Oracle测试</button>
       <!-- Oracle测试按钮：执行Oracle测试，对比Bridge和fetch()的响应 -->
-      <button id="compareResponses" style="background:#52c41a;color:white">📊 对比响应体</button>
-      <!-- 对比响应体按钮：对比未登录和已登录时的响应体差异 -->
       <label><input type="checkbox" id="oracleIncludeFetch" checked /> 同时测试fetch()基线</label>
       <!-- 复选框：默认选中，决定是否同时测试fetch()作为对比基线 -->
-    </div>
-    <div id="responseComparison" style="display:none;margin-top:12px;padding:12px;background:#f6f8fa;border-radius:6px;border:1px solid #ddd">
-      <h4 style="margin-top:0">📊 响应体对比</h4>
-      <p style="font-size:13px;color:#666;margin:8px 0">用于验证登录状态判断的准确性。先保存未登录时的响应体，登录后再对比。</p>
-      <div class="row" style="margin:8px 0">
-        <button id="saveNotLoggedIn" style="background:#ff4d4f;color:white;font-size:13px">保存未登录响应体</button>
-        <button id="saveLoggedIn" style="background:#52c41a;color:white;font-size:13px">保存已登录响应体</button>
-        <button id="clearComparison" style="background:#f0f0f0;color:#333;font-size:13px">清空对比</button>
-      </div>
-      <div id="comparisonResult" style="margin-top:8px;font-size:12px"></div>
     </div>
   </div>
 
@@ -1187,21 +1167,7 @@ https://httpbin.org/anything</textarea>
       /* 参数：b - Bridge对象（包含name和fn），url - 要请求的URL */
       /* 返回值：Promise，解析为包含method、url、status等信息或错误的对象 */
       try{
-        // Bridge请求应该自动带上Cookie（在同一个WebView中）
-        // 尝试多种配置方式，确保Cookie被发送
-        let r;
-        try {
-          // 方式1：尝试带credentials配置
-          r = await withTimeout(b.fn(url, { method:'GET', credentials:'include' }), 6000);
-        } catch(e1) {
-          try {
-            // 方式2：尝试带headers配置（某些Bridge可能需要）
-            r = await withTimeout(b.fn(url, { method:'GET', headers:{} }), 6000);
-          } catch(e2) {
-            // 方式3：默认方式（不带额外配置）
-            r = await withTimeout(b.fn(url, { method:'GET' }), 6000);
-          }
-        }
+        const r = await withTimeout(b.fn(url, { method:'GET' }), 6000);
         /* 调用Bridge函数，传入URL和GET方法，6秒超时 */
         const out = { method:b.name, url, via:b.name, fulfilled:true };
         /* 创建输出对象：包含Bridge名称、URL、调用方式、是否完成 */
@@ -1341,83 +1307,20 @@ https://httpbin.org/anything</textarea>
     last = report;
     /* 更新last变量：保存最新的测试结果 */
     
-    // 判断登录状态的辅助函数
-    function detectLoginStatus(event, url) {
-      if (!event.fulfilled) return null;
-      
-      // 优先检查响应体内容（更准确）
-      if (event.bodySnippet) {
-        const body = event.bodySnippet.toLowerCase();
-        
-        // Reddit API 特征：已登录时返回用户数据
-        // 检查是否包含用户特征、用户ID、用户名等
-        const hasUserData = body.includes('"features"') || 
-                           body.includes('"id"') && body.includes('"name"') ||
-                           body.includes('"username"') ||
-                           body.includes('"user"') && !body.includes('"error"');
-        
-        // 检查是否是错误信息（未登录）
-        const hasError = body.includes('"error"') || 
-                        body.includes('unauthorized') || 
-                        body.includes('forbidden') ||
-                        body.includes('access token') ||
-                        body.includes('authentication') ||
-                        body.includes('login required');
-        
-        if (hasUserData && !hasError) {
-          return '已登录';
-        }
-        if (hasError) {
-          return '未登录';
-        }
-      }
-      
-      // 如果没有响应体，检查状态码
-      if (event.status === 401) {
-        return '未登录';
-      } else if (event.status === 403) {
-        return '未登录（无权限）';
-      } else if (event.status === 200) {
-        // 200但没有响应体或无法判断内容
-        if (!event.bodySnippet) {
-          return '状态200（无响应体，无法判断）';
-        }
-        // 有响应体但内容不确定
-        return '状态200（内容不确定）';
-      }
-      return null;
-    }
-    
     const lines = events.map(e=>{
       /* 格式化输出行：将每个测试事件转换为可读文本 */
       const tag = (e.fulfilled? '✅ OK' : '❌ ERR');
       /* 状态标签：成功显示✅ OK，失败显示❌ ERR */
       const leak = classifyLeak(e);
       /* 分类泄露：调用classifyLeak()判断是否泄露 */
-      const loginStatus = detectLoginStatus(e, e.url);
-      /* 检测登录状态 */
-      
       let line = `${tag} ${e.method} ${e.url}`;
       /* 基础行：状态标签 + 方法名 + URL */
       if (e.status !== undefined) {
         line += ` [状态码: ${e.status}]`;
         /* 如果有状态码，显示状态码 */
       }
-      
-      // 显示登录状态（如果检测到）
-      if (loginStatus) {
-        const statusEmoji = loginStatus === '已登录' ? '🔓' : loginStatus === '未登录' ? '🔒' : '❓';
-        line += `\n   ${statusEmoji} 登录状态: ${loginStatus}`;
-      }
-      
       if (e.bodySnippet) {
-        // 显示响应体片段，并添加"查看完整响应体"提示
-        const bodyLength = e.bodySnippet.length;
-        const isTruncated = bodyLength >= 300;
-        line += `\n   响应体 (${isTruncated ? '前300字符，已截断' : '完整'}): ${e.bodySnippet}`;
-        if (isTruncated) {
-          line += `\n   💡 提示: 响应体已截断，完整内容请查看Raw数据或导出JSON`;
-        }
+        line += `\n   响应体: ${e.bodySnippet}`;
         /* 如果有响应体片段，显示响应体（前300字符） */
       }
       if (leak.oracle) {
@@ -1434,76 +1337,13 @@ https://httpbin.org/anything</textarea>
     
     const any = report.summary.oracleAny;
     /* 获取是否有泄露：从报告摘要中提取oracleAny字段 */
-    
-    // 分析登录状态（更严格的判断）
-    const bridgeEvents = events.filter(e => e.method !== 'fetch' && e.fulfilled);
-    const fetchEvents = events.filter(e => e.method === 'fetch' && e.fulfilled);
-    
-    // 检查Bridge返回的响应体，判断是否包含用户数据
-    const loginDetected = bridgeEvents.some(e => {
-      if (e.bodySnippet) {
-        const body = e.bodySnippet.toLowerCase();
-        // 必须包含用户数据特征，且不包含错误信息
-        const hasUserData = (body.includes('"features"') || 
-                            (body.includes('"id"') && body.includes('"name"')) ||
-                            body.includes('"username"') ||
-                            (body.includes('"user"') && !body.includes('"error"')));
-        const hasError = body.includes('"error"') || 
-                        body.includes('unauthorized') || 
-                        body.includes('forbidden') ||
-                        body.includes('access token') ||
-                        body.includes('authentication');
-        return hasUserData && !hasError;
-      }
-      return false;
-    });
-    
-    // 检查是否明确未登录（401或响应体包含错误）
-    const notLoggedIn = bridgeEvents.some(e => {
-      if (e.status === 401 || e.status === 403) return true;
-      if (e.bodySnippet) {
-        const body = e.bodySnippet.toLowerCase();
-        return body.includes('"error"') || 
-               body.includes('unauthorized') || 
-               body.includes('forbidden') ||
-               body.includes('access token') ||
-               body.includes('authentication') ||
-               body.includes('login required');
-      }
-      return false;
-    });
-    
     summary.className = 'card ' + (any ? 'warn' : 'ok');
     /* 设置摘要样式：如果有泄露使用警告样式（红色），否则使用成功样式（绿色） */
-    
-    let summaryText = '';
-    if (any) {
-      summaryText = `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`;
-    } else {
-      summaryText = `✅ Oracle测试完成：未发现明显的泄露信号。`;
-    }
-    
-    // 添加登录状态提示
-    if (loginDetected) {
-      summaryText += `<br><br>🔓 <strong>登录状态检测：</strong>检测到用户已登录（Bridge返回了用户数据，如features、id、name等）。`;
-    } else if (notLoggedIn) {
-      summaryText += `<br><br>🔒 <strong>登录状态检测：</strong>检测到未登录（返回401/403或响应体包含错误信息）。`;
-    } else {
-      // 检查是否所有请求都返回200但没有用户数据
-      const all200NoData = bridgeEvents.length > 0 && 
-                          bridgeEvents.every(e => e.status === 200) &&
-                          !bridgeEvents.some(e => e.bodySnippet && 
-                            (e.bodySnippet.toLowerCase().includes('"features"') || 
-                             e.bodySnippet.toLowerCase().includes('"username"')));
-      
-      if (all200NoData) {
-        summaryText += `<br><br>⚠️ <strong>登录状态检测：</strong>所有请求返回200，但响应体未包含用户数据特征。可能是未登录（Reddit未登录时也可能返回200）。<br>💡 <strong>建议：</strong>对比登录前后的响应体内容差异，或检查响应体是否包含错误信息。`;
-      } else {
-        summaryText += `<br><br>❓ <strong>登录状态检测：</strong>无法确定登录状态，请查看详细结果中的响应体内容。`;
-      }
-    }
-    
-    summary.innerHTML = summaryText;
+    summary.innerHTML = any
+      ? `⚠️ Oracle泄露检测：在 <strong>${report.summary.urls.filter(x=>x.oracle>0).length}</strong> 个目标中发现Bridge比fetch()泄露了更多信息。`
+      /* 如果有泄露：显示警告信息，包含泄露的URL数量 */
+      : `✅ Oracle测试完成：未发现明显的泄露信号。`;
+      /* 如果没有泄露：显示成功信息 */
     autoSendWebhook();
     /* 自动发送到webhook：如果配置了webhook URL，自动发送结果 */
   }
@@ -1856,181 +1696,6 @@ https://httpbin.org/anything</textarea>
   document.getElementById('analyzeBridges').onclick = analyzeBridges;
   document.getElementById('runOracle').onclick = runOracleInline;
   
-  // 响应体对比功能
-  let responseComparison = {
-    notLoggedIn: null,
-    loggedIn: null
-  };
-  
-  // 显示/隐藏对比区域
-  document.getElementById('compareResponses').onclick = function() {
-    const container = document.getElementById('responseComparison');
-    container.style.display = container.style.display === 'none' ? 'block' : 'none';
-  };
-  
-  // 获取最新的Oracle测试结果
-  function getLatestOracleEvents() {
-    // 从last对象获取（如果存在）
-    if (last && last.events && Array.isArray(last.events)) {
-      return last.events;
-    }
-    // 从results.runs中查找最新的Oracle测试
-    const oracleRun = results.runs.slice().reverse().find(r => r.type === 'oracle-leak');
-    if (oracleRun && oracleRun.events && Array.isArray(oracleRun.events)) {
-      return oracleRun.events;
-    }
-    return [];
-  }
-  
-  // 保存未登录响应体
-  document.getElementById('saveNotLoggedIn').onclick = function() {
-    const allEvents = getLatestOracleEvents();
-    const bridgeEvents = allEvents.filter(e => e.method !== 'fetch' && e.fulfilled && e.bodySnippet);
-    if (bridgeEvents.length === 0) {
-      alert('请先运行Oracle测试，确保有响应体数据。');
-      return;
-    }
-    
-    // 找到第一个有响应体的Bridge事件
-    const event = bridgeEvents[0];
-    responseComparison.notLoggedIn = {
-      url: event.url,
-      status: event.status,
-      bodySnippet: event.bodySnippet,
-      timestamp: new Date().toISOString()
-    };
-    
-    updateComparisonDisplay();
-    alert('已保存未登录时的响应体。请登录后再次运行测试并保存已登录响应体。');
-  };
-  
-  // 保存已登录响应体
-  document.getElementById('saveLoggedIn').onclick = function() {
-    const allEvents = getLatestOracleEvents();
-    const bridgeEvents = allEvents.filter(e => e.method !== 'fetch' && e.fulfilled && e.bodySnippet);
-    if (bridgeEvents.length === 0) {
-      alert('请先运行Oracle测试，确保有响应体数据。');
-      return;
-    }
-    
-    // 找到第一个有响应体的Bridge事件
-    const event = bridgeEvents[0];
-    responseComparison.loggedIn = {
-      url: event.url,
-      status: event.status,
-      bodySnippet: event.bodySnippet,
-      timestamp: new Date().toISOString()
-    };
-    
-    updateComparisonDisplay();
-    alert('已保存已登录时的响应体。');
-  };
-  
-  // 清空对比
-  document.getElementById('clearComparison').onclick = function() {
-    responseComparison.notLoggedIn = null;
-    responseComparison.loggedIn = null;
-    updateComparisonDisplay();
-  };
-  
-  // 更新对比显示
-  function updateComparisonDisplay() {
-    const resultDiv = document.getElementById('comparisonResult');
-    
-    if (!responseComparison.notLoggedIn && !responseComparison.loggedIn) {
-      resultDiv.innerHTML = '<p style="color:#999">暂无对比数据。请先保存未登录和已登录时的响应体。</p>';
-      return;
-    }
-    
-    let html = '<div style="background:white;padding:12px;border-radius:4px;border:1px solid #ddd">';
-    
-    if (responseComparison.notLoggedIn) {
-      html += `<h5 style="margin-top:0;color:#ff4d4f">🔒 未登录时 (${new Date(responseComparison.notLoggedIn.timestamp).toLocaleTimeString()})</h5>`;
-      html += `<p><strong>URL:</strong> <code>${responseComparison.notLoggedIn.url}</code></p>`;
-      html += `<p><strong>状态码:</strong> ${responseComparison.notLoggedIn.status}</p>`;
-      html += `<p><strong>响应体:</strong></p>`;
-      html += `<pre style="background:#fff5f0;padding:8px;border-radius:4px;font-size:11px;max-height:200px;overflow-y:auto">${escapeHtml(responseComparison.notLoggedIn.bodySnippet)}</pre>`;
-      
-      // 分析未登录响应体
-      const body = responseComparison.notLoggedIn.bodySnippet.toLowerCase();
-      const hasError = body.includes('"error"') || body.includes('unauthorized') || body.includes('forbidden');
-      const hasUserData = body.includes('"features"') || body.includes('"username"');
-      html += `<p style="margin-top:8px"><strong>分析:</strong> `;
-      if (hasError) {
-        html += `<span style="color:#ff4d4f">包含错误信息 → 判断为未登录 ✓</span>`;
-      } else if (hasUserData) {
-        html += `<span style="color:#faad14">包含用户数据 → 判断可能有问题 ⚠️</span>`;
-      } else {
-        html += `<span style="color:#999">无明确特征 → 无法判断</span>`;
-      }
-      html += `</p>`;
-    }
-    
-    if (responseComparison.loggedIn) {
-      html += `<h5 style="margin-top:16px;color:#52c41a">🔓 已登录时 (${new Date(responseComparison.loggedIn.timestamp).toLocaleTimeString()})</h5>`;
-      html += `<p><strong>URL:</strong> <code>${responseComparison.loggedIn.url}</code></p>`;
-      html += `<p><strong>状态码:</strong> ${responseComparison.loggedIn.status}</p>`;
-      html += `<p><strong>响应体:</strong></p>`;
-      html += `<pre style="background:#f6ffed;padding:8px;border-radius:4px;font-size:11px;max-height:200px;overflow-y:auto">${escapeHtml(responseComparison.loggedIn.bodySnippet)}</pre>`;
-      
-      // 分析已登录响应体
-      const body = responseComparison.loggedIn.bodySnippet.toLowerCase();
-      const hasUserData = body.includes('"features"') || body.includes('"username"') || body.includes('"id"');
-      const hasError = body.includes('"error"') || body.includes('unauthorized');
-      html += `<p style="margin-top:8px"><strong>分析:</strong> `;
-      if (hasUserData && !hasError) {
-        html += `<span style="color:#52c41a">包含用户数据 → 判断为已登录 ✓</span>`;
-      } else if (hasError) {
-        html += `<span style="color:#ff4d4f">包含错误信息 → 判断可能有问题 ⚠️</span>`;
-      } else {
-        html += `<span style="color:#999">无明确特征 → 无法判断</span>`;
-      }
-      html += `</p>`;
-    }
-    
-    // 对比分析
-    if (responseComparison.notLoggedIn && responseComparison.loggedIn) {
-      html += `<h5 style="margin-top:16px;color:#1890ff">📊 对比分析</h5>`;
-      
-      const notLoggedBody = responseComparison.notLoggedIn.bodySnippet.toLowerCase();
-      const loggedBody = responseComparison.loggedIn.bodySnippet.toLowerCase();
-      
-      const notLoggedHasError = notLoggedBody.includes('"error"') || notLoggedBody.includes('unauthorized');
-      const loggedHasUserData = loggedBody.includes('"features"') || loggedBody.includes('"username"');
-      
-      if (notLoggedHasError && loggedHasUserData) {
-        html += `<p style="color:#52c41a">✅ <strong>判断准确：</strong>未登录时包含错误信息，已登录时包含用户数据。登录状态检测逻辑正确。</p>`;
-      } else if (responseComparison.notLoggedIn.status === 200 && responseComparison.loggedIn.status === 200) {
-        html += `<p style="color:#faad14">⚠️ <strong>注意：</strong>未登录和已登录都返回200状态码，但响应体内容不同：</p>`;
-        html += `<ul style="margin:4px 0;padding-left:20px">`;
-        if (notLoggedHasError) {
-          html += `<li>未登录：响应体包含错误信息</li>`;
-        } else {
-          html += `<li>未登录：响应体不包含用户数据特征</li>`;
-        }
-        if (loggedHasUserData) {
-          html += `<li>已登录：响应体包含用户数据（features、id、name等）</li>`;
-        } else {
-          html += `<li>已登录：响应体可能不完整或格式不同</li>`;
-        }
-        html += `</ul>`;
-        html += `<p style="color:#1890ff">💡 <strong>结论：</strong>工具通过分析响应体内容（而非状态码）来判断登录状态，这是正确的做法。</p>`;
-      } else {
-        html += `<p style="color:#999">状态码不同：未登录=${responseComparison.notLoggedIn.status}，已登录=${responseComparison.loggedIn.status}</p>`;
-      }
-    }
-    
-    html += '</div>';
-    resultDiv.innerHTML = html;
-  }
-  
-  // HTML转义函数
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-  
   // 快速测试真实网站功能
   // 网站配置
   const testSites = {
@@ -2143,29 +1808,6 @@ https://httpbin.org/anything</textarea>
       if (newUrls.length > 0) {
         targetsInput.value = newUrls.join('\n') + (currentValue ? '\n' + currentValue : '');
       }
-    }
-    
-    // 如果网站标记为preferNewWindow（如Reddit），提供选项
-    if (site.preferNewWindow) {
-      // 提供两个选项：新窗口或当前页面
-      const choice = confirm(`${site.name}可能阻止iframe嵌入。\n\n选择打开方式：\n\n点击"确定" → 在当前页面打开（推荐，方便退出登录）\n点击"取消" → 在新窗口打开\n\n💡 提示：在当前页面打开后，可以在${site.name}网站中退出登录，然后使用浏览器返回按钮回到测试页面。`);
-      
-      if (choice) {
-        // 在当前页面打开（推荐，方便退出登录）
-        window.location.href = site.url;
-      } else {
-        // 在新窗口打开
-        const newWindow = window.open(site.url, '_blank', 'width=800,height=600');
-        if (newWindow) {
-          alert(`已在新窗口打开${site.name}。\n\n重要提示：\n1. 在打开的页面中完成登录或退出登录\n2. 登录/退出后，Cookie会在同一个WebView中共享\n3. 关闭新窗口，返回此测试页面\n4. 点击"运行Oracle测试"按钮`);
-        } else {
-          // 如果新窗口被阻止，回退到当前页面
-          if (confirm(`无法打开新窗口，是否在当前页面中打开${site.name}？\n\n注意：打开后可以使用浏览器返回按钮回到测试页面。`)) {
-            window.location.href = site.url;
-          }
-        }
-      }
-      return;
     }
     
     // 显示iframe容器
