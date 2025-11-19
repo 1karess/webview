@@ -193,6 +193,14 @@
         </div>
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
       </div>
+      <!-- Console信息显示区域 -->
+      <div id="consoleInfo" style="display:none;margin-top:12px;border:1px solid #ddd;border-radius:6px;padding:12px;background:#f6f8fa;max-height:300px;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>🔍 Cookie诊断信息</strong>
+          <button id="closeConsoleInfo" type="button" style="background:#ff4d4f;color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px">关闭</button>
+        </div>
+        <pre id="consoleContent" style="margin:0;font-size:12px;white-space:pre-wrap;word-wrap:break-word"></pre>
+      </div>
       <small style="color:#666;display:block;margin-top:8px;line-height:1.6">
         <strong>📋 使用步骤（重要）：</strong><br>
         1. 点击"打开XX并登录"按钮<br>
@@ -2265,14 +2273,22 @@ https://httpbin.org/anything</textarea>
       // 更新标题
       titleElement.textContent = `${site.name} - ${fullStatus}（iframe中）`;
       
-      // 如果显示已登录但用户认为没登录，在控制台输出详细信息
-      if (loginStatus === '已登录' && cookieInfo.count > 0) {
-        console.log('🔍 Cookie诊断信息:', {
+      // 如果显示已登录但用户认为没登录，在控制台输出详细信息，并在页面上显示
+      if (loginStatus === '已登录') {
+        const diagnosticInfo = {
           visibleCookies: cookieInfo.visible,
           cookieCount: cookieInfo.count,
-          responseBody: responseBody.slice(0, 200),
-          note: 'WebView中可能还有HTTP-only Cookie，JavaScript无法检测到'
-        });
+          responseBody: responseBody.slice(0, 500),
+          testUrl: testUrl,
+          status: response ? (typeof response.status === 'number' ? response.status : (response.statusCode || 0)) : 'unknown',
+          note: 'WebView中可能还有HTTP-only Cookie，JavaScript无法检测到。这些Cookie可能由系统管理，无法通过JavaScript清除。'
+        };
+        
+        // 输出到控制台
+        console.log('🔍 Cookie诊断信息:', diagnosticInfo);
+        
+        // 在页面上显示诊断信息
+        showConsoleInfo(diagnosticInfo);
       }
       
     } catch(e) {
@@ -2310,6 +2326,60 @@ https://httpbin.org/anything</textarea>
     info.domains = domains;
     
     return info;
+  }
+  
+  // 在页面上显示Console信息
+  function showConsoleInfo(info) {
+    const consoleInfo = document.getElementById('consoleInfo');
+    const consoleContent = document.getElementById('consoleContent');
+    const closeBtn = document.getElementById('closeConsoleInfo');
+    
+    if (consoleInfo && consoleContent) {
+      // 格式化显示信息
+      let content = '🔍 Cookie诊断信息\n';
+      content += '='.repeat(50) + '\n\n';
+      content += `测试URL: ${info.testUrl}\n`;
+      content += `状态码: ${info.status}\n`;
+      content += `检测到的Cookie数量: ${info.cookieCount}\n\n`;
+      
+      if (info.visibleCookies && info.visibleCookies.length > 0) {
+        content += `可见的Cookie:\n`;
+        info.visibleCookies.forEach((cookie, index) => {
+          content += `  ${index + 1}. ${cookie}\n`;
+        });
+        content += '\n';
+      } else {
+        content += `可见的Cookie: 无（但可能有HTTP-only Cookie）\n\n`;
+      }
+      
+      if (info.responseBody) {
+        content += `API响应体（前500字符）:\n`;
+        content += info.responseBody + '\n\n';
+      }
+      
+      content += `⚠️ 重要提示:\n`;
+      content += info.note + '\n\n';
+      content += `可能的原因:\n`;
+      content += `1. HTTP-only Cookie：只能由服务器设置，JavaScript无法访问或清除\n`;
+      content += `2. WebView系统级Cookie：存储在系统级别，跨会话持久化\n`;
+      content += `3. 其他存储机制：localStorage、IndexedDB等\n\n`;
+      content += `建议:\n`;
+      content += `- 在App设置中清除WebView数据\n`;
+      content += `- 或使用隐私模式/无痕模式测试\n`;
+      
+      consoleContent.textContent = content;
+      consoleInfo.style.display = 'block';
+      
+      // 滚动到诊断信息区域
+      consoleInfo.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      
+      // 绑定关闭按钮
+      if (closeBtn) {
+        closeBtn.onclick = () => {
+          consoleInfo.style.display = 'none';
+        };
+      }
+    }
   }
   
   // 绑定事件（确保元素存在）
