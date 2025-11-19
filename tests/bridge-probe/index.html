@@ -178,27 +178,131 @@
         <button id="openPinterest" style="background:#bd081c;color:white">Pinterest</button>
         <button id="openTwitch" style="background:#9146ff;color:white">Twitch</button>
       </div>
-      <!-- Reddit和Facebook特殊按钮：分离登录和测试 -->
+      <!-- 所有软件登录和测试按钮：分离登录和测试 -->
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;margin:12px 0">
-        <strong style="color:#856404">🔑 Reddit/Facebook 登录说明：</strong>
+        <strong style="color:#856404">🔑 登录和测试说明：</strong>
         <p style="margin:8px 0;font-size:13px;color:#856404">这些网站不能在iframe中登录，但登录后Cookie会共享。请按以下步骤操作：</p>
-        <div class="row" style="margin:8px 0">
-          <button id="loginRedditNewWindow" style="background:#ff4500;color:white">1️⃣ 新窗口登录 Reddit</button>
-          <button id="openRedditInIframe" style="background:#ff4500;color:white;opacity:0.7">2️⃣ 在iframe中打开 Reddit（测试）</button>
+        
+        <!-- 社交平台 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">📱 社交平台</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginTwitterNewWindow" style="background:#000000;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Twitter/X</button>
+            <button id="openTwitterInIframe" style="background:#000000;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Twitter/X</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginFacebookNewWindow" style="background:#1877f2;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Facebook</button>
+            <button id="openFacebookInIframe" style="background:#1877f2;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Facebook</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginInstagramNewWindow" style="background:#f77737;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Instagram</button>
+            <button id="openInstagramInIframe" style="background:#f77737;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Instagram</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginRedditNewWindow" style="background:#ff4500;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Reddit</button>
+            <button id="openRedditInIframe" style="background:#ff4500;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Reddit</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginLinkedinNewWindow" style="background:#0077b5;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 LinkedIn</button>
+            <button id="openLinkedinInIframe" style="background:#0077b5;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 LinkedIn</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginDiscordNewWindow" style="background:#5865f2;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Discord</button>
+            <button id="openDiscordInIframe" style="background:#5865f2;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Discord</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginTiktokNewWindow" style="background:#000000;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 TikTok</button>
+            <button id="openTiktokInIframe" style="background:#000000;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 TikTok</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginPinterestNewWindow" style="background:#bd081c;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Pinterest</button>
+            <button id="openPinterestInIframe" style="background:#bd081c;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Pinterest</button>
+          </div>
         </div>
-        <div class="row" style="margin:8px 0">
-          <button id="loginFacebookNewWindow" style="background:#1877f2;color:white">1️⃣ 新窗口登录 Facebook</button>
-          <button id="openFacebookInIframe" style="background:#1877f2;color:white;opacity:0.7">2️⃣ 在iframe中打开 Facebook（测试）</button>
+        
+        <!-- 视频和娱乐 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">🎬 视频和娱乐</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginYoutubeNewWindow" style="background:#ff0000;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 YouTube</button>
+            <button id="openYoutubeInIframe" style="background:#ff0000;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 YouTube</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginNetflixNewWindow" style="background:#e50914;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Netflix</button>
+            <button id="openNetflixInIframe" style="background:#e50914;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Netflix</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginTwitchNewWindow" style="background:#9146ff;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Twitch</button>
+            <button id="openTwitchInIframe" style="background:#9146ff;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Twitch</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginSpotifyNewWindow" style="background:#1db954;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Spotify</button>
+            <button id="openSpotifyInIframe" style="background:#1db954;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Spotify</button>
+          </div>
         </div>
-        <small style="color:#856404;display:block;margin-top:8px">
-          <strong>使用流程：</strong>先点击"新窗口登录"完成登录 → 然后点击"在iframe中打开"进行测试（Cookie已共享）
-        </small>
-        <div class="row" style="margin:8px 0">
-          <button id="clearRedditCookies" style="background:#ff9800;color:white;font-size:12px;padding:6px 12px">清除Reddit Cookie</button>
-          <button id="clearFacebookCookies" style="background:#ff9800;color:white;font-size:12px;padding:6px 12px">清除Facebook Cookie</button>
+        
+        <!-- 开发和技术 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">💻 开发和技术</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginGithubNewWindow" style="background:#24292e;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 GitHub</button>
+            <button id="openGithubInIframe" style="background:#24292e;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 GitHub</button>
+          </div>
         </div>
-        <small style="color:#856404;display:block;margin-top:4px;font-size:11px">
-          <strong>⚠️ 重要提示：</strong>如果测试显示"已登录"但你确定没有登录，可能是WebView中保留了之前的Cookie。点击"清除Cookie"按钮清除后重新测试。
+        
+        <!-- 电商和支付 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">🛒 电商和支付</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginAmazonNewWindow" style="background:#146eb4;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Amazon</button>
+            <button id="openAmazonInIframe" style="background:#146eb4;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Amazon</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginEbayNewWindow" style="background:#0064d2;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 eBay</button>
+            <button id="openEbayInIframe" style="background:#0064d2;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 eBay</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginPaypalNewWindow" style="background:#003087;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 PayPal</button>
+            <button id="openPaypalInIframe" style="background:#003087;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 PayPal</button>
+          </div>
+        </div>
+        
+        <!-- 邮件和云服务 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">📧 邮件和云服务</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginGmailNewWindow" style="background:#ea4335;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Gmail</button>
+            <button id="openGmailInIframe" style="background:#ea4335;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Gmail</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginGoogleNewWindow" style="background:#4285f4;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Google</button>
+            <button id="openGoogleInIframe" style="background:#4285f4;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Google</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginMicrosoftNewWindow" style="background:#0078d4;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Microsoft</button>
+            <button id="openMicrosoftInIframe" style="background:#0078d4;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Microsoft</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginOutlookNewWindow" style="background:#0078d4;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Outlook</button>
+            <button id="openOutlookInIframe" style="background:#0078d4;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Outlook</button>
+          </div>
+          <div class="row" style="margin:4px 0">
+            <button id="loginDropboxNewWindow" style="background:#0061ff;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Dropbox</button>
+            <button id="openDropboxInIframe" style="background:#0061ff;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Dropbox</button>
+          </div>
+        </div>
+        
+        <!-- 企业通讯 -->
+        <div style="margin:12px 0;padding:8px;background:#fff;border-radius:4px">
+          <strong style="color:#856404;font-size:12px">💼 企业通讯</strong>
+          <div class="row" style="margin:4px 0">
+            <button id="loginSlackNewWindow" style="background:#4a154b;color:white;font-size:12px;padding:6px 10px">1️⃣ 新窗口登录 Slack</button>
+            <button id="openSlackInIframe" style="background:#4a154b;color:white;opacity:0.7;font-size:12px;padding:6px 10px">2️⃣ 在iframe中打开 Slack</button>
+          </div>
+        </div>
+        
+        <small style="color:#856404;display:block;margin-top:12px">
+          <strong>使用流程：</strong>先点击"1️⃣ 新窗口登录"完成登录 → 然后点击"2️⃣ 在iframe中打开"进行测试（Cookie已共享，测试URL已自动填入）
         </small>
       </div>
       <!-- 多平台验证和攻击场景测试 -->
@@ -1776,7 +1880,9 @@ https://httpbin.org/anything</textarea>
         'https://www.instagram.com/accounts/edit/',
         'https://www.instagram.com'
       ],
-      color: '#f77737'
+      color: '#f77737',
+      preferNewWindow: true,
+      allowReturnToIframe: true
     },
     reddit: {
       name: 'Reddit',
@@ -1801,7 +1907,9 @@ https://httpbin.org/anything</textarea>
         'https://www.amazon.com/gp/css/order-history',
         'https://www.amazon.com'
       ],
-      color: '#146eb4'
+      color: '#146eb4',
+      preferNewWindow: true,
+      allowReturnToIframe: true
     },
     linkedin: {
       name: 'LinkedIn',
@@ -1916,7 +2024,9 @@ https://httpbin.org/anything</textarea>
         'https://www.ebay.com/myb/PurchaseHistory',
         'https://www.ebay.com'
       ],
-      color: '#0064d2'
+      color: '#0064d2',
+      preferNewWindow: true,
+      allowReturnToIframe: true
     },
     gmail: {
       name: 'Gmail',
@@ -2753,12 +2863,6 @@ https://httpbin.org/anything</textarea>
     const openPinterest = document.getElementById('openPinterest');
     const openTwitch = document.getElementById('openTwitch');
     
-    // Reddit和Facebook的特殊按钮
-    const loginRedditNewWindow = document.getElementById('loginRedditNewWindow');
-    const openRedditInIframe = document.getElementById('openRedditInIframe');
-    const loginFacebookNewWindow = document.getElementById('loginFacebookNewWindow');
-    const openFacebookInIframe = document.getElementById('openFacebookInIframe');
-    
     // 中国网站
     if (openWeibo) openWeibo.onclick = () => openSiteForLogin('weibo');
     if (openZhihu) openZhihu.onclick = () => openSiteForLogin('zhihu');
@@ -2789,13 +2893,115 @@ https://httpbin.org/anything</textarea>
     if (openPinterest) openPinterest.onclick = () => openSiteForLogin('pinterest');
     if (openTwitch) openTwitch.onclick = () => openSiteForLogin('twitch');
     
-    // Reddit特殊按钮
-    if (loginRedditNewWindow) loginRedditNewWindow.onclick = () => openLoginInNewWindow('reddit');
-    if (openRedditInIframe) openRedditInIframe.onclick = () => openSiteInIframe('reddit');
+    // 所有软件的新窗口登录和iframe测试按钮
+    // 社交平台
+    const loginTwitterNewWindow = document.getElementById('loginTwitterNewWindow');
+    const openTwitterInIframe = document.getElementById('openTwitterInIframe');
+    const loginInstagramNewWindow = document.getElementById('loginInstagramNewWindow');
+    const openInstagramInIframe = document.getElementById('openInstagramInIframe');
+    const loginLinkedinNewWindow = document.getElementById('loginLinkedinNewWindow');
+    const openLinkedinInIframe = document.getElementById('openLinkedinInIframe');
+    const loginDiscordNewWindow = document.getElementById('loginDiscordNewWindow');
+    const openDiscordInIframe = document.getElementById('openDiscordInIframe');
+    const loginTiktokNewWindow = document.getElementById('loginTiktokNewWindow');
+    const openTiktokInIframe = document.getElementById('openTiktokInIframe');
+    const loginPinterestNewWindow = document.getElementById('loginPinterestNewWindow');
+    const openPinterestInIframe = document.getElementById('openPinterestInIframe');
     
-    // Facebook特殊按钮
+    // 视频和娱乐
+    const loginYoutubeNewWindow = document.getElementById('loginYoutubeNewWindow');
+    const openYoutubeInIframe = document.getElementById('openYoutubeInIframe');
+    const loginNetflixNewWindow = document.getElementById('loginNetflixNewWindow');
+    const openNetflixInIframe = document.getElementById('openNetflixInIframe');
+    const loginTwitchNewWindow = document.getElementById('loginTwitchNewWindow');
+    const openTwitchInIframe = document.getElementById('openTwitchInIframe');
+    const loginSpotifyNewWindow = document.getElementById('loginSpotifyNewWindow');
+    const openSpotifyInIframe = document.getElementById('openSpotifyInIframe');
+    
+    // 开发和技术
+    const loginGithubNewWindow = document.getElementById('loginGithubNewWindow');
+    const openGithubInIframe = document.getElementById('openGithubInIframe');
+    
+    // 电商和支付
+    const loginAmazonNewWindow = document.getElementById('loginAmazonNewWindow');
+    const openAmazonInIframe = document.getElementById('openAmazonInIframe');
+    const loginEbayNewWindow = document.getElementById('loginEbayNewWindow');
+    const openEbayInIframe = document.getElementById('openEbayInIframe');
+    const loginPaypalNewWindow = document.getElementById('loginPaypalNewWindow');
+    const openPaypalInIframe = document.getElementById('openPaypalInIframe');
+    
+    // 邮件和云服务
+    const loginGmailNewWindow = document.getElementById('loginGmailNewWindow');
+    const openGmailInIframe = document.getElementById('openGmailInIframe');
+    const loginGoogleNewWindow = document.getElementById('loginGoogleNewWindow');
+    const openGoogleInIframe = document.getElementById('openGoogleInIframe');
+    const loginMicrosoftNewWindow = document.getElementById('loginMicrosoftNewWindow');
+    const openMicrosoftInIframe = document.getElementById('openMicrosoftInIframe');
+    const loginOutlookNewWindow = document.getElementById('loginOutlookNewWindow');
+    const openOutlookInIframe = document.getElementById('openOutlookInIframe');
+    const loginDropboxNewWindow = document.getElementById('loginDropboxNewWindow');
+    const openDropboxInIframe = document.getElementById('openDropboxInIframe');
+    
+    // 企业通讯
+    const loginSlackNewWindow = document.getElementById('loginSlackNewWindow');
+    const openSlackInIframe = document.getElementById('openSlackInIframe');
+    
+    // 绑定所有按钮
+    // 社交平台
+    if (loginTwitterNewWindow) loginTwitterNewWindow.onclick = () => openLoginInNewWindow('twitter');
+    if (openTwitterInIframe) openTwitterInIframe.onclick = () => openSiteInIframe('twitter');
     if (loginFacebookNewWindow) loginFacebookNewWindow.onclick = () => openLoginInNewWindow('facebook');
     if (openFacebookInIframe) openFacebookInIframe.onclick = () => openSiteInIframe('facebook');
+    if (loginInstagramNewWindow) loginInstagramNewWindow.onclick = () => openLoginInNewWindow('instagram');
+    if (openInstagramInIframe) openInstagramInIframe.onclick = () => openSiteInIframe('instagram');
+    if (loginRedditNewWindow) loginRedditNewWindow.onclick = () => openLoginInNewWindow('reddit');
+    if (openRedditInIframe) openRedditInIframe.onclick = () => openSiteInIframe('reddit');
+    if (loginLinkedinNewWindow) loginLinkedinNewWindow.onclick = () => openLoginInNewWindow('linkedin');
+    if (openLinkedinInIframe) openLinkedinInIframe.onclick = () => openSiteInIframe('linkedin');
+    if (loginDiscordNewWindow) loginDiscordNewWindow.onclick = () => openLoginInNewWindow('discord');
+    if (openDiscordInIframe) openDiscordInIframe.onclick = () => openSiteInIframe('discord');
+    if (loginTiktokNewWindow) loginTiktokNewWindow.onclick = () => openLoginInNewWindow('tiktok');
+    if (openTiktokInIframe) openTiktokInIframe.onclick = () => openSiteInIframe('tiktok');
+    if (loginPinterestNewWindow) loginPinterestNewWindow.onclick = () => openLoginInNewWindow('pinterest');
+    if (openPinterestInIframe) openPinterestInIframe.onclick = () => openSiteInIframe('pinterest');
+    
+    // 视频和娱乐
+    if (loginYoutubeNewWindow) loginYoutubeNewWindow.onclick = () => openLoginInNewWindow('youtube');
+    if (openYoutubeInIframe) openYoutubeInIframe.onclick = () => openSiteInIframe('youtube');
+    if (loginNetflixNewWindow) loginNetflixNewWindow.onclick = () => openLoginInNewWindow('netflix');
+    if (openNetflixInIframe) openNetflixInIframe.onclick = () => openSiteInIframe('netflix');
+    if (loginTwitchNewWindow) loginTwitchNewWindow.onclick = () => openLoginInNewWindow('twitch');
+    if (openTwitchInIframe) openTwitchInIframe.onclick = () => openSiteInIframe('twitch');
+    if (loginSpotifyNewWindow) loginSpotifyNewWindow.onclick = () => openLoginInNewWindow('spotify');
+    if (openSpotifyInIframe) openSpotifyInIframe.onclick = () => openSiteInIframe('spotify');
+    
+    // 开发和技术
+    if (loginGithubNewWindow) loginGithubNewWindow.onclick = () => openLoginInNewWindow('github');
+    if (openGithubInIframe) openGithubInIframe.onclick = () => openSiteInIframe('github');
+    
+    // 电商和支付
+    if (loginAmazonNewWindow) loginAmazonNewWindow.onclick = () => openLoginInNewWindow('amazon');
+    if (openAmazonInIframe) openAmazonInIframe.onclick = () => openSiteInIframe('amazon');
+    if (loginEbayNewWindow) loginEbayNewWindow.onclick = () => openLoginInNewWindow('ebay');
+    if (openEbayInIframe) openEbayInIframe.onclick = () => openSiteInIframe('ebay');
+    if (loginPaypalNewWindow) loginPaypalNewWindow.onclick = () => openLoginInNewWindow('paypal');
+    if (openPaypalInIframe) openPaypalInIframe.onclick = () => openSiteInIframe('paypal');
+    
+    // 邮件和云服务
+    if (loginGmailNewWindow) loginGmailNewWindow.onclick = () => openLoginInNewWindow('gmail');
+    if (openGmailInIframe) openGmailInIframe.onclick = () => openSiteInIframe('gmail');
+    if (loginGoogleNewWindow) loginGoogleNewWindow.onclick = () => openLoginInNewWindow('google');
+    if (openGoogleInIframe) openGoogleInIframe.onclick = () => openSiteInIframe('google');
+    if (loginMicrosoftNewWindow) loginMicrosoftNewWindow.onclick = () => openLoginInNewWindow('microsoft');
+    if (openMicrosoftInIframe) openMicrosoftInIframe.onclick = () => openSiteInIframe('microsoft');
+    if (loginOutlookNewWindow) loginOutlookNewWindow.onclick = () => openLoginInNewWindow('outlook');
+    if (openOutlookInIframe) openOutlookInIframe.onclick = () => openSiteInIframe('outlook');
+    if (loginDropboxNewWindow) loginDropboxNewWindow.onclick = () => openLoginInNewWindow('dropbox');
+    if (openDropboxInIframe) openDropboxInIframe.onclick = () => openSiteInIframe('dropbox');
+    
+    // 企业通讯
+    if (loginSlackNewWindow) loginSlackNewWindow.onclick = () => openLoginInNewWindow('slack');
+    if (openSlackInIframe) openSlackInIframe.onclick = () => openSiteInIframe('slack');
     
     // Cookie清除按钮
     const clearRedditCookies = document.getElementById('clearRedditCookies');
