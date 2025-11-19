@@ -167,6 +167,13 @@
         <small style="color:#856404;display:block;margin-top:8px">
           <strong>使用流程：</strong>先点击"新窗口登录"完成登录 → 然后点击"在iframe中打开"进行测试（Cookie已共享）
         </small>
+        <div class="row" style="margin:8px 0">
+          <button id="clearRedditCookies" style="background:#ff9800;color:white;font-size:12px;padding:6px 12px">清除Reddit Cookie</button>
+          <button id="clearFacebookCookies" style="background:#ff9800;color:white;font-size:12px;padding:6px 12px">清除Facebook Cookie</button>
+        </div>
+        <small style="color:#856404;display:block;margin-top:4px;font-size:11px">
+          <strong>⚠️ 重要提示：</strong>如果测试显示"已登录"但你确定没有登录，可能是WebView中保留了之前的Cookie。点击"清除Cookie"按钮清除后重新测试。
+        </small>
       </div>
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:8px;margin:8px 0;font-size:12px">
         <strong>⚠️ 提示：</strong>某些网站（如B站）可能有严格的安全策略，即使使用Bridge也无法访问。这是正常现象，说明该网站有良好的安全防护。如果所有请求都失败，建议：
@@ -2180,6 +2187,68 @@ https://httpbin.org/anything</textarea>
     // Facebook特殊按钮
     if (loginFacebookNewWindow) loginFacebookNewWindow.onclick = () => openLoginInNewWindow('facebook');
     if (openFacebookInIframe) openFacebookInIframe.onclick = () => openSiteInIframe('facebook');
+    
+    // Cookie清除按钮
+    const clearRedditCookies = document.getElementById('clearRedditCookies');
+    const clearFacebookCookies = document.getElementById('clearFacebookCookies');
+    
+    if (clearRedditCookies) {
+      clearRedditCookies.onclick = () => clearSiteCookies('reddit');
+    }
+    if (clearFacebookCookies) {
+      clearFacebookCookies.onclick = () => clearSiteCookies('facebook');
+    }
+  }
+  
+  // 清除网站Cookie（通过iframe访问并清除）
+  function clearSiteCookies(siteKey) {
+    const site = testSites[siteKey];
+    if (!site) return;
+    
+    const siteName = site.name;
+    const domains = [
+      site.url.replace(/^https?:\/\//, '').replace(/\/.*$/, ''),
+      'oauth.reddit.com', // Reddit的特殊域名
+      'www.reddit.com',
+      'reddit.com',
+      'facebook.com',
+      'www.facebook.com',
+      'm.facebook.com'
+    ];
+    
+    // 尝试清除Cookie
+    let cleared = 0;
+    const cookiesToClear = [];
+    
+    // 获取当前所有Cookie
+    if (document.cookie) {
+      document.cookie.split(';').forEach(cookie => {
+        const name = cookie.split('=')[0].trim();
+        if (name) cookiesToClear.push(name);
+      });
+    }
+    
+    // 尝试清除每个域名的Cookie
+    domains.forEach(domain => {
+      cookiesToClear.forEach(cookieName => {
+        // 尝试清除Cookie（设置过期时间为过去）
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${domain}`;
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=.${domain}`;
+        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/`;
+        cleared++;
+      });
+    });
+    
+    // 使用iframe清除（更有效的方法）
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = site.url + '/logout'; // 尝试访问logout页面
+    document.body.appendChild(iframe);
+    
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+      alert(`${siteName} Cookie清除完成。\n\n已尝试清除 ${cleared} 个Cookie。\n\n⚠️ 注意：WebView中的Cookie可能由系统管理，JavaScript可能无法完全清除。如果测试仍显示"已登录"，可能需要：\n1. 在App设置中清除WebView数据\n2. 或者重新安装App\n3. 或者使用隐私模式/无痕模式`);
+    }, 2000);
   }
   
   // 立即尝试绑定，如果DOM还没加载完成则等待
