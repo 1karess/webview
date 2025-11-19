@@ -146,11 +146,37 @@
         <button id="openZhihu" style="background:#0084ff;color:white">打开知乎并登录</button>
         <button id="openBilibili" style="background:#fb7299;color:white">打开B站并登录</button>
         <button id="openDouban" style="background:#42bd56;color:white">打开豆瓣并登录</button>
-        <button id="openTwitter" style="background:#000000;color:white">Open Twitter/X</button>
-        <button id="openFacebook" style="background:#1877f2;color:white">Open Facebook</button>
-        <button id="openInstagram" style="background:#f77737;color:white">Open Instagram</button>
-        <button id="openReddit" style="background:#ff4500;color:white">Open Reddit</button>
-        <button id="openAmazon" style="background:#146eb4;color:white">Open Amazon</button>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <strong style="width:100%;margin-bottom:8px;color:#1890ff">🇺🇸 美国软件测试（在QQ中测试）</strong>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <button id="openTwitter" style="background:#000000;color:white">Twitter/X</button>
+        <button id="openFacebook" style="background:#1877f2;color:white">Facebook</button>
+        <button id="openInstagram" style="background:#f77737;color:white">Instagram</button>
+        <button id="openReddit" style="background:#ff4500;color:white">Reddit</button>
+        <button id="openLinkedin" style="background:#0077b5;color:white">LinkedIn</button>
+        <button id="openGithub" style="background:#24292e;color:white">GitHub</button>
+        <button id="openDiscord" style="background:#5865f2;color:white">Discord</button>
+        <button id="openTiktok" style="background:#000000;color:white">TikTok</button>
+        <button id="openYoutube" style="background:#ff0000;color:white">YouTube</button>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <button id="openNetflix" style="background:#e50914;color:white">Netflix</button>
+        <button id="openSpotify" style="background:#1db954;color:white">Spotify</button>
+        <button id="openPaypal" style="background:#003087;color:white">PayPal</button>
+        <button id="openEbay" style="background:#0064d2;color:white">eBay</button>
+        <button id="openAmazon" style="background:#146eb4;color:white">Amazon</button>
+        <button id="openGmail" style="background:#ea4335;color:white">Gmail</button>
+        <button id="openGoogle" style="background:#4285f4;color:white">Google</button>
+        <button id="openMicrosoft" style="background:#0078d4;color:white">Microsoft</button>
+        <button id="openOutlook" style="background:#0078d4;color:white">Outlook</button>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <button id="openDropbox" style="background:#0061ff;color:white">Dropbox</button>
+        <button id="openSlack" style="background:#4a154b;color:white">Slack</button>
+        <button id="openPinterest" style="background:#bd081c;color:white">Pinterest</button>
+        <button id="openTwitch" style="background:#9146ff;color:white">Twitch</button>
       </div>
       <!-- Reddit和Facebook特殊按钮：分离登录和测试 -->
       <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px;margin:12px 0">
@@ -1727,17 +1753,6 @@ https://httpbin.org/anything</textarea>
       apiUrls: ['https://www.douban.com', 'https://frodo.douban.com/api/v2/user/~me'],
       color: '#42bd56'
     },
-    twitter: {
-      name: 'Twitter / X',
-      url: 'https://x.com',
-      testUrl: 'https://x.com',
-      apiUrls: [
-        'https://api.twitter.com/1.1/account/verify_credentials.json',
-        'https://api.twitter.com/1.1/account/settings.json',
-        'https://x.com'
-      ],
-      color: '#000000'
-    },
     facebook: {
       name: 'Facebook',
       url: 'https://www.facebook.com',
@@ -1787,6 +1802,238 @@ https://httpbin.org/anything</textarea>
         'https://www.amazon.com'
       ],
       color: '#146eb4'
+    },
+    linkedin: {
+      name: 'LinkedIn',
+      url: 'https://www.linkedin.com',
+      testUrl: 'https://www.linkedin.com',
+      apiUrls: [
+        'https://www.linkedin.com/voyager/api/me',
+        'https://www.linkedin.com/voyager/api/identity/profiles/me',
+        'https://www.linkedin.com'
+      ],
+      color: '#0077b5',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    github: {
+      name: 'GitHub',
+      url: 'https://github.com',
+      testUrl: 'https://github.com',
+      apiUrls: [
+        'https://api.github.com/user',
+        'https://github.com/settings/profile',
+        'https://github.com'
+      ],
+      color: '#24292e',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    discord: {
+      name: 'Discord',
+      url: 'https://discord.com',
+      testUrl: 'https://discord.com',
+      apiUrls: [
+        'https://discord.com/api/v9/users/@me',
+        'https://discord.com/api/v9/users/@me/library',
+        'https://discord.com'
+      ],
+      color: '#5865f2',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    tiktok: {
+      name: 'TikTok',
+      url: 'https://www.tiktok.com',
+      testUrl: 'https://www.tiktok.com',
+      apiUrls: [
+        'https://www.tiktok.com/api/user/info/',
+        'https://www.tiktok.com/api/user/detail/',
+        'https://www.tiktok.com'
+      ],
+      color: '#000000',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    youtube: {
+      name: 'YouTube',
+      url: 'https://www.youtube.com',
+      testUrl: 'https://www.youtube.com',
+      apiUrls: [
+        'https://www.youtube.com/account',
+        'https://www.youtube.com/feed/account',
+        'https://www.youtube.com'
+      ],
+      color: '#ff0000',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    netflix: {
+      name: 'Netflix',
+      url: 'https://www.netflix.com',
+      testUrl: 'https://www.netflix.com',
+      apiUrls: [
+        'https://www.netflix.com/YourAccount',
+        'https://www.netflix.com/browse',
+        'https://www.netflix.com'
+      ],
+      color: '#e50914',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    spotify: {
+      name: 'Spotify',
+      url: 'https://open.spotify.com',
+      testUrl: 'https://open.spotify.com',
+      apiUrls: [
+        'https://api.spotify.com/v1/me',
+        'https://open.spotify.com/get_access_token',
+        'https://open.spotify.com'
+      ],
+      color: '#1db954',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    paypal: {
+      name: 'PayPal',
+      url: 'https://www.paypal.com',
+      testUrl: 'https://www.paypal.com',
+      apiUrls: [
+        'https://www.paypal.com/myaccount/home',
+        'https://www.paypal.com/myaccount/summary',
+        'https://www.paypal.com'
+      ],
+      color: '#003087',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    ebay: {
+      name: 'eBay',
+      url: 'https://www.ebay.com',
+      testUrl: 'https://www.ebay.com',
+      apiUrls: [
+        'https://www.ebay.com/myb/Summary',
+        'https://www.ebay.com/myb/PurchaseHistory',
+        'https://www.ebay.com'
+      ],
+      color: '#0064d2'
+    },
+    gmail: {
+      name: 'Gmail',
+      url: 'https://mail.google.com',
+      testUrl: 'https://mail.google.com',
+      apiUrls: [
+        'https://mail.google.com/mail/u/0/#inbox',
+        'https://accounts.google.com/AccountChooser',
+        'https://mail.google.com'
+      ],
+      color: '#ea4335',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    google: {
+      name: 'Google',
+      url: 'https://www.google.com',
+      testUrl: 'https://www.google.com',
+      apiUrls: [
+        'https://myaccount.google.com',
+        'https://www.google.com/account',
+        'https://www.google.com'
+      ],
+      color: '#4285f4',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    microsoft: {
+      name: 'Microsoft',
+      url: 'https://www.microsoft.com',
+      testUrl: 'https://www.microsoft.com',
+      apiUrls: [
+        'https://account.microsoft.com',
+        'https://www.microsoft.com/account',
+        'https://www.microsoft.com'
+      ],
+      color: '#0078d4',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    outlook: {
+      name: 'Outlook',
+      url: 'https://outlook.live.com',
+      testUrl: 'https://outlook.live.com',
+      apiUrls: [
+        'https://outlook.live.com/mail/0/',
+        'https://outlook.office.com/mail',
+        'https://outlook.live.com'
+      ],
+      color: '#0078d4',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    dropbox: {
+      name: 'Dropbox',
+      url: 'https://www.dropbox.com',
+      testUrl: 'https://www.dropbox.com',
+      apiUrls: [
+        'https://www.dropbox.com/home',
+        'https://api.dropboxapi.com/2/users/get_current_account',
+        'https://www.dropbox.com'
+      ],
+      color: '#0061ff',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    slack: {
+      name: 'Slack',
+      url: 'https://slack.com',
+      testUrl: 'https://slack.com',
+      apiUrls: [
+        'https://slack.com/api/auth.test',
+        'https://slack.com/api/users.identity',
+        'https://slack.com'
+      ],
+      color: '#4a154b',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    pinterest: {
+      name: 'Pinterest',
+      url: 'https://www.pinterest.com',
+      testUrl: 'https://www.pinterest.com',
+      apiUrls: [
+        'https://www.pinterest.com/me/',
+        'https://www.pinterest.com/resource/UserResource/get/',
+        'https://www.pinterest.com'
+      ],
+      color: '#bd081c',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    twitch: {
+      name: 'Twitch',
+      url: 'https://www.twitch.tv',
+      testUrl: 'https://www.twitch.tv',
+      apiUrls: [
+        'https://api.twitch.tv/helix/users',
+        'https://www.twitch.tv/dashboard',
+        'https://www.twitch.tv'
+      ],
+      color: '#9146ff',
+      preferNewWindow: true,
+      allowReturnToIframe: true
+    },
+    twitter: {
+      name: 'Twitter / X',
+      url: 'https://x.com',
+      testUrl: 'https://x.com',
+      apiUrls: [
+        'https://api.twitter.com/1.1/account/verify_credentials.json',
+        'https://api.twitter.com/1.1/account/settings.json',
+        'https://x.com'
+      ],
+      color: '#000000',
+      preferNewWindow: true,
+      allowReturnToIframe: true
     }
   };
   
@@ -2476,15 +2723,35 @@ https://httpbin.org/anything</textarea>
   
   // 绑定事件（确保元素存在）
   function bindQuickTestEvents() {
+    // 中国网站
     const openWeibo = document.getElementById('openWeibo');
     const openZhihu = document.getElementById('openZhihu');
     const openBilibili = document.getElementById('openBilibili');
     const openDouban = document.getElementById('openDouban');
+    
+    // 美国软件测试（在QQ中测试）
     const openTwitter = document.getElementById('openTwitter');
     const openFacebook = document.getElementById('openFacebook');
     const openInstagram = document.getElementById('openInstagram');
     const openReddit = document.getElementById('openReddit');
+    const openLinkedin = document.getElementById('openLinkedin');
+    const openGithub = document.getElementById('openGithub');
+    const openDiscord = document.getElementById('openDiscord');
+    const openTiktok = document.getElementById('openTiktok');
+    const openYoutube = document.getElementById('openYoutube');
+    const openNetflix = document.getElementById('openNetflix');
+    const openSpotify = document.getElementById('openSpotify');
+    const openPaypal = document.getElementById('openPaypal');
+    const openEbay = document.getElementById('openEbay');
     const openAmazon = document.getElementById('openAmazon');
+    const openGmail = document.getElementById('openGmail');
+    const openGoogle = document.getElementById('openGoogle');
+    const openMicrosoft = document.getElementById('openMicrosoft');
+    const openOutlook = document.getElementById('openOutlook');
+    const openDropbox = document.getElementById('openDropbox');
+    const openSlack = document.getElementById('openSlack');
+    const openPinterest = document.getElementById('openPinterest');
+    const openTwitch = document.getElementById('openTwitch');
     
     // Reddit和Facebook的特殊按钮
     const loginRedditNewWindow = document.getElementById('loginRedditNewWindow');
@@ -2492,15 +2759,35 @@ https://httpbin.org/anything</textarea>
     const loginFacebookNewWindow = document.getElementById('loginFacebookNewWindow');
     const openFacebookInIframe = document.getElementById('openFacebookInIframe');
     
+    // 中国网站
     if (openWeibo) openWeibo.onclick = () => openSiteForLogin('weibo');
     if (openZhihu) openZhihu.onclick = () => openSiteForLogin('zhihu');
     if (openBilibili) openBilibili.onclick = () => openSiteForLogin('bilibili');
     if (openDouban) openDouban.onclick = () => openSiteForLogin('douban');
+    
+    // 美国软件测试（在QQ中测试）
     if (openTwitter) openTwitter.onclick = () => openSiteForLogin('twitter');
     if (openFacebook) openFacebook.onclick = () => openSiteForLogin('facebook');
     if (openInstagram) openInstagram.onclick = () => openSiteForLogin('instagram');
     if (openReddit) openReddit.onclick = () => openSiteForLogin('reddit');
+    if (openLinkedin) openLinkedin.onclick = () => openSiteForLogin('linkedin');
+    if (openGithub) openGithub.onclick = () => openSiteForLogin('github');
+    if (openDiscord) openDiscord.onclick = () => openSiteForLogin('discord');
+    if (openTiktok) openTiktok.onclick = () => openSiteForLogin('tiktok');
+    if (openYoutube) openYoutube.onclick = () => openSiteForLogin('youtube');
+    if (openNetflix) openNetflix.onclick = () => openSiteForLogin('netflix');
+    if (openSpotify) openSpotify.onclick = () => openSiteForLogin('spotify');
+    if (openPaypal) openPaypal.onclick = () => openSiteForLogin('paypal');
+    if (openEbay) openEbay.onclick = () => openSiteForLogin('ebay');
     if (openAmazon) openAmazon.onclick = () => openSiteForLogin('amazon');
+    if (openGmail) openGmail.onclick = () => openSiteForLogin('gmail');
+    if (openGoogle) openGoogle.onclick = () => openSiteForLogin('google');
+    if (openMicrosoft) openMicrosoft.onclick = () => openSiteForLogin('microsoft');
+    if (openOutlook) openOutlook.onclick = () => openSiteForLogin('outlook');
+    if (openDropbox) openDropbox.onclick = () => openSiteForLogin('dropbox');
+    if (openSlack) openSlack.onclick = () => openSiteForLogin('slack');
+    if (openPinterest) openPinterest.onclick = () => openSiteForLogin('pinterest');
+    if (openTwitch) openTwitch.onclick = () => openSiteForLogin('twitch');
     
     // Reddit特殊按钮
     if (loginRedditNewWindow) loginRedditNewWindow.onclick = () => openLoginInNewWindow('reddit');
