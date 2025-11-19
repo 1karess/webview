@@ -164,8 +164,8 @@
         <div style="background:#1890ff;color:white;padding:8px;display:flex;justify-content:space-between;align-items:center">
           <span id="siteFrameTitle" style="font-weight:bold">正在加载...</span>
           <div style="display:flex;gap:8px;align-items:center">
-            <button id="returnToIframe" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;display:none;font-size:12px">↩️ 返回iframe</button>
-            <button id="closeSiteFrame" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">关闭</button>
+            <button id="returnToIframe" type="button" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;display:none;font-size:12px">↩️ 返回iframe</button>
+            <button id="closeSiteFrame" type="button" style="background:rgba(255,255,255,0.2);color:white;border:none;padding:4px 12px;border-radius:4px;cursor:pointer">关闭</button>
           </div>
         </div>
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
@@ -1840,6 +1840,8 @@ https://httpbin.org/anything</textarea>
           // 显示返回iframe按钮
           if (returnBtn) {
             returnBtn.style.display = 'block';
+            // 重新设置事件监听器，确保按钮显示后事件绑定正确
+            setupIframeButtons();
           }
           
           // 滚动到iframe位置
@@ -1915,47 +1917,79 @@ https://httpbin.org/anything</textarea>
     }
   }
   
-  // 关闭网站iframe（使用事件委托，因为按钮可能还不存在）
-  document.addEventListener('click', function(e) {
-    // 关闭iframe容器（只是隐藏，不退出webview）
-    if (e.target && e.target.id === 'closeSiteFrame') {
-      e.preventDefault();
-      e.stopPropagation();
-      const container = document.getElementById('siteFrameContainer');
-      const frame = document.getElementById('siteFrame');
-      const returnBtn = document.getElementById('returnToIframe');
-      if (container && frame) {
-        container.style.display = 'none';
-        frame.src = 'about:blank';
-        // 隐藏返回按钮
-        if (returnBtn) returnBtn.style.display = 'none';
-      }
-      return false;
+  // 关闭网站iframe和返回iframe功能
+  // 使用直接绑定而不是事件委托，确保事件处理正确
+  function setupIframeButtons() {
+    const closeBtn = document.getElementById('closeSiteFrame');
+    const returnBtn = document.getElementById('returnToIframe');
+    
+    // 关闭iframe按钮
+    if (closeBtn) {
+      // 移除旧的事件监听器
+      closeBtn.onclick = null;
+      closeBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const container = document.getElementById('siteFrameContainer');
+        const frame = document.getElementById('siteFrame');
+        const returnBtn = document.getElementById('returnToIframe');
+        
+        if (container && frame) {
+          container.style.display = 'none';
+          frame.src = 'about:blank';
+          // 隐藏返回按钮
+          if (returnBtn) returnBtn.style.display = 'none';
+        }
+        
+        // 确保不会触发其他行为
+        return false;
+      }, true); // 使用捕获阶段，确保优先处理
     }
     
     // 返回iframe按钮
-    if (e.target && e.target.id === 'returnToIframe') {
-      e.preventDefault();
-      e.stopPropagation();
-      const frame = document.getElementById('siteFrame');
-      const title = document.getElementById('siteFrameTitle');
-      const returnBtn = document.getElementById('returnToIframe');
-      const container = document.getElementById('siteFrameContainer');
-      
-      // 获取当前网站配置（从存储的变量中获取）
-      if (window.currentLoginSite && frame && title) {
-        // 使用主页URL而不是登录URL
-        const mainUrl = window.currentLoginSite.url.replace('/login', '').replace(/\/login$/, '');
-        frame.src = mainUrl;
-        title.textContent = `${window.currentLoginSite.name} - 已登录（iframe中）`;
-        if (returnBtn) returnBtn.style.display = 'none';
-        if (container) container.style.display = 'block';
-        // 滚动到iframe位置
-        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-      return false;
+    if (returnBtn) {
+      // 移除旧的事件监听器
+      returnBtn.onclick = null;
+      returnBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        const frame = document.getElementById('siteFrame');
+        const title = document.getElementById('siteFrameTitle');
+        const returnBtn = document.getElementById('returnToIframe');
+        const container = document.getElementById('siteFrameContainer');
+        
+        // 获取当前网站配置（从存储的变量中获取）
+        if (window.currentLoginSite && frame && title) {
+          // 使用主页URL而不是登录URL
+          const mainUrl = window.currentLoginSite.url.replace('/login', '').replace(/\/login$/, '');
+          frame.src = mainUrl;
+          title.textContent = `${window.currentLoginSite.name} - 已登录（iframe中）`;
+          if (returnBtn) returnBtn.style.display = 'none';
+          if (container) container.style.display = 'block';
+          // 滚动到iframe位置
+          container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // 确保不会触发其他行为
+        return false;
+      }, true); // 使用捕获阶段，确保优先处理
     }
-  });
+  }
+  
+  // 页面加载完成后设置按钮
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupIframeButtons);
+  } else {
+    setupIframeButtons();
+  }
+  
+  // 延迟设置，确保按钮已创建
+  setTimeout(setupIframeButtons, 100);
+  setTimeout(setupIframeButtons, 500);
   
   // 绑定事件（确保元素存在）
   function bindQuickTestEvents() {
