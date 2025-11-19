@@ -1277,21 +1277,22 @@ https://httpbin.org/anything</textarea>
       if (!event.fulfilled) return { loggedIn: false, reason: 'request failed' };
       if (event.status === 401 || event.status === 403) return { loggedIn: false, reason: `status ${event.status}` };
       if (event.status === 200 && event.bodySnippet) {
-        // 尝试解析响应体判断登录状态
-        try {
-          const body = event.bodySnippet;
-          // Reddit登录后通常包含features字段
-          if (body.includes('"features"') || body.includes('"name"') || body.includes('"id"')) {
-            return { loggedIn: true, reason: 'contains user data' };
-          }
-          // 未登录时可能返回错误信息
-          if (body.includes('"error"') && (body.includes('unauthorized') || body.includes('authentication'))) {
-            return { loggedIn: false, reason: 'error message indicates not logged in' };
-          }
-        } catch(e) {}
+        // 使用智能分析函数（需要推断网站名称）
+        const url = event.url || '';
+        let siteName = '';
+        if (url.includes('reddit.com')) siteName = 'Reddit';
+        else if (url.includes('facebook.com')) siteName = 'Facebook';
+        
+        const analysis = analyzeLoginStatusFromResponse(event.bodySnippet, siteName);
+        return { 
+          loggedIn: analysis.loggedIn, 
+          reason: analysis.reason,
+          confidence: analysis.confidence,
+          note: analysis.note
+        };
       }
       // 默认根据状态码判断
-      if (event.status === 200) return { loggedIn: true, reason: 'status 200' };
+      if (event.status === 200) return { loggedIn: false, reason: '状态码200但无法确定（可能是默认响应）' };
       return { loggedIn: false, reason: 'unknown' };
     }
     
@@ -2191,6 +2192,98 @@ https://httpbin.org/anything</textarea>
     }
   }
   
+  // 智能检测登录状态（解析JSON，检查真正的用户标识字段）
+  function analyzeLoginStatusFromResponse(bodyText, siteName) {
+    if (!bodyText || typeof bodyText !== 'string') {
+      return { loggedIn: false, confidence: 'low', reason: '无响应体' };
+    }
+    
+    // 尝试解析JSON
+    let jsonData = null;
+    try {
+      jsonData = JSON.parse(bodyText);
+    } catch(e) {
+      // 不是JSON格式，使用字符串匹配
+      if (bodyText.includes('"error"') && (bodyText.includes('unauthorized') || bodyText.includes('authentication') || bodyText.includes('401'))) {
+        return { loggedIn: false, confidence: 'high', reason: '错误信息显示未授权' };
+      }
+      return { loggedIn: false, confidence: 'low', reason: '无法解析响应' };
+    }
+    
+    // Reddit API检测逻辑
+    if (siteName && siteName.toLowerCase().includes('reddit')) {
+      // Reddit的/api/v1/me在未登录时可能返回默认的features，但没有用户标识
+      // 真正的登录状态需要检查是否有用户特定字段
+      const hasUserIdentifier = jsonData.name || jsonData.id || jsonData.username || 
+                                 jsonData.subreddit || (jsonData.subreddit && jsonData.subreddit.display_name) ||
+                                 jsonData.karma || jsonData.created_utc;
+      
+      // 如果只有features但没有用户标识，可能是Reddit的默认响应（未登录）
+      if (jsonData.features && !hasUserIdentifier) {
+        return { 
+          loggedIn: false, 
+          confidence: 'high', 
+          reason: 'Reddit默认响应（只有features，无用户标识）',
+          note: 'Reddit在未登录时也会返回features配置，这是正常行为'
+        };
+      }
+      
+      // 如果有用户标识，确定已登录
+      if (hasUserIdentifier) {
+        return { 
+          loggedIn: true, 
+          confidence: 'high', 
+          reason: '检测到用户标识字段（name/id/username/subreddit等）',
+          userData: { name: jsonData.name, id: jsonData.id, username: jsonData.username }
+        };
+      }
+      
+      // 如果既没有features也没有用户标识，可能是其他响应
+      return { loggedIn: false, confidence: 'medium', reason: '无用户标识字段' };
+    }
+    
+    // Facebook API检测逻辑
+    if (siteName && siteName.toLowerCase().includes('facebook')) {
+      // Facebook的/me API需要id和name字段
+      if (jsonData.id && jsonData.name) {
+        return { 
+          loggedIn: true, 
+          confidence: 'high', 
+          reason: '检测到用户id和name',
+          userData: { id: jsonData.id, name: jsonData.name }
+        };
+      }
+      
+      // Facebook未登录时通常返回错误
+      if (jsonData.error) {
+        return { 
+          loggedIn: false, 
+          confidence: 'high', 
+          reason: `Facebook错误: ${jsonData.error.message || jsonData.error.type || '未知错误'}` 
+        };
+      }
+      
+      return { loggedIn: false, confidence: 'medium', reason: '无用户id和name字段' };
+    }
+    
+    // 通用检测逻辑（其他网站）
+    if (jsonData.name || jsonData.id || jsonData.username || jsonData.user_id) {
+      return { 
+        loggedIn: true, 
+        confidence: 'medium', 
+        reason: '检测到用户标识字段',
+        userData: { name: jsonData.name, id: jsonData.id, username: jsonData.username }
+      };
+    }
+    
+    if (jsonData.error && (jsonData.error.includes('unauthorized') || jsonData.error.includes('authentication'))) {
+      return { loggedIn: false, confidence: 'high', reason: '错误信息显示未授权' };
+    }
+    
+    // 默认：无法确定
+    return { loggedIn: false, confidence: 'low', reason: '无法确定登录状态' };
+  }
+  
   // 检测iframe中网站的登录状态
   async function detectLoginStatusForIframe(site, titleElement) {
     if (!site || !titleElement) return;
@@ -2251,22 +2344,32 @@ https://httpbin.org/anything</textarea>
           
           responseBody = bodyText;
           
-          // 检查响应体内容
-          if (bodyText.includes('"features"') || bodyText.includes('"name"') || bodyText.includes('"id"')) {
+          // 使用智能分析函数
+          const analysis = analyzeLoginStatusFromResponse(bodyText, site.name);
+          
+          if (analysis.loggedIn) {
             loginStatus = '已登录';
             statusIcon = '🔓';
-            detailInfo = `（检测到用户数据，但你可能没有主动登录 - 可能是WebView Cookie持久化）`;
-          } else if (bodyText.includes('"error"') && (bodyText.includes('unauthorized') || bodyText.includes('authentication'))) {
-            loginStatus = '未登录';
-            statusIcon = '🔒';
+            detailInfo = `（${analysis.reason}）`;
+            if (analysis.userData && analysis.userData.name) {
+              detailInfo += ` - 用户: ${analysis.userData.name}`;
+            }
           } else {
-            // 只有200状态码，无法确定，显示"可能已登录"
-            loginStatus = '可能已登录（状态码200）';
-            statusIcon = '⚠️';
+            // 根据置信度显示不同的状态
+            if (analysis.confidence === 'high') {
+              loginStatus = analysis.note || '未登录';
+              statusIcon = '🔒';
+              detailInfo = `（${analysis.reason}）`;
+            } else {
+              loginStatus = '可能未登录';
+              statusIcon = '⚠️';
+              detailInfo = `（${analysis.reason}）`;
+            }
           }
         } else if (status === 401 || status === 403) {
           loginStatus = '未登录';
           statusIcon = '🔒';
+          detailInfo = '（状态码显示未授权）';
         } else {
           loginStatus = `状态码: ${status}`;
           statusIcon = '❓';
@@ -2631,11 +2734,17 @@ https://httpbin.org/anything</textarea>
           }
         } catch(e) {}
         
+        // 使用智能分析函数
+        const redditAnalysis = analyzeLoginStatusFromResponse(bodyText, 'Reddit');
         platformInfo.redditTest = {
           status: status,
-          hasUserData: bodyText.includes('"features"') || bodyText.includes('"name"'),
+          hasUserData: redditAnalysis.loggedIn,
           bodySnippet: bodyText.slice(0, 200),
-          loggedIn: status === 200 && (bodyText.includes('"features"') || bodyText.includes('"name"'))
+          loggedIn: redditAnalysis.loggedIn,
+          confidence: redditAnalysis.confidence,
+          reason: redditAnalysis.reason,
+          note: redditAnalysis.note,
+          userData: redditAnalysis.userData
         };
       }
     } catch(e) {
@@ -2670,11 +2779,16 @@ https://httpbin.org/anything</textarea>
           }
         } catch(e) {}
         
+        // 使用智能分析函数
+        const facebookAnalysis = analyzeLoginStatusFromResponse(bodyText, 'Facebook');
         platformInfo.facebookTest = {
           status: status,
-          hasUserData: bodyText.includes('"id"') || bodyText.includes('"name"'),
+          hasUserData: facebookAnalysis.loggedIn,
           bodySnippet: bodyText.slice(0, 200),
-          loggedIn: status === 200 && (bodyText.includes('"id"') || bodyText.includes('"name"'))
+          loggedIn: facebookAnalysis.loggedIn,
+          confidence: facebookAnalysis.confidence,
+          reason: facebookAnalysis.reason,
+          userData: facebookAnalysis.userData
         };
       }
     } catch(e) {
@@ -2694,14 +2808,26 @@ https://httpbin.org/anything</textarea>
       }
       
       html += `<strong>Reddit API测试：</strong><br>`;
-      if (platformInfo.redditTest && platformInfo.redditTest.loggedIn) {
-        html += `🔓 <strong>已登录</strong>（状态码: ${platformInfo.redditTest.status}）<br>`;
-        html += `⚠️ <strong>安全发现：没有可见Cookie但返回了用户数据！</strong><br>`;
-        html += `响应体: ${platformInfo.redditTest.bodySnippet}<br>`;
-      } else if (platformInfo.redditTest && platformInfo.redditTest.error) {
+      if (platformInfo.redditTest && platformInfo.redditTest.error) {
         html += `❌ 测试失败: ${platformInfo.redditTest.error}<br>`;
+      } else if (platformInfo.redditTest && platformInfo.redditTest.loggedIn) {
+        html += `🔓 <strong>已登录</strong>（状态码: ${platformInfo.redditTest.status}）<br>`;
+        if (platformInfo.cookies.count === 0) {
+          html += `⚠️ <strong>安全发现：没有可见Cookie但返回了用户数据！</strong><br>`;
+        }
+        if (platformInfo.redditTest.userData && platformInfo.redditTest.userData.name) {
+          html += `用户: ${platformInfo.redditTest.userData.name}<br>`;
+        }
+        html += `响应体: ${platformInfo.redditTest.bodySnippet}<br>`;
+      } else if (platformInfo.redditTest && platformInfo.redditTest.note) {
+        html += `🔒 <strong>${platformInfo.redditTest.note}</strong>（状态码: ${platformInfo.redditTest.status}）<br>`;
+        html += `说明: ${platformInfo.redditTest.reason}<br>`;
+        html += `响应体: ${platformInfo.redditTest.bodySnippet}<br>`;
       } else {
         html += `🔒 未登录（状态码: ${platformInfo.redditTest?.status || 'unknown'}）<br>`;
+        if (platformInfo.redditTest && platformInfo.redditTest.reason) {
+          html += `说明: ${platformInfo.redditTest.reason}<br>`;
+        }
       }
       html += '<br>';
       
@@ -2767,12 +2893,20 @@ https://httpbin.org/anything</textarea>
             }
           } catch(e) {}
           
+          // 使用智能分析函数
+          const analysis = analyzeLoginStatusFromResponse(bodyText, 'Reddit');
           scenario1.result = {
             success: true,
             status: status,
-            hasUserData: bodyText.includes('"features"') || bodyText.includes('"name"'),
+            hasUserData: analysis.loggedIn,
             userDataSnippet: bodyText.slice(0, 300),
-            risk: '高风险：恶意网页可以读取用户数据，即使没有可见Cookie'
+            loggedIn: analysis.loggedIn,
+            confidence: analysis.confidence,
+            reason: analysis.reason,
+            note: analysis.note,
+            risk: analysis.loggedIn 
+              ? '高风险：恶意网页可以读取用户数据，即使没有可见Cookie'
+              : (analysis.note || '中风险：可以检测到默认响应，但无法获取真实用户数据')
           };
         }
       } else {
@@ -2814,11 +2948,19 @@ https://httpbin.org/anything</textarea>
               }
             } catch(e) {}
             
+            // 使用智能分析函数
+            const siteName = url.includes('reddit.com') ? 'Reddit' : (url.includes('facebook.com') ? 'Facebook' : '');
+            const analysis = analyzeLoginStatusFromResponse(bodyText, siteName);
             scenario2.results.push({
               url: url,
               status: status,
-              loggedIn: status === 200 && (bodyText.includes('"features"') || bodyText.includes('"id"')),
-              risk: '中风险：可以判断用户登录状态，用于精准广告或社交工程攻击'
+              loggedIn: analysis.loggedIn,
+              confidence: analysis.confidence,
+              reason: analysis.reason,
+              note: analysis.note,
+              risk: analysis.loggedIn 
+                ? '中风险：可以判断用户登录状态，用于精准广告或社交工程攻击'
+                : (analysis.note ? '低风险：只能检测到默认响应，无法确定真实登录状态' : '中风险：可以判断用户登录状态，用于精准广告或社交工程攻击')
             });
           }
         }
@@ -2850,9 +2992,15 @@ https://httpbin.org/anything</textarea>
         
         if (scenario.result) {
           if (scenario.result.success) {
-            html += `✅ 攻击成功<br>`;
+            if (scenario.result.note) {
+              html += `⚠️ <strong>${scenario.result.note}</strong><br>`;
+            } else {
+              html += `✅ 攻击成功<br>`;
+            }
             html += `状态码: ${scenario.result.status}<br>`;
             html += `包含用户数据: ${scenario.result.hasUserData ? '是' : '否'}<br>`;
+            if (scenario.result.reason) html += `说明: ${scenario.result.reason}<br>`;
+            if (scenario.result.confidence) html += `置信度: ${scenario.result.confidence === 'high' ? '高' : scenario.result.confidence === 'medium' ? '中' : '低'}<br>`;
             if (scenario.result.userDataSnippet) {
               html += `用户数据片段: ${scenario.result.userDataSnippet}<br>`;
             }
@@ -2866,7 +3014,13 @@ https://httpbin.org/anything</textarea>
           scenario.results.forEach(r => {
             html += `URL: ${r.url}<br>`;
             html += `状态码: ${r.status || 'unknown'}<br>`;
-            html += `登录状态: ${r.loggedIn ? '🔓 已登录' : '🔒 未登录'}<br>`;
+            if (r.note) {
+              html += `登录状态: 🔒 <strong>${r.note}</strong><br>`;
+            } else {
+              html += `登录状态: ${r.loggedIn ? '🔓 已登录' : '🔒 未登录'}<br>`;
+            }
+            if (r.reason) html += `说明: ${r.reason}<br>`;
+            if (r.confidence) html += `置信度: ${r.confidence === 'high' ? '高' : r.confidence === 'medium' ? '中' : '低'}<br>`;
             if (r.risk) html += `⚠️ <strong>风险: ${r.risk}</strong><br>`;
             if (r.error) html += `❌ 错误: ${r.error}<br>`;
             html += '<br>';
