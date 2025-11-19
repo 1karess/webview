@@ -1854,7 +1854,7 @@ https://httpbin.org/anything</textarea>
       const newWindow = window.open(loginUrl, '_blank', 'width=800,height=600');
       if (newWindow) {
         if (site.allowReturnToIframe) {
-          alert(`已在新窗口打开${site.name}登录页面。\n\n📋 使用说明：\n1. 在新窗口中完成登录\n2. 登录成功后，点击iframe上方的"↩️ 返回iframe"按钮\n3. 页面将在iframe中加载，显示已登录状态\n4. 然后点击下方"运行Oracle测试"按钮进行测试\n\n💡 提示：如果新窗口被关闭，会自动在iframe中加载已登录页面`);
+          alert(`已在新窗口打开${site.name}登录页面。\n\n📋 重要使用说明：\n1. 在新窗口中完成登录\n2. 登录成功后，必须点击iframe上方的"↩️ 返回iframe"按钮\n3. 页面将在iframe中加载，Cookie会共享到测试页面\n4. 然后点击下方"运行Oracle测试"按钮进行测试\n\n⚠️ 关键：只有在iframe中加载后，Cookie才会共享，测试才能检测到登录状态！\n\n💡 提示：如果新窗口被关闭，会自动在iframe中加载已登录页面`);
           
           // 监听新窗口关闭（如果用户关闭新窗口，自动返回iframe）
           const checkWindowClosed = setInterval(() => {
@@ -1866,12 +1866,20 @@ https://httpbin.org/anything</textarea>
               const returnBtn = document.getElementById('returnToIframe');
               const container = document.getElementById('siteFrameContainer');
               if (frame && title && container) {
-                // 使用主页URL而不是登录URL
+                // 使用主页URL而不是登录URL，确保Cookie共享
                 const mainUrl = site.url.replace('/login', '').replace(/\/login$/, '');
                 frame.src = mainUrl;
-                title.textContent = `${site.name} - 已登录（iframe中）`;
+                title.textContent = `${site.name} - 已登录（iframe中，Cookie已共享）`;
                 if (returnBtn) returnBtn.style.display = 'none';
                 container.style.display = 'block';
+                
+                // 提示用户Cookie已共享，可以开始测试
+                setTimeout(() => {
+                  const testBtn = document.getElementById('runOracle');
+                  if (testBtn) {
+                    testBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }
+                }, 500);
               }
             }
           }, 500);
@@ -1964,14 +1972,22 @@ https://httpbin.org/anything</textarea>
         
         // 获取当前网站配置（从存储的变量中获取）
         if (window.currentLoginSite && frame && title) {
-          // 使用主页URL而不是登录URL
+          // 使用主页URL而不是登录URL，确保Cookie共享
           const mainUrl = window.currentLoginSite.url.replace('/login', '').replace(/\/login$/, '');
           frame.src = mainUrl;
-          title.textContent = `${window.currentLoginSite.name} - 已登录（iframe中）`;
+          title.textContent = `${window.currentLoginSite.name} - 已登录（iframe中，Cookie已共享）`;
           if (returnBtn) returnBtn.style.display = 'none';
           if (container) container.style.display = 'block';
           // 滚动到iframe位置
           container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          
+          // 提示用户Cookie已共享
+          setTimeout(() => {
+            const testBtn = document.getElementById('runOracle');
+            if (testBtn) {
+              testBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 500);
         }
         
         // 确保不会触发其他行为
