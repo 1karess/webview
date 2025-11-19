@@ -170,7 +170,16 @@
         </div>
         <iframe id="siteFrame" style="width:100%;height:500px;border:none;display:block"></iframe>
       </div>
-      <small style="color:#666;display:block;margin-top:8px">步骤：1. 点击"打开XX并登录" → 2. 在下方iframe中登录 → 3. 点击下方"运行Oracle测试"按钮</small>
+      <small style="color:#666;display:block;margin-top:8px;line-height:1.6">
+        <strong>📋 使用步骤（重要）：</strong><br>
+        1. 点击"打开XX并登录"按钮<br>
+        2. 在新窗口中完成登录（Reddit/Facebook等）<br>
+        3. <strong style="color:#ff4d4f">⚠️ 关键步骤：</strong>登录成功后，必须点击iframe上方的"↩️ 返回iframe"按钮<br>
+        4. 页面在iframe中加载后，<strong>Cookie会共享到测试页面</strong><br>
+        5. 然后点击下方"运行Oracle测试"按钮进行测试<br>
+        <br>
+        <strong style="color:#ff4d4f">⚠️ 重要提示：</strong>只有在iframe中加载后，Cookie才会共享，测试才能检测到登录状态！如果只在新窗口登录而不返回iframe，测试无法检测到登录状态。
+      </small>
     </div>
     
     <div style="margin-top:8px">
