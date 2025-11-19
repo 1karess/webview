@@ -1242,11 +1242,40 @@ https://httpbin.org/anything</textarea>
       }
     }
     
+    // 判断登录状态
+    function detectLoginStatus(event) {
+      if (!event.fulfilled) return { loggedIn: false, reason: 'request failed' };
+      if (event.status === 401 || event.status === 403) return { loggedIn: false, reason: `status ${event.status}` };
+      if (event.status === 200 && event.bodySnippet) {
+        // 尝试解析响应体判断登录状态
+        try {
+          const body = event.bodySnippet;
+          // Reddit登录后通常包含features字段
+          if (body.includes('"features"') || body.includes('"name"') || body.includes('"id"')) {
+            return { loggedIn: true, reason: 'contains user data' };
+          }
+          // 未登录时可能返回错误信息
+          if (body.includes('"error"') && (body.includes('unauthorized') || body.includes('authentication'))) {
+            return { loggedIn: false, reason: 'error message indicates not logged in' };
+          }
+        } catch(e) {}
+      }
+      // 默认根据状态码判断
+      if (event.status === 200) return { loggedIn: true, reason: 'status 200' };
+      return { loggedIn: false, reason: 'unknown' };
+    }
+    
     function classifyLeak(event){
       /* 泄露分类函数：判断Bridge是否泄露了比fetch()更多的信息（Oracle泄露信号） */
       /* 参数：event - 测试事件对象，包含method、fulfilled、status、error等信息 */
-      const sig = { oracle:false, reasons:[] };
+      const sig = { oracle:false, reasons:[], loginStatus: null };
       /* 泄露信号对象：oracle表示是否是泄露，reasons数组存储泄露原因 */
+      
+      // 检测登录状态
+      if (event.fulfilled && event.status) {
+        sig.loginStatus = detectLoginStatus(event);
+      }
+      
       if (event.method !== 'fetch' && event.fulfilled) {
         /* 如果方法不是fetch()（即Bridge调用）且调用成功 */
         if (typeof event.status === 'number' || typeof event.bodySnippet === 'string'){
@@ -1346,6 +1375,12 @@ https://httpbin.org/anything</textarea>
       if (e.status !== undefined) {
         line += ` [状态码: ${e.status}]`;
         /* 如果有状态码，显示状态码 */
+      }
+      // 显示登录状态
+      if (leak.loginStatus) {
+        const statusIcon = leak.loginStatus.loggedIn ? '🔓' : '🔒';
+        const statusText = leak.loginStatus.loggedIn ? '已登录' : '未登录';
+        line += `\n   ${statusIcon} [登录状态: ${statusText}] (${leak.loginStatus.reason})`;
       }
       if (e.bodySnippet) {
         line += `\n   响应体: ${e.bodySnippet}`;
