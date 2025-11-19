@@ -2278,6 +2278,9 @@ https://httpbin.org/anything</textarea>
         const diagnosticInfo = {
           visibleCookies: cookieInfo.visible,
           cookieCount: cookieInfo.count,
+          localStorage: cookieInfo.localStorage,
+          sessionStorage: cookieInfo.sessionStorage,
+          indexedDB: cookieInfo.indexedDB,
           responseBody: responseBody.slice(0, 500),
           testUrl: testUrl,
           status: response ? (typeof response.status === 'number' ? response.status : (response.statusCode || 0)) : 'unknown',
@@ -2297,12 +2300,15 @@ https://httpbin.org/anything</textarea>
     }
   }
   
-  // 检测Cookie
+  // 检测Cookie和其他存储机制
   function detectCookies(site) {
     const info = {
       count: 0,
       visible: [],
-      domains: []
+      domains: [],
+      localStorage: {},
+      sessionStorage: {},
+      indexedDB: false
     };
     
     // 检测当前页面的Cookie
@@ -2310,6 +2316,39 @@ https://httpbin.org/anything</textarea>
       const cookies = document.cookie.split(';');
       info.count = cookies.length;
       info.visible = cookies.map(c => c.trim()).filter(c => c.length > 0);
+    }
+    
+    // 检测localStorage（尝试访问Reddit相关域名，但受同源策略限制）
+    try {
+      const localKeys = Object.keys(localStorage);
+      if (localKeys.length > 0) {
+        info.localStorage = {
+          count: localKeys.length,
+          keys: localKeys.slice(0, 10) // 只显示前10个
+        };
+      }
+    } catch(e) {
+      info.localStorage = { error: '无法访问（同源策略）' };
+    }
+    
+    // 检测sessionStorage
+    try {
+      const sessionKeys = Object.keys(sessionStorage);
+      if (sessionKeys.length > 0) {
+        info.sessionStorage = {
+          count: sessionKeys.length,
+          keys: sessionKeys.slice(0, 10)
+        };
+      }
+    } catch(e) {
+      info.sessionStorage = { error: '无法访问（同源策略）' };
+    }
+    
+    // 检测IndexedDB（只能检测是否存在，无法跨域访问）
+    try {
+      info.indexedDB = typeof indexedDB !== 'undefined';
+    } catch(e) {
+      info.indexedDB = false;
     }
     
     // 检测相关域名
@@ -2349,7 +2388,31 @@ https://httpbin.org/anything</textarea>
         });
         content += '\n';
       } else {
-        content += `可见的Cookie: 无（但可能有HTTP-only Cookie）\n\n`;
+        content += `可见的Cookie: 无\n`;
+        content += `⚠️ 关键发现：没有可见Cookie，但API返回了用户数据！\n\n`;
+      }
+      
+      // 显示其他存储机制
+      if (info.localStorage && (info.localStorage.count > 0 || info.localStorage.error)) {
+        content += `localStorage:\n`;
+        if (info.localStorage.count > 0) {
+          content += `  数量: ${info.localStorage.count}\n`;
+          content += `  键名: ${info.localStorage.keys.join(', ')}\n`;
+        } else {
+          content += `  ${info.localStorage.error || '无数据'}\n`;
+        }
+        content += '\n';
+      }
+      
+      if (info.sessionStorage && (info.sessionStorage.count > 0 || info.sessionStorage.error)) {
+        content += `sessionStorage:\n`;
+        if (info.sessionStorage.count > 0) {
+          content += `  数量: ${info.sessionStorage.count}\n`;
+          content += `  键名: ${info.sessionStorage.keys.join(', ')}\n`;
+        } else {
+          content += `  ${info.sessionStorage.error || '无数据'}\n`;
+        }
+        content += '\n';
       }
       
       if (info.responseBody) {
@@ -2357,15 +2420,24 @@ https://httpbin.org/anything</textarea>
         content += info.responseBody + '\n\n';
       }
       
-      content += `⚠️ 重要提示:\n`;
+      content += `⚠️ 重要安全发现:\n`;
+      if (info.cookieCount === 0 && info.status === 200) {
+        content += `🔴 关键问题：没有可见Cookie，但API返回了用户数据！\n`;
+        content += `这说明存在HTTP-only Cookie或其他认证机制。\n\n`;
+      }
       content += info.note + '\n\n';
       content += `可能的原因:\n`;
       content += `1. HTTP-only Cookie：只能由服务器设置，JavaScript无法访问或清除\n`;
       content += `2. WebView系统级Cookie：存储在系统级别，跨会话持久化\n`;
-      content += `3. 其他存储机制：localStorage、IndexedDB等\n\n`;
+      content += `3. 其他存储机制：localStorage、IndexedDB等（已检测，见上方）\n`;
+      content += `4. 设备指纹/IP地址认证：Reddit可能使用其他方式识别用户\n\n`;
       content += `建议:\n`;
       content += `- 在App设置中清除WebView数据\n`;
       content += `- 或使用隐私模式/无痕模式测试\n`;
+      content += `- 或尝试在不同设备/网络环境下测试\n\n`;
+      content += `📊 研究价值:\n`;
+      content += `这是一个重要的安全发现：WebView中的HTTP-only Cookie可能跨会话持久化，\n`;
+      content += `即使用户认为已退出登录，认证状态可能仍然有效。\n`;
       
       consoleContent.textContent = content;
       consoleInfo.style.display = 'block';
