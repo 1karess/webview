@@ -2133,14 +2133,30 @@ https://httpbin.org/anything</textarea>
       container.style.display = 'block';
       // 使用主页URL（不是登录URL）
       const mainUrl = site.url.replace('/login', '').replace(/\/login$/, '');
+      
+      // 先显示"检测中"，不要直接写"已登录"
+      title.textContent = `${site.name} - 检测登录状态中...`;
       frame.src = mainUrl;
-      title.textContent = `${site.name} - 已登录（iframe中，Cookie已共享）`;
       
       // 隐藏返回按钮（不需要）
       if (returnBtn) returnBtn.style.display = 'none';
       
       // 滚动到iframe位置
       container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      
+      // 等待iframe加载完成后，实际检测登录状态
+      frame.onload = function() {
+        // 延迟一下，让页面完全加载
+        setTimeout(() => {
+          // 尝试通过API检测登录状态
+          detectLoginStatusForIframe(site, title);
+        }, 1000);
+      };
+      
+      // 如果iframe加载失败，也更新标题
+      frame.onerror = function() {
+        title.textContent = `${site.name} - 加载失败（可能被阻止）`;
+      };
       
       // 提示用户
       setTimeout(() => {
@@ -2149,6 +2165,92 @@ https://httpbin.org/anything</textarea>
           testBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       }, 500);
+    }
+  }
+  
+  // 检测iframe中网站的登录状态
+  async function detectLoginStatusForIframe(site, titleElement) {
+    if (!site || !titleElement) return;
+    
+    // 使用第一个API URL检测登录状态
+    const testUrl = site.apiUrls && site.apiUrls.length > 0 ? site.apiUrls[0] : site.url;
+    
+    try {
+      // 尝试使用Bridge检测（如果可用）
+      let response = null;
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        try {
+          response = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(testUrl)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          ]);
+        } catch(e) {
+          // Bridge失败，尝试fetch
+        }
+      }
+      
+      // 如果Bridge不可用或失败，尝试fetch
+      if (!response) {
+        try {
+          response = await Promise.race([
+            fetch(testUrl, { mode: 'cors', credentials: 'include', cache: 'no-store' }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          ]);
+        } catch(e) {
+          // fetch也失败
+        }
+      }
+      
+      // 判断登录状态
+      let loginStatus = '未知';
+      let statusIcon = '❓';
+      
+      if (response) {
+        const status = typeof response.status === 'number' ? response.status : (response.statusCode || 0);
+        
+        if (status === 200) {
+          // 尝试读取响应体判断
+          let bodyText = '';
+          try {
+            if (typeof response.text === 'function') {
+              bodyText = await response.text();
+            } else if (typeof response.body === 'string') {
+              bodyText = response.body;
+            } else if (typeof response.data === 'string') {
+              bodyText = response.data;
+            }
+          } catch(e) {}
+          
+          // 检查响应体内容
+          if (bodyText.includes('"features"') || bodyText.includes('"name"') || bodyText.includes('"id"')) {
+            loginStatus = '已登录';
+            statusIcon = '🔓';
+          } else if (bodyText.includes('"error"') && (bodyText.includes('unauthorized') || bodyText.includes('authentication'))) {
+            loginStatus = '未登录';
+            statusIcon = '🔒';
+          } else {
+            // 只有200状态码，无法确定，显示"可能已登录"
+            loginStatus = '可能已登录（状态码200）';
+            statusIcon = '⚠️';
+          }
+        } else if (status === 401 || status === 403) {
+          loginStatus = '未登录';
+          statusIcon = '🔒';
+        } else {
+          loginStatus = `状态码: ${status}`;
+          statusIcon = '❓';
+        }
+      } else {
+        loginStatus = '检测失败';
+        statusIcon = '❌';
+      }
+      
+      // 更新标题
+      titleElement.textContent = `${site.name} - ${statusIcon} ${loginStatus}（iframe中）`;
+      
+    } catch(e) {
+      // 检测失败，显示未知状态
+      titleElement.textContent = `${site.name} - ❓ 登录状态未知（iframe中）`;
     }
   }
   
