@@ -79,34 +79,34 @@
     <div class="step">
       <h3>步骤 1: 在新窗口登录 Reddit</h3>
       <button onclick="openRedditLogin()">在新窗口打开 Reddit 登录</button>
-      <p><small>登录后，点击下方"检查新窗口 Cookie"按钮</small></p>
+      <p><small>登录后，关闭新窗口或留在新窗口都可以，然后点击下方"检查登录状态"按钮（Cookie是共享的，可以直接检测）</small></p>
     </div>
 
     <div class="step">
-      <h3>步骤 2: 检查新窗口的 Cookie 和登录状态</h3>
-      <button onclick="checkNewWindowCookies()">检查新窗口 Cookie</button>
-      <button onclick="checkNewWindowLoginStatus()">检查新窗口登录状态</button>
+      <h3>步骤 2: 检查登录状态（无需返回，Cookie已共享）</h3>
+      <button onclick="checkNewWindowLoginStatus()">检查登录状态</button>
+      <p><small>💡 提示：由于Cookie在WebView中是共享的，即使在新窗口中登录，当前页面也能检测到登录状态</small></p>
       <div id="newWindowResult" class="result" style="display:none;"></div>
     </div>
 
     <div class="step">
       <h3>步骤 3: 在 iframe 中加载 Reddit</h3>
-      <button onclick="loadRedditInIframe()">在 iframe 中加载 Reddit</button>
-      <button onclick="checkIframeCookies()">检查 iframe Cookie</button>
-      <button onclick="checkIframeLoginStatus()">检查 iframe 登录状态</button>
+      <button onclick="loadRedditInIframe()">在 iframe 中加载 Reddit（自动检测登录状态）</button>
+      <button onclick="checkIframeLoginStatus()">手动检查 iframe 登录状态</button>
       <div id="iframeResult" class="result" style="display:none;"></div>
       <iframe id="redditFrame" style="display:none;"></iframe>
     </div>
 
     <div class="step">
       <h3>步骤 4: 在 iframe 中注销</h3>
-      <button onclick="logoutInIframe()" class="danger">在 iframe 中注销</button>
-      <p><small>注销后，重新检查新窗口和 iframe 的状态</small></p>
+      <button onclick="logoutInIframe()" class="danger">在 iframe 中注销（自动检测结果）</button>
+      <p><small>注销后会自动检测登录状态，然后可以点击"对比结果"查看新窗口和iframe的状态差异</small></p>
     </div>
 
     <div class="step">
       <h3>步骤 5: 对比结果</h3>
-      <button onclick="compareResults()">对比新窗口和 iframe 状态</button>
+      <button onclick="compareResults()">对比登录状态（新窗口 vs iframe）</button>
+      <button onclick="checkNewWindowLoginStatus(); setTimeout(() => checkIframeLoginStatus(), 500); setTimeout(() => compareResults(), 1000);">一键刷新并对比</button>
       <div id="compareResult" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -128,44 +128,38 @@
     function openRedditLogin() {
       newWindowRef = window.open('https://www.reddit.com/login', '_blank', 'width=800,height=600');
       if (newWindowRef) {
-        alert('已在新窗口打开 Reddit 登录页面。\n\n请完成登录，然后点击"检查新窗口 Cookie"按钮。');
+        alert('已在新窗口打开 Reddit 登录页面。\n\n📋 使用说明：\n1. 在新窗口中完成登录\n2. 登录后，你可以：\n   - 关闭新窗口，然后点击"检查登录状态"按钮\n   - 或者保持新窗口打开，直接点击"检查登录状态"按钮\n\n💡 提示：由于Cookie在WebView中是共享的，即使新窗口打开，当前页面也能检测到登录状态，无需返回。');
+        
+        // 可选：监听新窗口关闭，自动检测
+        const checkClosed = setInterval(() => {
+          if (newWindowRef.closed) {
+            clearInterval(checkClosed);
+            setTimeout(() => {
+              checkNewWindowLoginStatus();
+            }, 1000);
+          }
+        }, 500);
       } else {
         alert('无法打开新窗口，请检查浏览器设置。');
       }
     }
 
     async function checkNewWindowCookies() {
-      if (!newWindowRef || newWindowRef.closed) {
-        showResult('newWindowResult', '❌ 新窗口已关闭，请先打开新窗口并登录', 'error');
-        return;
-      }
+      // 注意：由于Cookie是共享的，我们可以直接检测当前页面的Cookie状态
+      // 但实际Cookie存储在WebView层面，JavaScript可能看不到HTTP-only Cookie
+      const result = {
+        timestamp: new Date().toISOString(),
+        currentPageCookies: document.cookie || '无可见Cookie',
+        note: '⚠️ 注意：\n1. JavaScript只能看到非HTTP-only的Cookie\n2. Reddit的认证Cookie可能是HTTP-only，所以这里可能看不到\n3. 但登录状态可以通过API检测（见"检查登录状态"按钮）\n4. Cookie在WebView中是共享的，新窗口登录后，当前页面也能检测到'
+      };
 
-      try {
-        // 尝试访问新窗口的 Cookie（受同源策略限制，可能无法直接访问）
-        const result = {
-          timestamp: new Date().toISOString(),
-          windowOpen: !newWindowRef.closed,
-          note: '由于同源策略，无法直接读取新窗口的 Cookie。请在新窗口的控制台中执行：document.cookie'
-        };
-
-        // 尝试通过 postMessage 通信（如果新窗口是同源的）
-        if (newWindowRef.location && newWindowRef.location.origin === window.location.origin) {
-          // 同源，可以访问
-          result.cookies = newWindowRef.document.cookie || '无 Cookie';
-        }
-
-        diagnosticData.newWindow.cookies = result;
-        showResult('newWindowResult', JSON.stringify(result, null, 2), 'warning');
-      } catch(e) {
-        showResult('newWindowResult', `错误: ${e.message}\n\n提示：请在新窗口的控制台中执行以下代码：\n\nconsole.log('Cookies:', document.cookie);`, 'error');
-      }
+      diagnosticData.newWindow.cookies = result;
+      showResult('newWindowResult', JSON.stringify(result, null, 2), 'warning');
     }
 
     async function checkNewWindowLoginStatus() {
-      if (!newWindowRef || newWindowRef.closed) {
-        showResult('newWindowResult', '❌ 新窗口已关闭', 'error');
-        return;
-      }
+      // 注意：由于Cookie在WebView中是共享的，即使新窗口关闭了，也能检测到登录状态
+      showResult('newWindowResult', '⏳ 正在检测登录状态...', 'warning');
 
       try {
         // 使用 Bridge 或 fetch 检测登录状态
@@ -240,7 +234,14 @@
       const frame = document.getElementById('redditFrame');
       frame.src = 'https://www.reddit.com';
       frame.style.display = 'block';
-      showResult('iframeResult', '✅ iframe 已加载 Reddit', 'success');
+      
+      // 加载完成后自动检测登录状态
+      frame.onload = async function() {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await checkIframeLoginStatus();
+      };
+      
+      showResult('iframeResult', '⏳ iframe 正在加载 Reddit，加载完成后会自动检测登录状态...', 'warning');
     }
 
     async function checkIframeCookies() {
@@ -334,20 +335,50 @@
       }
     }
 
-    function logoutInIframe() {
+    async function logoutInIframe() {
       const frame = document.getElementById('redditFrame');
       if (!frame.src || frame.src === 'about:blank') {
         alert('请先加载 iframe');
         return;
       }
 
-      // 在 iframe 中访问 logout 页面
+      showResult('iframeResult', '⏳ 正在执行注销...', 'warning');
+
+      // 方法1: 在 iframe 中访问 logout 页面
       frame.src = 'https://www.reddit.com/logout';
       
-      setTimeout(() => {
-        alert('已在 iframe 中访问 logout 页面。\n\n请等待几秒后，重新检查新窗口和 iframe 的登录状态。');
-        diagnosticData.logoutTime = new Date().toISOString();
-      }, 1000);
+      // 等待注销完成
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 方法2: 尝试通过 iframe 内的代码执行注销（如果可能）
+      try {
+        const iframeWindow = frame.contentWindow;
+        if (iframeWindow && iframeWindow.location) {
+          // 尝试在 iframe 中执行注销
+          try {
+            iframeWindow.location.href = 'https://www.reddit.com/logout';
+          } catch(e) {
+            console.log('无法直接访问 iframe location:', e);
+          }
+        }
+      } catch(e) {
+        console.log('无法访问 iframe:', e);
+      }
+
+      // 等待一下让注销完成
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 重新加载 Reddit 主页，检查是否已注销
+      frame.src = 'https://www.reddit.com';
+      
+      // 等待加载完成后自动检测登录状态
+      frame.onload = async function() {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await checkIframeLoginStatus();
+        showResult('iframeResult', '✅ 已执行注销操作，请查看下方的登录状态检测结果', 'success');
+      };
+
+      diagnosticData.logoutTime = new Date().toISOString();
     }
 
     function compareResults() {
