@@ -271,6 +271,37 @@
       let response = null;
       let responseBody = '';
 
+      // 尝试检测 iframe 中的 UI 元素（通知图标、用户头像等）
+      let uiIndicators = {
+        hasNotificationBell: false,
+        hasUserAvatar: false,
+        hasJoinButton: false,
+        note: '由于同源策略限制，无法直接检测iframe内的UI元素'
+      };
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (frame && frame.contentWindow) {
+          try {
+            // 尝试访问 iframe 内容（可能因同源策略失败）
+            const iframeDoc = frame.contentDocument || frame.contentWindow.document;
+            if (iframeDoc) {
+              // 检查是否有通知图标
+              uiIndicators.hasNotificationBell = !!iframeDoc.querySelector('[aria-label*="notification"], [aria-label*="通知"], .notification-bell, [data-testid*="notification"]');
+              // 检查是否有用户头像
+              uiIndicators.hasUserAvatar = !!iframeDoc.querySelector('[aria-label*="user"], [aria-label*="用户"], .user-avatar, [data-testid*="user"]');
+              // 检查是否有"加入"按钮（登录后通常显示）
+              uiIndicators.hasJoinButton = !!iframeDoc.querySelector('button:contains("加入"), button:contains("Join")');
+              uiIndicators.note = '已检测iframe UI元素';
+            }
+          } catch(e) {
+            uiIndicators.note = '无法访问iframe内容（同源策略限制）: ' + e.message;
+          }
+        }
+      } catch(e) {
+        console.log('UI检测失败:', e);
+      }
+
       try {
         if (typeof window.TXWebKitNativeFetch === 'function') {
           try {
@@ -301,7 +332,9 @@
           method: typeof window.TXWebKitNativeFetch === 'function' ? 'TXWebKitNativeFetch' : 'fetch',
           status: response ? (response.status || response.statusCode || 'unknown') : 'failed',
           loggedIn: false,
-          reason: ''
+          reason: '',
+          uiIndicators: uiIndicators,
+          discrepancy: ''
         };
 
         if (response && (response.status === 200 || response.statusCode === 200)) {
@@ -319,6 +352,11 @@
             result.reason = hasUserData ? '检测到用户数据' : '只有 features，无用户数据（未登录）';
             result.userData = hasUserData ? { name: jsonData.name, id: jsonData.id } : null;
             result.responseSnippet = responseBody.slice(0, 200);
+
+            // 检测不一致：如果API显示未登录，但UI显示已登录
+            if (!result.loggedIn && (uiIndicators.hasNotificationBell || uiIndicators.hasUserAvatar)) {
+              result.discrepancy = '⚠️ 不一致：API显示未登录，但UI元素（通知/头像）显示可能已登录。可能是：1) Cookie已设置但API响应延迟 2) UI基于本地存储 3) 检测时机问题';
+            }
           } catch(e) {
             result.reason = '无法解析响应: ' + e.message;
           }
@@ -329,7 +367,7 @@
         }
 
         diagnosticData.iframe.loginStatus = result;
-        showResult('iframeResult', JSON.stringify(result, null, 2), result.loggedIn ? 'success' : 'warning');
+        showResult('iframeResult', JSON.stringify(result, null, 2), result.loggedIn ? 'success' : (result.discrepancy ? 'warning' : 'warning'));
       } catch(e) {
         showResult('iframeResult', `错误: ${e.message}`, 'error');
       }
@@ -400,11 +438,15 @@
         iframe: {
           loggedIn: iframeStatus.loggedIn,
           status: iframeStatus.status,
-          reason: iframeStatus.reason
+          reason: iframeStatus.reason,
+          uiIndicators: iframeStatus.uiIndicators,
+          discrepancy: iframeStatus.discrepancy
         },
-        conclusion: ''
+        conclusion: '',
+        analysis: ''
       };
 
+      // 分析结论
       if (newWindowStatus.loggedIn && !iframeStatus.loggedIn) {
         comparison.conclusion = '✅ 状态一致：新窗口已登录，iframe 未登录（正常）';
       } else if (!newWindowStatus.loggedIn && iframeStatus.loggedIn) {
@@ -415,9 +457,31 @@
         comparison.conclusion = '✅ 状态一致：两者都未登录';
       }
 
+      // 深度分析
+      if (!newWindowStatus.loggedIn && !iframeStatus.loggedIn) {
+        if (iframeStatus.uiIndicators && (iframeStatus.uiIndicators.hasNotificationBell || iframeStatus.uiIndicators.hasUserAvatar)) {
+          comparison.analysis = '🔍 关键发现：\n' +
+            '1. API检测显示未登录（两者都是）\n' +
+            '2. 但iframe UI显示有登录元素（通知图标/用户头像）\n' +
+            '3. 这说明：Cookie可能已设置，但API响应可能延迟或使用了不同的认证机制\n' +
+            '4. 或者：UI基于本地存储/缓存，而API基于服务器端session';
+        } else {
+          comparison.analysis = '✅ 两者都未登录，状态一致';
+        }
+      }
+
+      // 如果用户提到"iframe注销后新窗口也退出"
+      if (diagnosticData.logoutTime) {
+        comparison.analysis += '\n\n📌 重要观察：\n' +
+          '如果iframe注销后，新窗口也退出登录，这说明：\n' +
+          '✅ 注销操作是双向同步的（Cookie清除是共享的）\n' +
+          '✅ 这证明Cookie在WebView层面是共享存储\n' +
+          '⚠️ 但登录时可能有时机问题：Cookie设置了，但API检测可能延迟';
+      }
+
       diagnosticData.comparison = comparison;
       showResult('compareResult', JSON.stringify(comparison, null, 2), 
-        comparison.conclusion.includes('异常') ? 'error' : 'success');
+        comparison.conclusion.includes('异常') || comparison.analysis.includes('⚠️') ? 'warning' : 'success');
     }
 
     async function fullDiagnostic() {
