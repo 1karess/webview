@@ -99,8 +99,11 @@
 
     <div class="step">
       <h3>步骤 4: 在 iframe 中注销</h3>
-      <button onclick="logoutInIframe()" class="danger">在 iframe 中注销（自动检测结果）</button>
+      <button onclick="logoutInIframe()" class="danger">方法1: 工具强制注销（直接导航到/logout）</button>
+      <button onclick="tryIframeLogoutButton()" class="danger">方法2: 尝试触发iframe内的注销按钮</button>
+      <p><small>💡 关键问题：为什么工具能注销，但iframe内点击注销按钮不行？</small></p>
       <p><small>注销后会自动检测登录状态，然后可以点击"对比结果"查看新窗口和iframe的状态差异</small></p>
+      <div id="logoutAnalysis" class="result" style="display:none;"></div>
     </div>
 
     <div class="step">
@@ -114,6 +117,7 @@
   <div class="card">
     <h2>🔬 详细诊断</h2>
     <button onclick="fullDiagnostic()">运行完整诊断</button>
+    <button onclick="explainLogoutDifference()">为什么工具能注销但iframe内点击不行？</button>
     <div id="diagnosticResult" class="result" style="display:none;"></div>
   </div>
 
@@ -417,6 +421,126 @@
       };
 
       diagnosticData.logoutTime = new Date().toISOString();
+    }
+
+    async function tryIframeLogoutButton() {
+      const frame = document.getElementById('redditFrame');
+      if (!frame.src || frame.src === 'about:blank') {
+        alert('请先加载 iframe');
+        return;
+      }
+
+      showResult('logoutAnalysis', '⏳ 正在尝试触发iframe内的注销按钮...', 'warning');
+
+      try {
+        const iframeWindow = frame.contentWindow;
+        const iframeDoc = frame.contentDocument || iframeWindow.document;
+        
+        if (!iframeDoc) {
+          showResult('logoutAnalysis', '❌ 无法访问iframe内容（同源策略限制）', 'error');
+          return;
+        }
+
+        // 尝试找到注销按钮
+        const logoutSelectors = [
+          'button[aria-label*="logout"]',
+          'button[aria-label*="注销"]',
+          'a[href*="/logout"]',
+          'button:contains("Log out")',
+          'button:contains("注销")',
+          '[data-testid*="logout"]',
+          '.logout-button',
+          '#logout'
+        ];
+
+        let logoutButton = null;
+        for (const selector of logoutSelectors) {
+          try {
+            logoutButton = iframeDoc.querySelector(selector);
+            if (logoutButton) break;
+          } catch(e) {
+            // 某些选择器可能不支持
+          }
+        }
+
+        // 如果找不到，尝试通过用户菜单
+        if (!logoutButton) {
+          // 尝试点击用户头像/菜单
+          const userMenu = iframeDoc.querySelector('[aria-label*="user"], [aria-label*="用户"], .user-menu, [data-testid*="user"]');
+          if (userMenu) {
+            userMenu.click();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            // 再次查找注销按钮
+            for (const selector of logoutSelectors) {
+              logoutButton = iframeDoc.querySelector(selector);
+              if (logoutButton) break;
+            }
+          }
+        }
+
+        if (logoutButton) {
+          // 尝试点击注销按钮
+          logoutButton.click();
+          
+          const analysis = {
+            method: 'iframe内点击注销按钮',
+            found: true,
+            clicked: true,
+            note: '已尝试点击iframe内的注销按钮，等待结果...'
+          };
+
+          // 等待后检测
+          setTimeout(async () => {
+            await checkIframeLoginStatus();
+            analysis.result = '请查看上方的登录状态检测结果';
+            showResult('logoutAnalysis', JSON.stringify(analysis, null, 2), 'warning');
+          }, 2000);
+
+          showResult('logoutAnalysis', JSON.stringify(analysis, null, 2), 'warning');
+        } else {
+          const analysis = {
+            method: 'iframe内点击注销按钮',
+            found: false,
+            note: '无法找到注销按钮。可能原因：\n1. Reddit的注销按钮是动态加载的\n2. 需要先打开用户菜单\n3. 按钮选择器不匹配\n4. iframe内容被限制访问'
+          };
+          showResult('logoutAnalysis', JSON.stringify(analysis, null, 2), 'error');
+        }
+      } catch(e) {
+        const analysis = {
+          method: 'iframe内点击注销按钮',
+          error: e.message,
+          note: '无法访问iframe内容。这解释了为什么直接点击注销按钮可能不行：\n1. 同源策略限制\n2. iframe安全限制\n3. JavaScript执行上下文隔离'
+        };
+        showResult('logoutAnalysis', JSON.stringify(analysis, null, 2), 'error');
+      }
+    }
+
+    function explainLogoutDifference() {
+      const explanation = {
+        question: '为什么工具能注销，但iframe内点击注销按钮不行？',
+        toolMethod: {
+          method: '直接设置 frame.src = "https://www.reddit.com/logout"',
+          whyItWorks: [
+            '1. 直接导航到logout页面，绕过JavaScript限制',
+            '2. 服务器端处理注销，清除所有Cookie',
+            '3. 不依赖iframe内的JavaScript执行',
+            '4. 不受同源策略的JavaScript限制影响'
+          ]
+        },
+        iframeButtonMethod: {
+          method: '在iframe内点击Reddit的注销按钮',
+          whyItFails: [
+            '1. 可能通过AJAX/JavaScript调用，需要CSRF token',
+            '2. iframe内的JavaScript可能被WebView限制',
+            '3. 同源策略可能阻止某些请求',
+            '4. Cookie的SameSite属性可能阻止iframe内的注销请求',
+            '5. Reddit的注销逻辑可能检测到iframe上下文，拒绝执行'
+          ]
+        },
+        conclusion: '工具方法更可靠，因为它直接导航到logout页面，由服务器端处理，不依赖客户端JavaScript。'
+      };
+
+      showResult('logoutAnalysis', JSON.stringify(explanation, null, 2), 'success');
     }
 
     function compareResults() {
