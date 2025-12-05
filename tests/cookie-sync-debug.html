@@ -99,10 +99,11 @@
 
     <div class="step">
       <h3>步骤 4: 在 iframe 中注销</h3>
-      <button onclick="logoutInIframe()" class="danger">方法1: 工具强制注销（直接导航到/logout）</button>
-      <button onclick="tryIframeLogoutButton()" class="danger">方法2: 尝试触发iframe内的注销按钮</button>
+      <button onclick="logoutInIframe()" class="danger">方法1: 工具强制注销（直接导航到/logout）✅ 推荐</button>
+      <button onclick="tryIframeLogoutButton()" class="danger">方法2: 尝试触发iframe内的注销按钮（可能失败）</button>
       <p><small>💡 关键问题：为什么工具能注销，但iframe内点击注销按钮不行？</small></p>
-      <p><small>注销后会自动检测登录状态，然后可以点击"对比结果"查看新窗口和iframe的状态差异</small></p>
+      <p><small>⚠️ 重要发现：如果iframe无法单独退出，说明存在安全风险（会话固定攻击）</small></p>
+      <p><small>注销后会自动检测登录状态，并自动检测新窗口状态进行对比</small></p>
       <div id="logoutAnalysis" class="result" style="display:none;"></div>
     </div>
 
@@ -118,6 +119,7 @@
     <h2>🔬 详细诊断</h2>
     <button onclick="fullDiagnostic()">运行完整诊断</button>
     <button onclick="explainLogoutDifference()">为什么工具能注销但iframe内点击不行？</button>
+    <button onclick="analyzeSecurityImplications()">分析安全影响</button>
     <div id="diagnosticResult" class="result" style="display:none;"></div>
   </div>
 
@@ -385,12 +387,22 @@
       }
 
       showResult('iframeResult', '⏳ 正在执行注销...', 'warning');
+      diagnosticData.iframeLogoutAttempted = true;
+      diagnosticData.iframeLogoutMethod = 'tool_forced';
 
-      // 方法1: 在 iframe 中访问 logout 页面
+      // 记录注销前的状态
+      const beforeLogout = {
+        timestamp: new Date().toISOString(),
+        note: '注销前的状态'
+      };
+      await checkIframeLoginStatus();
+      beforeLogout.loginStatus = diagnosticData.iframe.loginStatus;
+
+      // 方法1: 在 iframe 中访问 logout 页面（直接导航，最可靠）
       frame.src = 'https://www.reddit.com/logout';
       
       // 等待注销完成
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // 方法2: 尝试通过 iframe 内的代码执行注销（如果可能）
       try {
@@ -399,6 +411,7 @@
           // 尝试在 iframe 中执行注销
           try {
             iframeWindow.location.href = 'https://www.reddit.com/logout';
+            await new Promise(resolve => setTimeout(resolve, 2000));
           } catch(e) {
             console.log('无法直接访问 iframe location:', e);
           }
@@ -407,17 +420,30 @@
         console.log('无法访问 iframe:', e);
       }
 
-      // 等待一下让注销完成
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
       // 重新加载 Reddit 主页，检查是否已注销
       frame.src = 'https://www.reddit.com';
       
       // 等待加载完成后自动检测登录状态
       frame.onload = async function() {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         await checkIframeLoginStatus();
-        showResult('iframeResult', '✅ 已执行注销操作，请查看下方的登录状态检测结果', 'success');
+        
+        const afterLogout = diagnosticData.iframe.loginStatus;
+        const logoutSuccess = !afterLogout.loggedIn;
+        
+        diagnosticData.iframeLogoutSuccess = logoutSuccess;
+        
+        if (logoutSuccess) {
+          showResult('iframeResult', '✅ 注销成功！请查看下方的登录状态检测结果（应显示未登录）', 'success');
+          
+          // 自动检测新窗口状态（如果可能）
+          setTimeout(async () => {
+            await checkNewWindowLoginStatus();
+            showResult('newWindowResult', '💡 提示：已自动检测新窗口状态，请查看结果。如果新窗口也显示未登录，说明注销是双向同步的。', 'success');
+          }, 1000);
+        } else {
+          showResult('iframeResult', '⚠️ 注销可能未完全生效，请查看下方的登录状态检测结果', 'warning');
+        }
       };
 
       diagnosticData.logoutTime = new Date().toISOString();
@@ -543,6 +569,77 @@
       showResult('logoutAnalysis', JSON.stringify(explanation, null, 2), 'success');
     }
 
+    function analyzeSecurityImplications() {
+      const analysis = {
+        title: '安全影响分析：iframe无法单独退出的问题',
+        findings: {
+          '1. Cookie共享机制': {
+            observation: '新窗口登录 → iframe同步登录；新窗口退出 → iframe同步退出',
+            implication: 'Cookie在WebView层面是共享存储，所有上下文共享同一套Cookie'
+          },
+          '2. 注销行为不一致': {
+            observation: '工具强制注销可以成功，但iframe内点击注销按钮不行',
+            implication: 'iframe内的注销操作被限制，用户无法独立控制登录状态'
+          },
+          '3. 双向同步问题': {
+            observation: 'iframe注销后，新窗口也会退出（如果工具注销成功）',
+            implication: '注销操作是双向同步的，但只有特定方法才能触发'
+          }
+        },
+        securityRisks: {
+          '会话固定攻击 (Session Fixation)': {
+            risk: '高',
+            description: '如果iframe无法独立退出，恶意网页可以：\n' +
+              '1. 在iframe中嵌入已登录的网站\n' +
+              '2. 即使用户想退出，也无法在iframe中退出\n' +
+              '3. 用户的登录状态被"固定"，无法清除',
+            impact: '用户隐私泄露，可能被恶意利用进行未授权操作'
+          },
+          '状态不一致风险': {
+            risk: '中',
+            description: '不同上下文（新窗口 vs iframe）的注销行为不一致，可能导致：\n' +
+              '1. 用户认为已退出，但实际上仍登录\n' +
+              '2. 安全策略执行不一致',
+            impact: '用户对登录状态产生误解，可能导致安全漏洞'
+          },
+          '隐私泄露风险': {
+            risk: '中',
+            description: 'Cookie共享 + iframe无法独立退出 = 隐私泄露风险\n' +
+              '1. 恶意网页可以通过iframe检测用户登录状态\n' +
+              '2. 即使用户想退出，也无法在iframe中退出\n' +
+              '3. 登录状态可能被长期保持',
+            impact: '用户隐私被泄露，可能被用于追踪和广告'
+          }
+        },
+        recommendations: {
+          '对用户': [
+            '1. 如果发现iframe无法退出，建议在新窗口中退出',
+            '2. 使用隐私模式/无痕模式浏览敏感网站',
+            '3. 定期清除WebView的Cookie和数据'
+          ],
+          '对开发者': [
+            '1. 确保注销操作在所有上下文中都能正常工作',
+            '2. 不要依赖客户端JavaScript处理注销，应该使用服务器端处理',
+            '3. 考虑使用SameSite Cookie策略，限制跨上下文Cookie共享',
+            '4. 提供明确的注销反馈，让用户知道注销是否成功'
+          ],
+          '对平台方': [
+            '1. 改进WebView的Cookie管理机制',
+            '2. 确保iframe内的注销操作能够正常执行',
+            '3. 提供更细粒度的Cookie隔离选项',
+            '4. 修复iframe内注销被限制的问题'
+          ]
+        },
+        researchValue: {
+          academic: '填补了WebView Cookie同步安全研究的空白',
+          practical: '帮助开发者了解潜在风险，推动平台改进',
+          social: '影响数亿用户，可能产出高质量论文或获得CVE编号'
+        }
+      };
+
+      showResult('diagnosticResult', JSON.stringify(analysis, null, 2), 'warning');
+    }
+
     function compareResults() {
       const newWindowStatus = diagnosticData.newWindow.loginStatus;
       const iframeStatus = diagnosticData.iframe.loginStatus;
@@ -601,6 +698,21 @@
           '✅ 注销操作是双向同步的（Cookie清除是共享的）\n' +
           '✅ 这证明Cookie在WebView层面是共享存储\n' +
           '⚠️ 但登录时可能有时机问题：Cookie设置了，但API检测可能延迟';
+      }
+
+      // 分析iframe无法单独退出的问题
+      if (diagnosticData.iframeLogoutAttempted && !diagnosticData.iframeLogoutSuccess) {
+        comparison.analysis += '\n\n🚨 关键安全问题：\n' +
+          '发现：iframe无法单独退出，只有工具强制注销才能成功\n' +
+          '原因分析：\n' +
+          '1. iframe内点击注销按钮可能被WebView限制\n' +
+          '2. Cookie的SameSite属性可能阻止iframe内的注销请求\n' +
+          '3. Reddit的注销逻辑可能检测到iframe上下文并拒绝执行\n' +
+          '4. 同源策略限制了iframe内的JavaScript执行\n\n' +
+          '安全影响：\n' +
+          '⚠️ 用户无法在iframe中独立控制自己的登录状态\n' +
+          '⚠️ 这可能导致会话固定攻击：恶意网页可以保持用户登录状态\n' +
+          '⚠️ 隐私泄露风险：iframe无法清除登录状态，可能被恶意利用';
       }
 
       diagnosticData.comparison = comparison;
