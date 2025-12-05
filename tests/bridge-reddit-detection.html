@@ -73,6 +73,13 @@
     <div id="fullResponse" class="result" style="display:none;"></div>
   </div>
 
+  <div class="card">
+    <h2>步骤 5: 综合分析（推荐）</h2>
+    <button onclick="runFullAnalysis()" style="background: #28a745; font-weight: bold;">🚀 运行完整分析</button>
+    <p><small>自动执行所有测试步骤，生成综合分析报告</small></p>
+    <div id="fullAnalysis" class="result" style="display:none;"></div>
+  </div>
+
   <script>
     // 步骤1: 测试 Bridge 是否携带 Cookie
     async function testBridgeCookies() {
@@ -102,19 +109,52 @@
           key.toLowerCase().includes('session')
         );
 
+        // 详细检查 Reddit 认证 Cookie
+        const authCookies = {
+          reddit_session: cookies['reddit_session'] || cookies['reddit-session'] || null,
+          session: cookies['session'] || null,
+          token: cookies['token'] || cookies['access_token'] || null,
+          loid: cookies['loid'] || null,
+          other: {}
+        };
+
+        // 找出所有可能的认证 Cookie
+        cookieKeys.forEach(key => {
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('reddit') || lowerKey.includes('session') || 
+              lowerKey.includes('token') || lowerKey.includes('auth')) {
+            if (!authCookies[key]) {
+              authCookies.other[key] = cookies[key];
+            }
+          }
+        });
+
+        // 分析 Cookie 类型
+        const hasAuthCookie = !!(authCookies.reddit_session || authCookies.session || authCookies.token);
+        const hasLoidOnly = !!authCookies.loid && !hasAuthCookie;
+
         const result = {
           bridgeAvailable: typeof window.TXWebKitNativeFetch === 'function',
           totalCookies: cookieKeys.length,
           cookieKeys: cookieKeys,
           redditCookies: redditCookies,
-          allCookies: cookies,
-          conclusion: redditCookies.length > 0 
-            ? '✅ Bridge 携带了 Reddit Cookie' 
-            : '❌ Bridge 没有携带 Reddit Cookie（可能的原因：1. 还没登录 2. Cookie 是 HttpOnly 3. Bridge 不自动发送 Cookie）'
+          authCookies: authCookies,
+          cookieAnalysis: {
+            hasAuthCookie: hasAuthCookie,
+            hasLoidOnly: hasLoidOnly,
+            cookieType: hasAuthCookie ? '认证Cookie（登录状态）' : (hasLoidOnly ? '匿名Cookie（loid）' : '无Reddit Cookie'),
+            conclusion: hasAuthCookie 
+              ? '✅ Bridge 携带了 Reddit 认证 Cookie（reddit_session/session/token）'
+              : (hasLoidOnly 
+                ? '⚠️ Bridge 只携带了匿名 Cookie（loid），没有认证 Cookie（reddit_session）'
+                : '❌ Bridge 没有携带 Reddit Cookie（可能的原因：1. 还没登录 2. Cookie 是 HttpOnly 3. Bridge 不自动发送 Cookie）')
+          },
+          allCookies: cookies
         };
 
         output.textContent = JSON.stringify(result, null, 2);
-        output.className = redditCookies.length > 0 ? 'result success' : 'result warning';
+        output.className = result.cookieAnalysis.hasAuthCookie ? 'result success' : 
+                          (result.cookieAnalysis.hasLoidOnly ? 'result warning' : 'result error');
       } catch(e) {
         output.textContent = `错误: ${e.message}\n\n可能的原因：\n1. Bridge 不可用\n2. 网络错误\n3. httpbin.org 无法访问`;
         output.className = 'result error';
@@ -365,6 +405,168 @@
         output.textContent = `错误: ${e.message}`;
         output.className = 'result error';
       }
+    }
+
+    // 步骤5: 完整分析
+    async function runFullAnalysis() {
+      const output = document.getElementById('fullAnalysis');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在运行完整分析，请稍候...';
+      output.className = 'result warning';
+
+      const analysis = {
+        timestamp: new Date().toISOString(),
+        steps: [],
+        findings: {},
+        conclusion: ''
+      };
+
+      // 步骤1: 测试 Bridge Cookie
+      try {
+        output.textContent = '⏳ 步骤1/4: 测试 Bridge 是否携带 Cookie...';
+        analysis.steps.push('步骤1: 测试 Bridge Cookie');
+        
+        const cookieResponse = await window.TXWebKitNativeFetch('https://httpbin.org/cookies');
+        let cookieBody = '';
+        if (typeof cookieResponse.text === 'function') {
+          cookieBody = await cookieResponse.text();
+        } else if (cookieResponse.body) {
+          cookieBody = cookieResponse.body;
+        }
+        const cookieData = JSON.parse(cookieBody);
+        const cookies = cookieData.cookies || {};
+        const cookieKeys = Object.keys(cookies);
+
+        const authCookies = {
+          reddit_session: cookies['reddit_session'] || cookies['reddit-session'] || null,
+          session: cookies['session'] || null,
+          token: cookies['token'] || null,
+          loid: cookies['loid'] || null
+        };
+
+        const hasAuthCookie = !!(authCookies.reddit_session || authCookies.session || authCookies.token);
+        const hasLoidOnly = !!authCookies.loid && !hasAuthCookie;
+
+        analysis.findings.cookieTest = {
+          totalCookies: cookieKeys.length,
+          cookieKeys: cookieKeys,
+          authCookies: authCookies,
+          hasAuthCookie: hasAuthCookie,
+          hasLoidOnly: hasLoidOnly,
+          conclusion: hasAuthCookie 
+            ? '✅ Bridge 携带了 Reddit 认证 Cookie'
+            : (hasLoidOnly 
+              ? '⚠️ Bridge 只携带了匿名 Cookie（loid），没有认证 Cookie'
+              : '❌ Bridge 没有携带 Reddit Cookie')
+        };
+      } catch(e) {
+        analysis.findings.cookieTest = { error: e.message };
+      }
+
+      // 步骤2: 检测 Reddit 登录状态
+      try {
+        output.textContent = '⏳ 步骤2/4: 检测 Reddit 登录状态...';
+        analysis.steps.push('步骤2: 检测登录状态');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const redditResponse = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+        const status = redditResponse.status || redditResponse.statusCode || 'unknown';
+        
+        let bodyText = '';
+        if (typeof redditResponse.text === 'function') {
+          bodyText = await redditResponse.text();
+        } else if (redditResponse.body) {
+          bodyText = redditResponse.body;
+        }
+
+        const data = JSON.parse(bodyText);
+        const hasUserData = !!(data.name || data.id || data.username || data.subreddit);
+
+        analysis.findings.loginTest = {
+          status: status,
+          hasUserData: hasUserData,
+          allFields: Object.keys(data),
+          hasLoid: !!data.loid,
+          hasFeatures: !!data.features,
+          userFields: {
+            name: data.name,
+            id: data.id,
+            username: data.username
+          },
+          loggedIn: hasUserData,
+          conclusion: hasUserData 
+            ? '✅ API 检测到登录状态'
+            : (data.loid 
+              ? '⚠️ API 只返回匿名信息（loid），没有用户数据'
+              : '❌ API 检测不到登录状态')
+        };
+      } catch(e) {
+        analysis.findings.loginTest = { error: e.message };
+      }
+
+      // 步骤3: 检查完整响应
+      try {
+        output.textContent = '⏳ 步骤3/4: 检查完整响应...';
+        analysis.steps.push('步骤3: 检查完整响应');
+
+        const response = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+        let fullBody = '';
+        if (typeof response.text === 'function') {
+          fullBody = await response.text();
+        } else if (response.body) {
+          fullBody = response.body;
+        }
+
+        const fullData = JSON.parse(fullBody);
+        const userFields = ['name', 'id', 'username', 'subreddit', 'karma', 'created_utc'];
+        const foundFields = userFields.filter(field => fullData[field] !== undefined);
+
+        analysis.findings.fullResponse = {
+          responseLength: fullBody.length,
+          allFields: Object.keys(fullData),
+          foundUserFields: foundFields,
+          hasUserData: foundFields.length > 0,
+          fullResponseSnippet: fullBody.slice(0, 1000)
+        };
+      } catch(e) {
+        analysis.findings.fullResponse = { error: e.message };
+      }
+
+      // 步骤4: 综合分析
+      output.textContent = '⏳ 步骤4/4: 生成综合分析报告...';
+      analysis.steps.push('步骤4: 综合分析');
+
+      const cookieTest = analysis.findings.cookieTest;
+      const loginTest = analysis.findings.loginTest;
+
+      // 生成结论
+      if (cookieTest && loginTest) {
+        if (cookieTest.hasAuthCookie && loginTest.loggedIn) {
+          analysis.conclusion = '✅ 完整检测成功：Bridge 携带了认证 Cookie，API 也检测到登录状态';
+        } else if (cookieTest.hasAuthCookie && !loginTest.loggedIn) {
+          analysis.conclusion = '⚠️ 异常情况：Bridge 携带了认证 Cookie，但 API 检测不到登录状态（可能是 Reddit API 的问题）';
+        } else if (cookieTest.hasLoidOnly && !loginTest.loggedIn) {
+          analysis.conclusion = '🔍 问题确认：Bridge 只携带了匿名 Cookie（loid），没有认证 Cookie（reddit_session），所以 API 检测不到登录状态。这解释了为什么 UI 显示已登录但 API 检测不到。';
+        } else if (!cookieTest.hasAuthCookie && !cookieTest.hasLoidOnly) {
+          analysis.conclusion = '❌ Bridge 没有携带任何 Reddit Cookie，可能的原因：1. 还没登录 2. Cookie 是 HttpOnly 3. Bridge 不自动发送 Cookie';
+        } else {
+          analysis.conclusion = '⚠️ 情况复杂，需要进一步分析';
+        }
+
+        // 添加详细分析
+        analysis.detailedAnalysis = {
+          cookieStatus: cookieTest.hasAuthCookie ? '有认证Cookie' : (cookieTest.hasLoidOnly ? '只有匿名Cookie' : '无Cookie'),
+          apiStatus: loginTest.loggedIn ? '检测到登录' : '检测不到登录',
+          discrepancy: cookieTest.hasAuthCookie !== loginTest.loggedIn,
+          explanation: cookieTest.hasLoidOnly 
+            ? 'Bridge 只携带了匿名 Cookie（loid），没有认证 Cookie（reddit_session）。Reddit API 看到只有匿名 Cookie，就返回匿名响应（只有 features），不返回用户数据。这就是为什么 UI 显示已登录（因为 iframe 和新窗口共享 Cookie），但 API 检测不到（因为 Bridge 没有携带认证 Cookie）。'
+            : '需要进一步分析'
+        };
+      }
+
+      output.textContent = JSON.stringify(analysis, null, 2);
+      output.className = analysis.conclusion.includes('✅') ? 'result success' : 
+                        (analysis.conclusion.includes('🔍') ? 'result warning' : 'result error');
     }
   </script>
 </body>
