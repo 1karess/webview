@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bridge Reddit 登录检测工具</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover { background: #0056b3; }
+    .result {
+      background: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+    }
+    .result.success { border-left-color: #28a745; }
+    .result.error { border-left-color: #dc3545; }
+    .result.warning { border-left-color: #ffc107; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Bridge Reddit 登录检测工具</h1>
+  <p>用于诊断为什么 Bridge 无法检测 Reddit 登录状态</p>
+
+  <div class="card">
+    <h2>步骤 1: 测试 Bridge 是否携带 Cookie</h2>
+    <button onclick="testBridgeCookies()">测试 Bridge Cookie</button>
+    <div id="cookieTest" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>步骤 2: 检测 Reddit 登录状态（完整诊断）</h2>
+    <button onclick="detectRedditLoginFull()">完整检测</button>
+    <div id="loginTest" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>步骤 3: 尝试不同的 API 端点</h2>
+    <button onclick="tryMultipleEndpoints()">测试所有端点</button>
+    <div id="endpointTest" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>步骤 4: 检查完整响应</h2>
+    <button onclick="checkFullResponse()">检查完整响应</button>
+    <div id="fullResponse" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    // 步骤1: 测试 Bridge 是否携带 Cookie
+    async function testBridgeCookies() {
+      const output = document.getElementById('cookieTest');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在测试 Bridge 是否携带 Cookie...';
+      output.className = 'result warning';
+
+      try {
+        // 使用 httpbin.org 测试
+        const response = await window.TXWebKitNativeFetch('https://httpbin.org/cookies');
+        let bodyText = '';
+        
+        if (typeof response.text === 'function') {
+          bodyText = await response.text();
+        } else if (response.body) {
+          bodyText = response.body;
+        }
+
+        const data = JSON.parse(bodyText);
+        const cookies = data.cookies || {};
+        const cookieKeys = Object.keys(cookies);
+
+        // 检查是否有 Reddit 相关的 Cookie
+        const redditCookies = cookieKeys.filter(key => 
+          key.toLowerCase().includes('reddit') || 
+          key.toLowerCase().includes('session')
+        );
+
+        const result = {
+          bridgeAvailable: typeof window.TXWebKitNativeFetch === 'function',
+          totalCookies: cookieKeys.length,
+          cookieKeys: cookieKeys,
+          redditCookies: redditCookies,
+          allCookies: cookies,
+          conclusion: redditCookies.length > 0 
+            ? '✅ Bridge 携带了 Reddit Cookie' 
+            : '❌ Bridge 没有携带 Reddit Cookie（可能的原因：1. 还没登录 2. Cookie 是 HttpOnly 3. Bridge 不自动发送 Cookie）'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = redditCookies.length > 0 ? 'result success' : 'result warning';
+      } catch(e) {
+        output.textContent = `错误: ${e.message}\n\n可能的原因：\n1. Bridge 不可用\n2. 网络错误\n3. httpbin.org 无法访问`;
+        output.className = 'result error';
+      }
+    }
+
+    // 步骤2: 完整检测 Reddit 登录状态
+    async function detectRedditLoginFull() {
+      const output = document.getElementById('loginTest');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 Reddit 登录状态...';
+      output.className = 'result warning';
+
+      const results = {
+        timestamp: new Date().toISOString(),
+        methods: {}
+      };
+
+      // 方法1: Bridge
+      try {
+        output.textContent = '⏳ 方法1: 使用 Bridge 检测...';
+        await new Promise(resolve => setTimeout(resolve, 1000)); // 等待 Cookie 同步
+
+        const bridgeResponse = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+        const status = bridgeResponse.status || bridgeResponse.statusCode || 'unknown';
+        
+        let bodyText = '';
+        if (typeof bridgeResponse.text === 'function') {
+          bodyText = await bridgeResponse.text();
+        } else if (bridgeResponse.body) {
+          bodyText = bridgeResponse.body;
+        }
+
+        const data = JSON.parse(bodyText);
+        const hasUserData = !!(data.name || data.id || data.username || data.subreddit);
+
+        results.methods.bridge = {
+          success: true,
+          status: status,
+          hasUserData: hasUserData,
+          userFields: {
+            name: data.name,
+            id: data.id,
+            username: data.username,
+            subreddit: data.subreddit?.display_name
+          },
+          allFields: Object.keys(data),
+          bodySnippet: bodyText.slice(0, 500),
+          loggedIn: hasUserData
+        };
+      } catch(e) {
+        results.methods.bridge = {
+          success: false,
+          error: e.message
+        };
+      }
+
+      // 方法2: fetch (对比)
+      try {
+        output.textContent = '⏳ 方法2: 使用 fetch 检测（对比）...';
+        const fetchResponse = await fetch('https://oauth.reddit.com/api/v1/me', {
+          credentials: 'include',
+          mode: 'cors',
+          cache: 'no-store'
+        });
+
+        const fetchData = await fetchResponse.json();
+        const hasUserData = !!(fetchData.name || fetchData.id || fetchData.username);
+
+        results.methods.fetch = {
+          success: true,
+          status: fetchResponse.status,
+          hasUserData: hasUserData,
+          userFields: {
+            name: fetchData.name,
+            id: fetchData.id,
+            username: fetchData.username
+          },
+          loggedIn: hasUserData
+        };
+      } catch(e) {
+        results.methods.fetch = {
+          success: false,
+          error: e.message
+        };
+      }
+
+      // 分析结果
+      results.analysis = {
+        bridgeDetected: results.methods.bridge?.loggedIn || false,
+        fetchDetected: results.methods.fetch?.loggedIn || false,
+        discrepancy: results.methods.bridge?.loggedIn !== results.methods.fetch?.loggedIn,
+        conclusion: ''
+      };
+
+      if (results.analysis.bridgeDetected && results.analysis.fetchDetected) {
+        results.analysis.conclusion = '✅ 两种方法都检测到登录状态';
+      } else if (results.analysis.bridgeDetected && !results.analysis.fetchDetected) {
+        results.analysis.conclusion = '⚠️ Bridge 检测到登录，但 fetch 没有（可能是 CORS 限制）';
+      } else if (!results.analysis.bridgeDetected && results.analysis.fetchDetected) {
+        results.analysis.conclusion = '⚠️ fetch 检测到登录，但 Bridge 没有（Bridge 可能没有携带 Cookie）';
+      } else {
+        results.analysis.conclusion = '❌ 两种方法都检测不到登录状态（可能：1. 未登录 2. Cookie 未同步 3. API 响应问题）';
+      }
+
+      output.textContent = JSON.stringify(results, null, 2);
+      output.className = results.analysis.bridgeDetected ? 'result success' : 'result warning';
+    }
+
+    // 步骤3: 尝试不同的 API 端点
+    async function tryMultipleEndpoints() {
+      const output = document.getElementById('endpointTest');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在测试不同的 API 端点...';
+      output.className = 'result warning';
+
+      const endpoints = [
+        'https://oauth.reddit.com/api/v1/me',
+        'https://www.reddit.com/api/v1/me',
+        'https://www.reddit.com/api/me.json',
+        'https://www.reddit.com/user/me/about.json'
+      ];
+
+      const results = {
+        timestamp: new Date().toISOString(),
+        endpoints: {}
+      };
+
+      for (const endpoint of endpoints) {
+        try {
+          output.textContent = `⏳ 测试端点: ${endpoint}...`;
+          const response = await window.TXWebKitNativeFetch(endpoint);
+          const status = response.status || response.statusCode || 'unknown';
+          
+          let bodyText = '';
+          if (typeof response.text === 'function') {
+            bodyText = await response.text();
+          } else if (response.body) {
+            bodyText = response.body;
+          }
+
+          let data = {};
+          try {
+            data = JSON.parse(bodyText);
+          } catch(e) {
+            data = { error: '无法解析 JSON', raw: bodyText.slice(0, 200) };
+          }
+
+          const hasUserData = !!(data.name || data.id || data.username || 
+                                (data.data && data.data.name));
+
+          results.endpoints[endpoint] = {
+            success: true,
+            status: status,
+            hasUserData: hasUserData,
+            userFields: {
+              name: data.name || (data.data && data.data.name),
+              id: data.id || (data.data && data.data.id)
+            },
+            allFields: Object.keys(data),
+            bodySnippet: bodyText.slice(0, 300),
+            loggedIn: hasUserData
+          };
+        } catch(e) {
+          results.endpoints[endpoint] = {
+            success: false,
+            error: e.message
+          };
+        }
+      }
+
+      // 找出成功的端点
+      const successfulEndpoints = Object.entries(results.endpoints)
+        .filter(([url, result]) => result.loggedIn)
+        .map(([url]) => url);
+
+      results.summary = {
+        totalEndpoints: endpoints.length,
+        successfulEndpoints: successfulEndpoints,
+        conclusion: successfulEndpoints.length > 0
+          ? `✅ 找到 ${successfulEndpoints.length} 个可以检测登录状态的端点`
+          : '❌ 所有端点都无法检测到登录状态'
+      };
+
+      output.textContent = JSON.stringify(results, null, 2);
+      output.className = successfulEndpoints.length > 0 ? 'result success' : 'result warning';
+    }
+
+    // 步骤4: 检查完整响应
+    async function checkFullResponse() {
+      const output = document.getElementById('fullResponse');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在获取完整响应...';
+      output.className = 'result warning';
+
+      try {
+        const response = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+        const status = response.status || response.statusCode || 'unknown';
+        
+        let bodyText = '';
+        if (typeof response.text === 'function') {
+          bodyText = await response.text();
+        } else if (response.body) {
+          bodyText = response.body;
+        } else if (response.data) {
+          bodyText = response.data;
+        }
+
+        const data = JSON.parse(bodyText);
+
+        // 检查所有可能的用户字段
+        const userFields = [
+          'name', 'id', 'username', 'subreddit',
+          'karma', 'created_utc', 'email', 'verified',
+          'gold_creddits', 'link_karma', 'comment_karma',
+          'is_gold', 'is_mod', 'is_employee'
+        ];
+
+        const foundFields = {};
+        userFields.forEach(field => {
+          if (data[field] !== undefined) {
+            foundFields[field] = data[field];
+          }
+        });
+
+        // 检查嵌套字段
+        if (data.data) {
+          userFields.forEach(field => {
+            if (data.data[field] !== undefined) {
+              foundFields[`data.${field}`] = data.data[field];
+            }
+          });
+        }
+
+        const result = {
+          status: status,
+          responseLength: bodyText.length,
+          allFields: Object.keys(data),
+          foundUserFields: foundFields,
+          hasUserData: Object.keys(foundFields).length > 0,
+          fullResponse: bodyText,
+          parsedData: data
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = result.hasUserData ? 'result success' : 'result warning';
+      } catch(e) {
+        output.textContent = `错误: ${e.message}`;
+        output.className = 'result error';
+      }
+    }
+  </script>
+</body>
+</html>
+
