@@ -803,6 +803,254 @@
       }, 3000);
     }
 
+    // 方法11: 通过 iframe src 变化检测（实用方法）
+    function method11_SrcChangeDetection() {
+      const output = document.getElementById('method11');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe src 变化...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 iframe src 变化检测',
+        timestamp: new Date().toISOString(),
+        currentSrc: frame.src,
+        detection: {}
+      };
+
+      // 分析当前 URL
+      try {
+        const url = new URL(frame.src);
+        result.detection.hostname = url.hostname;
+        result.detection.pathname = url.pathname;
+        result.detection.search = url.search;
+        result.detection.hash = url.hash;
+
+        // 判断登录状态指示器
+        const indicators = {
+          isLoginPage: url.pathname.includes('/login') || url.pathname.includes('/signin'),
+          isUserPage: url.pathname.includes('/user/') || url.pathname.includes('/u/'),
+          isAccountPage: url.pathname.includes('/account') || url.pathname.includes('/settings'),
+          isHomePage: url.pathname === '/' || url.pathname === '',
+          hasQueryParams: url.search.length > 0
+        };
+
+        result.detection.indicators = indicators;
+
+        // 判断可能的登录状态
+        let loginStatus = '未知';
+        if (indicators.isLoginPage) {
+          loginStatus = '在登录页面';
+        } else if (indicators.isUserPage || indicators.isAccountPage) {
+          loginStatus = '可能在用户相关页面（可能已登录）';
+        } else if (indicators.isHomePage) {
+          loginStatus = '在主页（无法确定登录状态）';
+        }
+
+        result.detection.loginStatus = loginStatus;
+      } catch(e) {
+        result.detection.error = e.message;
+      }
+
+      result.success = true;
+      result.note = '✅ 可以通过 iframe.src 读取 URL 信息（不受同源策略限制）';
+
+      // 设置监听器，检测 src 变化
+      let lastSrc = frame.src;
+      const observer = new MutationObserver(function(mutations) {
+        if (frame.src !== lastSrc) {
+          result.detection.srcChanged = true;
+          result.detection.newSrc = frame.src;
+          result.detection.changeTime = new Date().toISOString();
+          lastSrc = frame.src;
+        }
+      });
+
+      observer.observe(frame, { attributes: true, attributeFilter: ['src'] });
+
+      // 5秒后停止监听并显示结果
+      setTimeout(() => {
+        observer.disconnect();
+        if (!result.detection.srcChanged) {
+          result.detection.srcChanged = false;
+          result.detection.note = '5秒内未检测到 src 变化';
+        }
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result success';
+      }, 5000);
+    }
+
+    // 方法12: 通过 Bridge 检测 iframe 内的资源
+    async function method12_BridgeResourceDetection() {
+      const output = document.getElementById('method12');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在使用 Bridge 检测...';
+      output.className = 'result warning';
+
+      if (typeof window.TXWebKitNativeFetch !== 'function') {
+        const result = {
+          method: '通过 Bridge 检测 iframe 内的资源',
+          timestamp: new Date().toISOString(),
+          bridgeAvailable: false,
+          note: '❌ Bridge 不可用'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 Bridge 检测 iframe 内的资源',
+        timestamp: new Date().toISOString(),
+        bridgeAvailable: true,
+        tests: {}
+      };
+
+      // 测试1: 检测 Reddit API
+      try {
+        const apiResponse = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+        const status = apiResponse.status || apiResponse.statusCode || 'unknown';
+        let bodyText = '';
+        if (typeof apiResponse.text === 'function') {
+          bodyText = await apiResponse.text();
+        } else if (apiResponse.body) {
+          bodyText = apiResponse.body;
+        }
+
+        const data = JSON.parse(bodyText);
+        const hasUserData = !!(data.name || data.id || data.username);
+
+        result.tests.redditAPI = {
+          success: true,
+          status: status,
+          hasUserData: hasUserData,
+          userFields: {
+            name: data.name,
+            id: data.id,
+            username: data.username
+          },
+          allFields: Object.keys(data),
+          loggedIn: hasUserData
+        };
+      } catch(e) {
+        result.tests.redditAPI = {
+          success: false,
+          error: e.message
+        };
+      }
+
+      // 测试2: 检测 Reddit 主页
+      try {
+        const homeResponse = await window.TXWebKitNativeFetch('https://www.reddit.com/');
+        const status = homeResponse.status || homeResponse.statusCode || 'unknown';
+        
+        let bodyText = '';
+        if (typeof homeResponse.text === 'function') {
+          bodyText = await homeResponse.text();
+        } else if (homeResponse.body) {
+          bodyText = homeResponse.body;
+        }
+
+        // 检查 HTML 中是否有用户相关的标识
+        const hasUserIndicator = bodyText.includes('logged-in') || 
+                                 bodyText.includes('user-menu') ||
+                                 bodyText.includes('notification') ||
+                                 bodyText.includes('user-avatar');
+
+        result.tests.redditHome = {
+          success: true,
+          status: status,
+          bodyLength: bodyText.length,
+          hasUserIndicator: hasUserIndicator,
+          indicators: {
+            loggedIn: bodyText.includes('logged-in'),
+            userMenu: bodyText.includes('user-menu'),
+            notification: bodyText.includes('notification'),
+            userAvatar: bodyText.includes('user-avatar')
+          },
+          loggedIn: hasUserIndicator
+        };
+      } catch(e) {
+        result.tests.redditHome = {
+          success: false,
+          error: e.message
+        };
+      }
+
+      result.conclusion = result.tests.redditAPI?.loggedIn || result.tests.redditHome?.loggedIn
+        ? '✅ Bridge 检测到可能的登录状态'
+        : '❌ Bridge 无法检测到登录状态';
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = (result.tests.redditAPI?.loggedIn || result.tests.redditHome?.loggedIn) ? 'result success' : 'result warning';
+    }
+
+    // 方法13: 通过 iframe 尺寸变化检测
+    function method13_SizeDetection() {
+      const output = document.getElementById('method13');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe 尺寸变化...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 iframe 尺寸变化检测',
+        timestamp: new Date().toISOString(),
+        initialSize: {
+          width: frame.offsetWidth,
+          height: frame.offsetHeight
+        },
+        changes: []
+      };
+
+      // 监听尺寸变化
+      let lastWidth = frame.offsetWidth;
+      let lastHeight = frame.offsetHeight;
+
+      const checkSize = setInterval(() => {
+        const currentWidth = frame.offsetWidth;
+        const currentHeight = frame.offsetHeight;
+
+        if (currentWidth !== lastWidth || currentHeight !== lastHeight) {
+          result.changes.push({
+            time: new Date().toISOString(),
+            from: { width: lastWidth, height: lastHeight },
+            to: { width: currentWidth, height: currentHeight }
+          });
+          lastWidth = currentWidth;
+          lastHeight = currentHeight;
+        }
+      }, 500);
+
+      // 10秒后停止
+      setTimeout(() => {
+        clearInterval(checkSize);
+        result.finalSize = {
+          width: frame.offsetWidth,
+          height: frame.offsetHeight
+        };
+        result.totalChanges = result.changes.length;
+        result.conclusion = result.changes.length > 0
+          ? `✅ 检测到 ${result.changes.length} 次尺寸变化`
+          : '⚠️ 未检测到尺寸变化';
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = result.changes.length > 0 ? 'result success' : 'result warning';
+      }, 10000);
+    }
+
     // 运行所有方法
     async function runAllMethods() {
       const output = document.getElementById('allMethods');
