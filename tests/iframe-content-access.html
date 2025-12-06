@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iframe 内容访问方法测试</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    h2 { color: #666; margin-top: 0; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover { background: #0056b3; }
+    button.success { background: #28a745; }
+    .result {
+      background: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .result.success { border-left-color: #28a745; }
+    .result.error { border-left-color: #dc3545; }
+    .result.warning { border-left-color: #ffc107; }
+    iframe {
+      width: 100%;
+      height: 500px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .method {
+      background: #e7f3ff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      border-left: 4px solid #007bff;
+    }
+    .method h3 { margin-top: 0; color: #0056b3; }
+  </style>
+</head>
+<body>
+  <h1>🔍 iframe 内容访问方法测试</h1>
+  <p>探索除了 Bridge 之外，如何访问 iframe 内的用户内容</p>
+
+  <div class="card">
+    <h2>步骤 1: 在 iframe 中加载 Reddit</h2>
+    <button onclick="loadRedditInIframe()">在 iframe 中加载 Reddit</button>
+    <iframe id="redditFrame" style="display:none;"></iframe>
+  </div>
+
+  <div class="card">
+    <h2>方法 1: 直接访问 iframe DOM（同源策略限制）</h2>
+    <div class="method">
+      <h3>原理：如果 iframe 和父页面同源，可以直接访问 DOM</h3>
+      <p><small>💡 形象比喻：如果 iframe 和父页面是"同一栋楼"，可以直接进入查看</small></p>
+      <button onclick="tryDirectAccess()">尝试直接访问 iframe DOM</button>
+      <div id="directAccess" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法 2: postMessage 通信（推荐）</h2>
+    <div class="method">
+      <h3>原理：让 iframe 内的代码自己检测并返回结果</h3>
+      <p><small>💡 形象比喻：给 iframe 发"消息"，让它自己检查并回复</small></p>
+      <button onclick="tryPostMessage()">尝试 postMessage 通信</button>
+      <div id="postMessage" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法 3: 注入脚本到 iframe（如果可能）</h2>
+    <div class="method">
+      <h3>原理：在 iframe 加载后注入检测脚本</h3>
+      <p><small>💡 形象比喻：在 iframe 内"安装"一个检测程序</small></p>
+      <button onclick="tryInjectScript()">尝试注入脚本</button>
+      <div id="injectScript" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法 4: 通过 iframe URL 变化检测</h2>
+    <div class="method">
+      <h3>原理：监听 iframe 的 URL 变化，判断登录状态</h3>
+      <p><small>💡 形象比喻：观察 iframe 的"地址变化"，判断是否登录</small></p>
+      <button onclick="tryUrlDetection()">尝试 URL 检测</button>
+      <div id="urlDetection" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法 5: 通过 iframe 内的 fetch（如果同源）</h2>
+    <div class="method">
+      <h3>原理：在 iframe 内执行 fetch，因为 iframe 有 Cookie</h3>
+      <p><small>💡 形象比喻：让 iframe 自己"打电话"查询，因为它有 Cookie</small></p>
+      <button onclick="tryIframeFetch()">尝试 iframe 内 fetch</button>
+      <div id="iframeFetch" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法 6: 创建同源代理页面</h2>
+    <div class="method">
+      <h3>原理：创建一个同源的代理页面，在 iframe 中加载，然后通信</h3>
+      <p><small>💡 形象比喻：创建一个"中间人"页面，在 iframe 中加载，然后传递信息</small></p>
+      <button onclick="tryProxyPage()">尝试代理页面方法</button>
+      <div id="proxyPage" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <script>
+    let iframeLoaded = false;
+
+    // 加载 Reddit 到 iframe
+    function loadRedditInIframe() {
+      const frame = document.getElementById('redditFrame');
+      frame.src = 'https://www.reddit.com';
+      frame.style.display = 'block';
+      iframeLoaded = true;
+      
+      // 监听加载完成
+      frame.onload = function() {
+        setTimeout(() => {
+          alert('Reddit 已加载到 iframe 中。\n\n现在可以尝试各种访问方法。');
+        }, 1000);
+      };
+    }
+
+    // 方法1: 直接访问 iframe DOM
+    async function tryDirectAccess() {
+      const output = document.getElementById('directAccess');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试直接访问 iframe DOM...';
+      output.className = 'result warning';
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (!frame.src || frame.src === 'about:blank') {
+          output.textContent = '❌ 请先加载 iframe';
+          output.className = 'result error';
+          return;
+        }
+
+        // 尝试访问 iframe 内容
+        const iframeWindow = frame.contentWindow;
+        const iframeDoc = frame.contentDocument || iframeWindow.document;
+
+        if (!iframeDoc) {
+          throw new Error('无法访问 iframe 内容（同源策略限制）');
+        }
+
+        // 如果成功，尝试检测登录状态
+        const result = {
+          method: '直接访问 iframe DOM',
+          success: true,
+          sameOrigin: true,
+          canAccess: true,
+          note: '✅ 成功！iframe 和父页面同源，可以直接访问'
+        };
+
+        // 尝试在 iframe 内执行 fetch
+        try {
+          const response = await iframeWindow.fetch('https://oauth.reddit.com/api/v1/me', {
+            credentials: 'include'
+          });
+          const data = await response.json();
+          result.apiTest = {
+            status: response.status,
+            hasUserData: !!(data.name || data.id || data.username),
+            userData: data.name ? { name: data.name, id: data.id } : null
+          };
+        } catch(e) {
+          result.apiTest = { error: e.message };
+        }
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result success';
+      } catch(e) {
+        const result = {
+          method: '直接访问 iframe DOM',
+          success: false,
+          error: e.message,
+          sameOrigin: false,
+          canAccess: false,
+          note: '❌ 失败：iframe 和父页面不同源，受同源策略限制。\n\n这是因为 Reddit (reddit.com) 和当前页面 (webview-wheat-eight.vercel.app) 不同源。',
+          explanation: '同源策略要求：协议、域名、端口必须完全相同才能访问。\nReddit: https://www.reddit.com\n当前页面: https://webview-wheat-eight.vercel.app\n→ 不同源，无法直接访问'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法2: postMessage 通信
+    async function tryPostMessage() {
+      const output = document.getElementById('postMessage');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试 postMessage 通信...';
+      output.className = 'result warning';
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (!frame.src || frame.src === 'about:blank') {
+          output.textContent = '❌ 请先加载 iframe';
+          output.className = 'result error';
+          return;
+        }
+
+        // 监听来自 iframe 的消息
+        const messagePromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            window.removeEventListener('message', handler);
+            reject(new Error('超时：iframe 没有响应'));
+          }, 5000);
+
+          const handler = (event) => {
+            // 验证消息来源
+            if (event.source === frame.contentWindow) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handler);
+              resolve(event.data);
+            }
+          };
+
+          window.addEventListener('message', handler);
+        });
+
+        // 向 iframe 发送消息，要求它检测登录状态
+        frame.contentWindow.postMessage({
+          type: 'checkLogin',
+          url: 'https://oauth.reddit.com/api/v1/me'
+        }, '*');
+
+        // 等待响应
+        const response = await messagePromise;
+
+        const result = {
+          method: 'postMessage 通信',
+          success: true,
+          response: response,
+          note: '✅ 成功！iframe 响应了消息'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result success';
+      } catch(e) {
+        const result = {
+          method: 'postMessage 通信',
+          success: false,
+          error: e.message,
+          note: '❌ 失败：iframe 没有响应消息。\n\n可能的原因：\n1. iframe 内的代码没有监听 postMessage\n2. iframe 加载的页面不支持 postMessage\n3. 需要先注入监听代码',
+          solution: '需要在 iframe 内注入代码来监听 postMessage 并执行检测'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法3: 注入脚本
+    async function tryInjectScript() {
+      const output = document.getElementById('injectScript');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试注入脚本...';
+      output.className = 'result warning';
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (!frame.src || frame.src === 'about:blank') {
+          output.textContent = '❌ 请先加载 iframe';
+          output.className = 'result error';
+          return;
+        }
+
+        const iframeWindow = frame.contentWindow;
+        const iframeDoc = frame.contentDocument || iframeWindow.document;
+
+        if (!iframeDoc) {
+          throw new Error('无法访问 iframe 内容（同源策略限制）');
+        }
+
+        // 注入检测脚本
+        const script = iframeDoc.createElement('script');
+        script.textContent = `
+          (function() {
+            // 监听来自父页面的消息
+            window.addEventListener('message', async function(event) {
+              if (event.data && event.data.type === 'checkLogin') {
+                try {
+                  // 在 iframe 内执行 fetch（有 Cookie）
+                  const response = await fetch(event.data.url, {
+                    credentials: 'include',
+                    mode: 'cors'
+                  });
+                  const data = await response.json();
+                  
+                  // 发送结果回父页面
+                  window.parent.postMessage({
+                    type: 'loginStatus',
+                    success: true,
+                    loggedIn: !!(data.name || data.id || data.username),
+                    userData: data.name ? { name: data.name, id: data.id } : null,
+                    allFields: Object.keys(data),
+                    fullData: data
+                  }, '*');
+                } catch(e) {
+                  window.parent.postMessage({
+                    type: 'loginStatus',
+                    success: false,
+                    error: e.message
+                  }, '*');
+                }
+              }
+            });
+            
+            // 自动检测并发送
+            setTimeout(async function() {
+              try {
+                const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+                  credentials: 'include',
+                  mode: 'cors'
+                });
+                const data = await response.json();
+                
+                window.parent.postMessage({
+                  type: 'autoLoginStatus',
+                  loggedIn: !!(data.name || data.id || data.username),
+                  userData: data.name ? { name: data.name, id: data.id } : null,
+                  allFields: Object.keys(data)
+                }, '*');
+              } catch(e) {
+                window.parent.postMessage({
+                  type: 'autoLoginStatus',
+                  error: e.message
+                }, '*');
+              }
+            }, 2000);
+          })();
+        `;
+        iframeDoc.head.appendChild(script);
+
+        // 监听来自 iframe 的消息
+        const messagePromise = new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            window.removeEventListener('message', handler);
+            reject(new Error('超时：注入的脚本没有响应'));
+          }, 10000);
+
+          const handler = (event) => {
+            if (event.source === iframeWindow && 
+                (event.data.type === 'loginStatus' || event.data.type === 'autoLoginStatus')) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handler);
+              resolve(event.data);
+            }
+          };
+
+          window.addEventListener('message', handler);
+        });
+
+        const response = await messagePromise;
+
+        const result = {
+          method: '注入脚本到 iframe',
+          success: true,
+          injected: true,
+          response: response,
+          note: '✅ 成功！脚本已注入，iframe 可以检测登录状态'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result success';
+      } catch(e) {
+        const result = {
+          method: '注入脚本到 iframe',
+          success: false,
+          error: e.message,
+          note: '❌ 失败：无法注入脚本。\n\n可能的原因：\n1. 同源策略限制（iframe 和父页面不同源）\n2. iframe 的 Content Security Policy (CSP) 阻止脚本注入\n3. Reddit 的安全策略',
+          explanation: '如果 iframe 和父页面不同源，无法直接注入脚本。需要其他方法。'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法4: URL 检测
+    async function tryUrlDetection() {
+      const output = document.getElementById('urlDetection');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试 URL 检测...';
+      output.className = 'result warning';
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (!frame.src || frame.src === 'about:blank') {
+          output.textContent = '❌ 请先加载 iframe';
+          output.className = 'result error';
+          return;
+        }
+
+        // 监听 iframe URL 变化
+        let currentUrl = frame.src;
+        const urlChanges = [];
+        
+        const checkUrl = setInterval(() => {
+          try {
+            const newUrl = frame.contentWindow.location.href;
+            if (newUrl !== currentUrl) {
+              urlChanges.push({
+                time: new Date().toISOString(),
+                from: currentUrl,
+                to: newUrl
+              });
+              currentUrl = newUrl;
+            }
+          } catch(e) {
+            // 无法访问 URL（同源策略）
+          }
+        }, 1000);
+
+        // 等待一段时间
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        clearInterval(checkUrl);
+
+        const result = {
+          method: 'URL 变化检测',
+          currentUrl: currentUrl,
+          urlChanges: urlChanges,
+          canAccessUrl: urlChanges.length > 0,
+          note: urlChanges.length > 0 
+            ? '✅ 可以检测到 URL 变化（同源）'
+            : '❌ 无法检测 URL 变化（不同源，受同源策略限制）',
+          explanation: '如果 iframe 和父页面不同源，无法访问 iframe 的 URL。需要其他方法。'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = result.canAccessUrl ? 'result success' : 'result error';
+      } catch(e) {
+        const result = {
+          method: 'URL 变化检测',
+          success: false,
+          error: e.message,
+          note: '无法访问 iframe URL（同源策略限制）'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法5: iframe 内 fetch
+    async function tryIframeFetch() {
+      const output = document.getElementById('iframeFetch');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试在 iframe 内执行 fetch...';
+      output.className = 'result warning';
+
+      try {
+        const frame = document.getElementById('redditFrame');
+        if (!frame.src || frame.src === 'about:blank') {
+          output.textContent = '❌ 请先加载 iframe';
+          output.className = 'result error';
+          return;
+        }
+
+        const iframeWindow = frame.contentWindow;
+        const iframeDoc = frame.contentDocument || iframeWindow.document;
+
+        if (!iframeDoc) {
+          throw new Error('无法访问 iframe 内容（同源策略限制）');
+        }
+
+        // 在 iframe 内执行 fetch
+        const response = await iframeWindow.fetch('https://oauth.reddit.com/api/v1/me', {
+          credentials: 'include',
+          mode: 'cors'
+        });
+        const data = await response.json();
+        const hasUserData = !!(data.name || data.id || data.username);
+
+        const result = {
+          method: 'iframe 内 fetch',
+          success: true,
+          sameOrigin: true,
+          status: response.status,
+          loggedIn: hasUserData,
+          userData: hasUserData ? {
+            name: data.name,
+            id: data.id,
+            username: data.username
+          } : null,
+          allFields: Object.keys(data),
+          note: hasUserData 
+            ? '✅ 成功！在 iframe 内检测到登录状态（因为 iframe 有 Cookie）'
+            : '⚠️ iframe 内 fetch 成功，但没有用户数据（可能未登录或 Cookie 问题）'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = hasUserData ? 'result success' : 'result warning';
+      } catch(e) {
+        const result = {
+          method: 'iframe 内 fetch',
+          success: false,
+          error: e.message,
+          sameOrigin: false,
+          note: '❌ 失败：无法在 iframe 内执行 fetch。\n\n可能的原因：\n1. 同源策略限制（iframe 和父页面不同源）\n2. 无法访问 iframe 的 window 对象',
+          explanation: '如果 iframe 和父页面不同源，无法直接访问 iframe 的 window 对象来执行 fetch。'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法6: 创建同源代理页面
+    async function tryProxyPage() {
+      const output = document.getElementById('proxyPage');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在创建代理页面...';
+      output.className = 'result warning';
+
+      // 创建一个代理页面的 HTML 内容
+      const proxyHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Reddit Login Detector Proxy</title>
+</head>
+<body>
+  <h1>Reddit 登录检测代理页面</h1>
+  <p>这个页面会在 iframe 中加载，然后检测 Reddit 登录状态</p>
+  <div id="result"></div>
+  
+  <script>
+    // 自动检测登录状态
+    (async function() {
+      try {
+        // 在 iframe 内执行 fetch（有 Cookie）
+        const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+          credentials: 'include',
+          mode: 'cors'
+        });
+        const data = await response.json();
+        const hasUserData = !!(data.name || data.id || data.username);
+        
+        // 发送结果给父页面
+        window.parent.postMessage({
+          type: 'proxyLoginStatus',
+          loggedIn: hasUserData,
+          userData: hasUserData ? { name: data.name, id: data.id } : null,
+          allFields: Object.keys(data),
+          fullData: data
+        }, '*');
+        
+        // 显示结果
+        document.getElementById('result').textContent = JSON.stringify({
+          loggedIn: hasUserData,
+          userData: hasUserData ? { name: data.name, id: data.id } : null
+        }, null, 2);
+      } catch(e) {
+        window.parent.postMessage({
+          type: 'proxyLoginStatus',
+          error: e.message
+        }, '*');
+      }
+    })();
+  </script>
+</body>
+</html>
+      `;
+
+      // 创建 Blob URL
+      const blob = new Blob([proxyHTML], { type: 'text/html' });
+      const proxyUrl = URL.createObjectURL(blob);
+
+      // 在 iframe 中加载代理页面
+      const frame = document.getElementById('redditFrame');
+      frame.src = proxyUrl;
+      frame.style.display = 'block';
+
+      // 监听来自代理页面的消息
+      const messagePromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          window.removeEventListener('message', handler);
+          reject(new Error('超时：代理页面没有响应'));
+        }, 10000);
+
+        const handler = (event) => {
+          if (event.data && event.data.type === 'proxyLoginStatus') {
+            clearTimeout(timeout);
+            window.removeEventListener('message', handler);
+            resolve(event.data);
+          }
+        };
+
+        window.addEventListener('message', handler);
+      });
+
+      try {
+        const response = await messagePromise;
+
+        const result = {
+          method: '同源代理页面',
+          success: true,
+          proxyUrl: proxyUrl,
+          response: response,
+          note: '✅ 成功！代理页面可以检测登录状态\n\n但是：代理页面和 Reddit 不同源，无法直接访问 Reddit 的 Cookie。\n需要让用户在代理页面中先访问 Reddit，然后检测。',
+          limitation: '代理页面方法的问题是：代理页面和 Reddit 不同源，无法直接访问 Reddit 的 Cookie。需要用户先在代理页面中访问 Reddit。'
+        };
+
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result warning';
+      } catch(e) {
+        const result = {
+          method: '同源代理页面',
+          success: false,
+          error: e.message,
+          note: '代理页面方法需要用户先在代理页面中访问 Reddit，然后才能检测。'
+        };
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 监听所有来自 iframe 的消息（用于方法2和方法3）
+    window.addEventListener('message', function(event) {
+      console.log('收到来自 iframe 的消息:', event.data);
+    });
+  </script>
+</body>
+</html>
+
