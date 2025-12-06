@@ -498,6 +498,194 @@
       output.className = result.success ? 'result success' : 'result warning';
     }
 
+    // 方法4增强版：持续监听 API 请求
+    let method4_observer = null;
+    let method4_monitoringInterval = null;
+    
+    function method4_ContinuousMonitoring() {
+      const output = document.getElementById('method4-continuous');
+      output.style.display = 'block';
+
+      // 如果已经在监听，先停止
+      if (method4_observer || method4_monitoringInterval) {
+        if (method4_observer) {
+          method4_observer.disconnect();
+          method4_observer = null;
+        }
+        if (method4_monitoringInterval) {
+          clearInterval(method4_monitoringInterval);
+          method4_monitoringInterval = null;
+        }
+        output.innerHTML = '<p style="color: #666;">⏸️ 已停止监听</p>';
+        return;
+      }
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.innerHTML = '<p style="color: red;">❌ 请先加载 iframe</p>';
+        return;
+      }
+
+      const detectedAPIs = new Set();
+      const allResources = [];
+      const startTime = Date.now();
+
+      // 创建结果显示区域
+      const statusDiv = document.createElement('div');
+      statusDiv.style.cssText = 'padding: 10px; background: #f0f0f0; border-radius: 4px; margin: 10px 0;';
+      statusDiv.innerHTML = `
+        <p><strong>📡 实时监听中...</strong> <button onclick="method4_ContinuousMonitoring()" style="float: right; padding: 4px 8px;">停止</button></p>
+        <p>开始时间: ${new Date().toLocaleString()}</p>
+        <p>监听时长: <span id="monitor-time">0</span> 秒</p>
+        <p>检测到的 API: <span id="api-count">0</span> 个</p>
+        <div id="api-list" style="max-height: 400px; overflow-y: auto; margin-top: 10px;"></div>
+      `;
+      output.innerHTML = '';
+      output.appendChild(statusDiv);
+      output.className = 'result success';
+
+      const apiListDiv = document.getElementById('api-list');
+      const apiCountSpan = document.getElementById('api-count');
+      const timeSpan = document.getElementById('monitor-time');
+
+      // 更新监听时间
+      method4_monitoringInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        timeSpan.textContent = elapsed;
+      }, 1000);
+
+      // 分析 API URL
+      function analyzeAPI(url) {
+        const analysis = {
+          url: url,
+          isUserAPI: url.includes('/api/v1/me') || url.includes('/api/me'),
+          isOAuth: url.includes('oauth.reddit.com'),
+          isAPI: url.includes('/api/'),
+          timestamp: new Date().toLocaleTimeString()
+        };
+
+        if (analysis.isUserAPI) {
+          analysis.importance = '🔴 关键！用户信息 API';
+          analysis.loginIndicator = '✅ 如果检测到此 API，说明 iframe 内部可能已登录';
+        } else if (analysis.isOAuth) {
+          analysis.importance = '🟡 重要！OAuth API';
+        } else if (analysis.isAPI) {
+          analysis.importance = '🟢 普通 API 请求';
+        }
+
+        return analysis;
+      }
+
+      // 添加 API 到列表
+      function addAPIToList(apiUrl) {
+        if (detectedAPIs.has(apiUrl)) return; // 避免重复
+        detectedAPIs.add(apiUrl);
+        
+        const analysis = analyzeAPI(apiUrl);
+        allResources.push(analysis);
+
+        // 更新计数
+        apiCountSpan.textContent = detectedAPIs.size;
+
+        // 添加到显示列表
+        const apiItem = document.createElement('div');
+        apiItem.style.cssText = 'padding: 8px; margin: 5px 0; background: white; border-left: 3px solid #0a66c2;';
+        
+        let bgColor = '#fff';
+        let borderColor = '#0a66c2';
+        if (analysis.isUserAPI) {
+          bgColor = '#e3f2fd';
+          borderColor = '#1976d2';
+        } else if (analysis.isOAuth) {
+          bgColor = '#fff3e0';
+          borderColor = '#f57c00';
+        }
+
+        apiItem.style.background = bgColor;
+        apiItem.style.borderLeftColor = borderColor;
+        
+        apiItem.innerHTML = `
+          <strong>${analysis.importance || 'API 请求'}</strong><br>
+          <small>时间: ${analysis.timestamp}</small><br>
+          <code style="font-size: 11px; color: #666; word-break: break-all;">${apiUrl}</code>
+          ${analysis.loginIndicator ? `<br><small style="color: #1976d2;">${analysis.loginIndicator}</small>` : ''}
+        `;
+        apiListDiv.insertBefore(apiItem, apiListDiv.firstChild);
+      }
+
+      // 检查现有的资源
+      function checkExistingResources() {
+        try {
+          const perfEntries = performance.getEntriesByType('resource');
+          const redditResources = perfEntries.filter(entry => 
+            entry.name.includes('reddit.com')
+          );
+          
+          redditResources.forEach(entry => {
+            const url = entry.name.trim();
+            if ((url.includes('/api/') || url.includes('oauth.reddit.com')) && !detectedAPIs.has(url)) {
+              addAPIToList(url);
+            }
+          });
+        } catch(e) {
+          console.error('检查现有资源失败:', e);
+        }
+      }
+
+      // 初始检查
+      checkExistingResources();
+
+      // 使用 PerformanceObserver 监听新的资源
+      if ('PerformanceObserver' in window) {
+        try {
+          method4_observer = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              const url = entry.name.trim();
+              if (url.includes('reddit.com') && (url.includes('/api/') || url.includes('oauth.reddit.com'))) {
+                addAPIToList(url);
+              }
+            }
+          });
+          method4_observer.observe({ entryTypes: ['resource'] });
+        } catch(e) {
+          console.error('PerformanceObserver 不可用:', e);
+        }
+      }
+
+      // 定期检查（作为 PerformanceObserver 的备选方案）
+      const checkInterval = setInterval(() => {
+        checkExistingResources();
+      }, 1000);
+
+      // 30秒后自动停止（或手动停止）
+      setTimeout(() => {
+        if (method4_observer) {
+          method4_observer.disconnect();
+          method4_observer = null;
+        }
+        clearInterval(checkInterval);
+        if (method4_monitoringInterval) {
+          clearInterval(method4_monitoringInterval);
+          method4_monitoringInterval = null;
+        }
+
+        // 显示最终统计
+        const userAPIs = allResources.filter(r => r.isUserAPI);
+        const summary = document.createElement('div');
+        summary.style.cssText = 'margin-top: 15px; padding: 10px; background: #e3f2fd; border-radius: 4px;';
+        summary.innerHTML = `
+          <strong>📊 监听结束</strong><br>
+          <p>总检测时长: ${Math.floor((Date.now() - startTime) / 1000)} 秒</p>
+          <p>检测到的 API 总数: ${detectedAPIs.size} 个</p>
+          <p>用户信息 API: ${userAPIs.length} 个</p>
+          ${userAPIs.length > 0 
+            ? '<p style="color: #1976d2;"><strong>✅ 检测到用户信息 API！说明 iframe 内部可能已登录</strong></p>'
+            : '<p style="color: #666;">⚠️ 未检测到用户信息 API</p>'}
+        `;
+        statusDiv.appendChild(summary);
+      }, 30000); // 30秒后停止
+    }
+
     // 方法5: 检测 location
     function method5_LocationDetection() {
       const output = document.getElementById('method5');
