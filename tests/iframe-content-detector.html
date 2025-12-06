@@ -69,6 +69,18 @@
 <body>
   <h1>🔍 iframe 内容检测工具</h1>
   <p>利用 iframe 内的用户内容检测登录状态（不依赖 Bridge）</p>
+  
+  <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+    <h3>💡 为什么新窗口登录可以同步到 iframe，但检测方法不行？</h3>
+    <p><strong>关键区别：</strong></p>
+    <ul>
+      <li><strong>Cookie 共享</strong>：发生在 <strong>WebView 层面</strong>，是自动的
+        <br>→ 新窗口登录 → Cookie 存储在 WebView → iframe 加载时自动携带 Cookie → UI 显示已登录 ✅</li>
+      <li><strong>JavaScript 访问</strong>：受 <strong>同源策略限制</strong>
+        <br>→ 父页面（webview-wheat-eight.vercel.app）和 iframe（reddit.com）不同源 → 无法访问 iframe 内容 ❌</li>
+    </ul>
+    <p><strong>解决方案</strong>：<a href="./iframe-internal-detector.html">使用 iframe 内部检测工具</a>，在 iframe 内创建测试页面。</p>
+  </div>
 
   <div class="card">
     <h2>步骤 1: 在 iframe 中加载 Reddit</h2>

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iframe 内部检测工具</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .explanation {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover { background: #0056b3; }
+    button.success { background: #28a745; }
+    .result {
+      background: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .result.success { border-left-color: #28a745; }
+    .result.error { border-left-color: #dc3545; }
+    .result.warning { border-left-color: #ffc107; }
+    iframe {
+      width: 100%;
+      height: 600px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 iframe 内部检测工具</h1>
+  
+  <div class="explanation">
+    <h3>💡 为什么新窗口登录可以同步到 iframe，但检测方法不行？</h3>
+    <p><strong>关键区别：</strong></p>
+    <ul>
+      <li><strong>Cookie 共享</strong>：发生在 <strong>WebView 层面</strong>，是自动的，不需要 JavaScript 访问
+        <br>→ 新窗口登录 → Cookie 存储在 WebView → iframe 加载时自动携带 Cookie → UI 显示已登录 ✅</li>
+      <li><strong>JavaScript 访问</strong>：受 <strong>同源策略限制</strong>，父页面无法访问 iframe 的内容
+        <br>→ 父页面尝试访问 iframe → 同源策略阻止 → 无法执行 iframe 内的代码 ❌</li>
+    </ul>
+    <p><strong>解决方案</strong>：创建一个可以在 iframe 内直接运行的测试页面，或者使用 URL 参数传递检测脚本。</p>
+  </div>
+
+  <div class="card">
+    <h2>方法1: 在 iframe 中加载测试页面（推荐）</h2>
+    <p>将测试代码嵌入到 Reddit URL 中，让 iframe 加载时自动执行检测。</p>
+    <button onclick="loadTestPageInIframe()">在 iframe 中加载测试页面</button>
+    <iframe id="testFrame" style="display:none;"></iframe>
+    <div id="testResult" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>方法2: 使用 Bookmarklet（手动方式）</h2>
+    <p>在 Reddit 页面中手动执行检测代码。</p>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0;">
+      <p><strong>步骤：</strong></p>
+      <ol>
+        <li>在 iframe 中打开 Reddit 并登录</li>
+        <li>在 Reddit 页面的地址栏输入以下代码（或创建书签）：</li>
+      </ol>
+      <code style="display: block; padding: 10px; margin: 10px 0; background: white; border: 1px solid #ddd;">
+javascript:(function(){fetch('https://oauth.reddit.com/api/v1/me',{credentials:'include'}).then(r=>r.json()).then(d=>{const h=!!(d.name||d.id||d.username);alert('登录状态: '+(h?'已登录 - '+d.name:'未登录')+'\n\n完整数据:\n'+JSON.stringify(d,null,2))})})();
+      </code>
+      <p><small>或者点击下方按钮复制代码</small></p>
+      <button onclick="copyBookmarklet()">复制 Bookmarklet 代码</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法3: 创建同源测试页面</h2>
+    <p>创建一个可以在 Reddit 域名下运行的测试页面（需要部署到 Reddit 或使用代理）。</p>
+    <button onclick="showSameOriginSolution()">查看解决方案</button>
+    <div id="sameOriginSolution" class="result" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <h2>方法4: 通过 URL 参数传递检测脚本</h2>
+    <p>尝试通过 URL 参数将检测代码传递给 iframe（可能被 CSP 阻止）。</p>
+    <button onclick="loadWithScriptParam()">通过 URL 参数加载</button>
+    <div id="urlParamResult" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    // 方法1: 在 iframe 中加载测试页面
+    function loadTestPageInIframe() {
+      const frame = document.getElementById('testFrame');
+      const output = document.getElementById('testResult');
+      
+      // 创建一个测试页面，包含检测代码
+      const testPageHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Reddit 登录检测</title>
+  <style>
+    body { font-family: system-ui; padding: 20px; background: #f5f5f5; }
+    .result { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>Reddit 登录状态检测</h1>
+  <div id="result">检测中...</div>
+  <script>
+    (async function() {
+      try {
+        // 在 iframe 内执行 fetch（可以访问 Cookie）
+        const response = await fetch('https://oauth.reddit.com/api/v1/me', {
+          credentials: 'include',
+          mode: 'cors',
+          cache: 'no-store'
+        });
+        
+        const data = await response.json();
+        const hasUserData = !!(data.name || data.id || data.username);
+        
+        const result = {
+          timestamp: new Date().toISOString(),
+          method: 'iframe内fetch',
+          status: response.status,
+          loggedIn: hasUserData,
+          userData: hasUserData ? {
+            name: data.name,
+            id: data.id,
+            username: data.username
+          } : null,
+          allFields: Object.keys(data),
+          fullData: data
+        };
+        
+        // 显示结果
+        document.getElementById('result').innerHTML = 
+          '<h2>' + (hasUserData ? '✅ 已登录' : '❌ 未登录') + '</h2>' +
+          '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        
+        // 发送消息给父页面
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'iframeLoginStatus',
+            result: result
+          }, '*');
+        }
+      } catch(e) {
+        document.getElementById('result').innerHTML = 
+          '<h2>❌ 检测失败</h2>' +
+          '<pre>' + e.message + '</pre>';
+        
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({
+            type: 'iframeLoginStatus',
+            error: e.message
+          }, '*');
+        }
+      }
+    })();
+  <\/script>
+</body>
+</html>
+      `;
+
+      // 创建 Blob URL
+      const blob = new Blob([testPageHTML], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      frame.src = url;
+      frame.style.display = 'block';
+      
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在 iframe 中加载测试页面...';
+      output.className = 'result warning';
+
+      // 监听来自 iframe 的消息
+      const handler = (e) => {
+        if (e.data && e.data.type === 'iframeLoginStatus') {
+          window.removeEventListener('message', handler);
+          
+          if (e.data.error) {
+            output.textContent = JSON.stringify({
+              method: 'iframe 内测试页面',
+              success: false,
+              error: e.data.error
+            }, null, 2);
+            output.className = 'result error';
+          } else {
+            const result = e.data.result;
+            result.conclusion = result.loggedIn 
+              ? '✅ 通过 iframe 内测试页面检测到登录状态'
+              : '❌ iframe 内测试页面也检测不到登录状态';
+            
+            output.textContent = JSON.stringify(result, null, 2);
+            output.className = result.loggedIn ? 'result success' : 'result warning';
+          }
+          
+          URL.revokeObjectURL(url);
+        }
+      };
+      window.addEventListener('message', handler);
+      
+      // 超时处理
+      setTimeout(() => {
+        window.removeEventListener('message', handler);
+        if (output.textContent.includes('检测中')) {
+          output.textContent = '❌ 超时：iframe 内测试页面没有响应';
+          output.className = 'result error';
+        }
+      }, 15000);
+    }
+
+    // 方法2: 复制 Bookmarklet
+    function copyBookmarklet() {
+      const code = `javascript:(function(){fetch('https://oauth.reddit.com/api/v1/me',{credentials:'include'}).then(r=>r.json()).then(d=>{const h=!!(d.name||d.id||d.username);alert('登录状态: '+(h?'已登录 - '+d.name:'未登录')+'\n\n完整数据:\n'+JSON.stringify(d,null,2))})})();`;
+      
+      navigator.clipboard.writeText(code).then(() => {
+        alert('Bookmarklet 代码已复制到剪贴板！\n\n使用方法：\n1. 在 Reddit 页面中，点击地址栏\n2. 删除当前 URL\n3. 粘贴这段代码\n4. 按回车执行');
+      }).catch(() => {
+        // 如果 clipboard API 不可用，显示代码
+        prompt('请复制以下代码：', code);
+      });
+    }
+
+    // 方法3: 显示同源解决方案
+    function showSameOriginSolution() {
+      const output = document.getElementById('sameOriginSolution');
+      output.style.display = 'block';
+      
+      const solution = {
+        problem: '为什么检测方法不行？',
+        explanation: {
+          cookieSharing: {
+            level: 'WebView 层面（自动）',
+            how: '新窗口登录 → Cookie 存储在 WebView → iframe 加载时自动携带 Cookie',
+            result: '✅ UI 显示已登录（因为 iframe 内的页面可以访问 Cookie）'
+          },
+          javascriptAccess: {
+            level: 'JavaScript 层面（受限制）',
+            how: '父页面尝试访问 iframe → 同源策略阻止 → 无法执行 iframe 内的代码',
+            result: '❌ 无法在父页面中执行 iframe 内的 fetch'
+          }
+        },
+        solutions: {
+          solution1: {
+            name: '在 iframe 内创建测试页面',
+            description: '创建一个可以在 iframe 内直接运行的测试页面（使用 Blob URL）',
+            pros: ['可以访问 iframe 的 Cookie', '不受同源策略限制（因为代码在 iframe 内执行）'],
+            cons: ['需要创建独立的测试页面']
+          },
+          solution2: {
+            name: '使用 Bookmarklet',
+            description: '在 Reddit 页面中手动执行检测代码',
+            pros: ['简单直接', '可以访问 Cookie'],
+            cons: ['需要手动操作', '不是自动化的']
+          },
+          solution3: {
+            name: '创建同源测试页面',
+            description: '将测试页面部署到 Reddit 域名下（不现实）或使用代理',
+            pros: ['完全同源，无限制'],
+            cons: ['需要 Reddit 配合或使用代理', '不现实']
+          }
+        },
+        recommendation: '推荐使用方法1：在 iframe 内创建测试页面。这样可以访问 iframe 的 Cookie，不受同源策略限制。'
+      };
+      
+      output.textContent = JSON.stringify(solution, null, 2);
+      output.className = 'result warning';
+    }
+
+    // 方法4: 通过 URL 参数传递
+    function loadWithScriptParam() {
+      const output = document.getElementById('urlParamResult');
+      output.style.display = 'block';
+      output.textContent = '⏳ 尝试通过 URL 参数传递检测脚本...';
+      output.className = 'result warning';
+
+      // 注意：这个方法可能被 CSP 阻止
+      const frame = document.getElementById('testFrame');
+      
+      // 尝试通过 data URL 传递脚本
+      const scriptCode = encodeURIComponent(`
+        fetch('https://oauth.reddit.com/api/v1/me', {credentials:'include'})
+          .then(r=>r.json())
+          .then(d=>{
+            const h=!!(d.name||d.id||d.username);
+            window.parent.postMessage({
+              type:'iframeLoginStatus',
+              loggedIn:h,
+              data:d
+            },'*');
+          });
+      `);
+      
+      // 创建 data URL（可能被 CSP 阻止）
+      const dataURL = `data:text/html,<script>${scriptCode}<\/script>`;
+      
+      try {
+        frame.src = dataURL;
+        frame.style.display = 'block';
+        
+        const handler = (e) => {
+          if (e.data && e.data.type === 'iframeLoginStatus') {
+            window.removeEventListener('message', handler);
+            output.textContent = JSON.stringify(e.data, null, 2);
+            output.className = e.data.loggedIn ? 'result success' : 'result warning';
+          }
+        };
+        window.addEventListener('message', handler);
+        
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          if (output.textContent.includes('尝试')) {
+            output.textContent = '❌ 失败：可能被 CSP（内容安全策略）阻止';
+            output.className = 'result error';
+          }
+        }, 10000);
+      } catch(e) {
+        output.textContent = JSON.stringify({
+          method: 'URL 参数传递',
+          success: false,
+          error: e.message,
+          note: '可能被 CSP 阻止'
+        }, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 监听来自 iframe 的消息
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'iframeLoginStatus') {
+        console.log('收到 iframe 消息:', e.data);
+      }
+    });
+  </script>
+</body>
+</html>
+
