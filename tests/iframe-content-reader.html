@@ -1486,7 +1486,7 @@
       }, 10000);
     }
 
-    // 方法14: 通过 iframe 加载时间推断（侧信道方法）
+    // 方法14: 通过 iframe 加载时间推断（侧信道方法 - 关键发现！）
     function method14_LoadTimeAnalysis() {
       const output = document.getElementById('method14');
       output.style.display = 'block';
@@ -1503,7 +1503,8 @@
       const result = {
         method: '通过 iframe 加载时间推断',
         timestamp: new Date().toISOString(),
-        analysis: {}
+        analysis: {},
+        loginDetection: {}
       };
 
       try {
@@ -1515,18 +1516,46 @@
         );
 
         if (iframeEntry) {
-          result.analysis.loadTime = iframeEntry.duration;
+          const loadTime = iframeEntry.duration;
+          result.analysis.loadTime = loadTime;
           result.analysis.transferSize = iframeEntry.transferSize || 0;
           result.analysis.decodedBodySize = iframeEntry.decodedBodySize || 0;
           result.analysis.encodedBodySize = iframeEntry.encodedBodySize || 0;
           
-          // 分析加载时间
-          if (iframeEntry.duration > 2000) {
-            result.analysis.note = '加载时间较长，可能包含更多内容（已登录页面可能加载更多资源）';
-          } else if (iframeEntry.duration < 1000) {
-            result.analysis.note = '加载时间较短，可能是轻量页面';
+          // 🔍 关键发现：基于实际测试数据的登录状态判断
+          // 已登录：1032ms - 1150ms
+          // 未登录：596ms - 730ms
+          // 阈值：800ms（取中间值）
+          
+          const LOGGED_IN_THRESHOLD = 800; // 毫秒
+          const LOGGED_IN_MIN = 900; // 保守估计
+          const LOGGED_OUT_MAX = 800; // 保守估计
+          
+          result.loginDetection = {
+            loadTime: loadTime,
+            threshold: LOGGED_IN_THRESHOLD,
+            comparison: {
+              loggedInRange: '900ms - 1150ms（基于测试数据）',
+              loggedOutRange: '596ms - 730ms（基于测试数据）'
+            }
+          };
+
+          // 判断登录状态
+          if (loadTime >= LOGGED_IN_MIN) {
+            result.loginDetection.status = '可能已登录';
+            result.loginDetection.confidence = '高';
+            result.loginDetection.reason = `加载时间 ${loadTime.toFixed(0)}ms 超过阈值 ${LOGGED_IN_MIN}ms，符合已登录页面的特征`;
+            result.analysis.note = `🔴 检测到较长的加载时间（${loadTime.toFixed(0)}ms），可能已登录`;
+          } else if (loadTime <= LOGGED_OUT_MAX) {
+            result.loginDetection.status = '可能未登录';
+            result.loginDetection.confidence = '高';
+            result.loginDetection.reason = `加载时间 ${loadTime.toFixed(0)}ms 低于阈值 ${LOGGED_OUT_MAX}ms，符合未登录页面的特征`;
+            result.analysis.note = `🟢 检测到较短的加载时间（${loadTime.toFixed(0)}ms），可能未登录`;
           } else {
-            result.analysis.note = '加载时间正常';
+            result.loginDetection.status = '不确定';
+            result.loginDetection.confidence = '低';
+            result.loginDetection.reason = `加载时间 ${loadTime.toFixed(0)}ms 在中间范围，无法确定`;
+            result.analysis.note = `🟡 加载时间 ${loadTime.toFixed(0)}ms 在中间范围，无法确定登录状态`;
           }
 
           // 检查是否有其他 Reddit 资源
@@ -1552,16 +1581,30 @@
         }
 
         result.success = !!iframeEntry;
-        result.conclusion = iframeEntry 
-          ? '✅ 可以获取加载时间信息（但无法直接推断登录状态，需要对比测试）'
-          : '❌ 无法获取加载时间信息（Performance API 限制）';
+        
+        // 更新结论
+        if (iframeEntry && result.loginDetection.status) {
+          result.conclusion = `✅ 可以获取加载时间信息，${result.loginDetection.status}（置信度：${result.loginDetection.confidence}）`;
+        } else if (iframeEntry) {
+          result.conclusion = '✅ 可以获取加载时间信息（但无法直接推断登录状态，需要对比测试）';
+        } else {
+          result.conclusion = '❌ 无法获取加载时间信息（Performance API 限制）';
+        }
       } catch(e) {
         result.error = e.message;
         result.conclusion = '❌ 分析失败';
       }
 
       output.textContent = JSON.stringify(result, null, 2);
-      output.className = result.success ? 'result success' : 'result warning';
+      
+      // 根据检测结果设置颜色
+      if (result.loginDetection.status === '可能已登录') {
+        output.className = 'result success';
+      } else if (result.loginDetection.status === '可能未登录') {
+        output.className = 'result warning';
+      } else {
+        output.className = result.success ? 'result success' : 'result warning';
+      }
     }
 
     // 运行所有方法
