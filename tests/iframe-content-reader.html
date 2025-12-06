@@ -383,18 +383,27 @@
       }, 2000);
     }
 
-    // 方法4: 检测加载的资源
-    function method4_ResourceDetection() {
+    // 方法4: 检测加载的资源（增强版：分析API请求）
+    async function method4_ResourceDetection() {
       const output = document.getElementById('method4');
       output.style.display = 'block';
       output.textContent = '⏳ 正在检测 iframe 加载的资源...';
       output.className = 'result warning';
 
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
       const result = {
         method: '检测加载的资源',
-        timestamp: new Date().toISOString(),
-        note: '由于浏览器限制，无法直接检测 iframe 加载的资源。但可以通过 Network 面板查看（需要开发者工具）。'
+        timestamp: new Date().toISOString()
       };
+
+      // 等待一段时间，让 iframe 加载并发送请求
+      await new Promise(r => setTimeout(r, 2000));
 
       // 尝试通过 Performance API
       try {
@@ -405,13 +414,82 @@
         
         result.detectedResources = iframeResources.map(entry => ({
           url: entry.name,
-          type: entry.initiatorType,
-          size: entry.transferSize,
-          duration: entry.duration
+          type: entry.initiatorType || 'unknown',
+          size: entry.transferSize || 0,
+          duration: entry.duration || 0
         }));
 
+        // 🔍 关键分析：检测 API 请求
+        const apiRequests = iframeResources.filter(entry => 
+          entry.name.includes('/api/') || 
+          entry.name.includes('oauth.reddit.com')
+        );
+
+        result.apiAnalysis = {
+          totalAPIs: apiRequests.length,
+          apiUrls: apiRequests.map(entry => entry.name),
+          criticalAPIs: []
+        };
+
+        // 分析关键 API
+        for (const apiUrl of apiRequests.map(e => e.name)) {
+          const analysis = {
+            url: apiUrl,
+            isUserAPI: apiUrl.includes('/api/v1/me') || apiUrl.includes('/api/me'),
+            isOAuth: apiUrl.includes('oauth.reddit.com'),
+            potentialLoginIndicator: false
+          };
+
+          if (analysis.isUserAPI) {
+            analysis.potentialLoginIndicator = true;
+            analysis.note = '🔍 这是用户信息 API！如果 iframe 内部调用此 API，说明可能已登录';
+            
+            // 尝试通过 Bridge 获取此 API 的响应（对比）
+            if (typeof window.TXWebKitNativeFetch === 'function') {
+              try {
+                const bridgeResponse = await window.TXWebKitNativeFetch(apiUrl);
+                const status = bridgeResponse.status || bridgeResponse.statusCode || 'unknown';
+                let bodyText = '';
+                if (typeof bridgeResponse.text === 'function') {
+                  bodyText = await bridgeResponse.text();
+                } else if (bridgeResponse.body) {
+                  bodyText = bridgeResponse.body;
+                }
+
+                const bridgeData = JSON.parse(bodyText);
+                const hasUserData = !!(bridgeData.name || bridgeData.id || bridgeData.username);
+                
+                analysis.bridgeComparison = {
+                  status: status,
+                  hasUserData: hasUserData,
+                  fields: Object.keys(bridgeData),
+                  conclusion: hasUserData 
+                    ? '✅ Bridge 可以获取用户信息（说明 Bridge 携带了 Cookie）'
+                    : '❌ Bridge 无法获取用户信息（说明 Bridge 不携带 Cookie，但 iframe 内部可能可以）'
+                };
+              } catch(e) {
+                analysis.bridgeComparison = {
+                  error: e.message,
+                  note: '无法通过 Bridge 访问此 API'
+                };
+              }
+            }
+          }
+
+          result.apiAnalysis.criticalAPIs.push(analysis);
+        }
+
+        // 结论
+        const hasUserAPI = result.apiAnalysis.criticalAPIs.some(api => api.isUserAPI);
+        if (hasUserAPI) {
+          result.conclusion = '🔍 关键发现：检测到用户信息 API 请求！这说明 iframe 内部可能已登录';
+          result.loginIndicator = '可能已登录（检测到 /api/v1/me 请求）';
+        } else {
+          result.conclusion = '未检测到用户信息 API 请求';
+        }
+
         result.success = iframeResources.length > 0;
-        result.note = `检测到 ${iframeResources.length} 个 Reddit 相关资源`;
+        result.note = `检测到 ${iframeResources.length} 个 Reddit 相关资源，其中 ${apiRequests.length} 个 API 请求`;
       } catch(e) {
         result.error = e.message;
       }
