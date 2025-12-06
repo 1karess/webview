@@ -111,9 +111,12 @@
     </div>
 
     <div class="method">
-      <h3>方法 4: 检测 iframe 加载的资源</h3>
-      <button onclick="method4_ResourceDetection()">检测加载的资源</button>
+      <h3>方法 4: 检测加载的资源（关键方法⭐）</h3>
+      <button onclick="method4_ResourceDetection()">🔍 检测资源（2秒）</button>
+      <button onclick="method4_ContinuousMonitoring()" class="success">📡 持续监听API请求（实时）</button>
+      <p><small>✅ 通过 Performance API 检测 iframe 内部的 API 请求，可以推断登录状态</small></p>
       <div id="method4" class="result" style="display:none;"></div>
+      <div id="method4-continuous" class="result" style="display:none;"></div>
     </div>
 
     <div class="method">
