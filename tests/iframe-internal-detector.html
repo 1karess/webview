@@ -85,16 +85,30 @@
   </div>
 
   <div class="card">
-    <h2>方法1: 在 iframe 中加载测试页面（推荐）</h2>
-    <p>将测试代码嵌入到 Reddit URL 中，让 iframe 加载时自动执行检测。</p>
-    <button onclick="loadTestPageInIframe()">在 iframe 中加载测试页面</button>
-    <iframe id="testFrame" style="display:none;"></iframe>
+    <h2>方法1: 在 Reddit iframe 中执行检测（推荐）⭐</h2>
+    <p><strong>工作原理：</strong>先加载 Reddit 到 iframe，然后在 Reddit 页面中注入检测脚本。因为脚本在 Reddit 页面内执行，可以访问 Reddit 的 Cookie。</p>
+    <p><strong>步骤：</strong></p>
+    <ol>
+      <li>点击下方按钮，在 iframe 中加载 Reddit</li>
+      <li>等待 Reddit 加载完成（如果已登录，会显示登录状态）</li>
+      <li>点击"在 Reddit 页面中执行检测"按钮</li>
+    </ol>
+    <button onclick="loadRedditInIframe()" class="success">1️⃣ 在 iframe 中加载 Reddit</button>
+    <button onclick="executeDetectionInRedditIframe()" id="detectBtn" disabled>2️⃣ 在 Reddit 页面中执行检测</button>
+    <iframe id="redditFrame" style="display:none; width: 100%; height: 600px; border: 2px solid #ddd; border-radius: 4px; margin: 10px 0;"></iframe>
     <div id="testResult" class="result" style="display:none;"></div>
   </div>
 
   <div class="card">
-    <h2>方法2: 使用 Bookmarklet（手动方式）</h2>
-    <p>在 Reddit 页面中手动执行检测代码。</p>
+    <h2>方法2: 使用 Bookmarklet（最可靠）⭐</h2>
+    <p><strong>为什么这个方法最可靠？</strong>直接在 Reddit 页面中执行代码，不受同源策略限制，可以访问所有 Cookie。</p>
+    <p><strong>步骤：</strong></p>
+    <ol>
+      <li>在 iframe 中加载 Reddit（或在新窗口中打开 Reddit）</li>
+      <li>点击下方按钮复制 Bookmarklet 代码</li>
+      <li>在 Reddit 页面的地址栏中，删除当前 URL，粘贴代码，按回车</li>
+      <li>会弹出对话框显示登录状态</li>
+    </ol>
     <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0;">
       <p><strong>步骤：</strong></p>
       <ol>
@@ -110,21 +124,187 @@ javascript:(function(){fetch('https://oauth.reddit.com/api/v1/me',{credentials:'
   </div>
 
   <div class="card">
-    <h2>方法3: 创建同源测试页面</h2>
+    <h2>方法3: 在 Reddit 控制台中执行（最简单）⭐</h2>
+    <p><strong>步骤：</strong></p>
+    <ol>
+      <li>在 iframe 中加载 Reddit（或在新窗口中打开 Reddit）</li>
+      <li>在 Reddit 页面中按 F12 打开开发者工具</li>
+      <li>切换到"控制台"（Console）标签</li>
+      <li>复制下方代码，粘贴到控制台，按回车</li>
+      <li>查看输出结果</li>
+    </ol>
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 10px 0;">
+      <p><strong>检测代码：</strong></p>
+      <code style="display: block; padding: 10px; margin: 10px 0; background: white; border: 1px solid #ddd; white-space: pre-wrap; word-break: break-all;">
+fetch('https://oauth.reddit.com/api/v1/me', {credentials: 'include'})
+  .then(r => r.json())
+  .then(data => {
+    const loggedIn = !!(data.name || data.id || data.username);
+    console.log('登录状态:', loggedIn ? '✅ 已登录 - ' + data.name : '❌ 未登录');
+    console.log('完整数据:', data);
+    alert('登录状态: ' + (loggedIn ? '✅ 已登录 - ' + data.name : '❌ 未登录'));
+  })
+  .catch(e => console.error('检测失败:', e));
+      </code>
+      <button onclick="copyConsoleCode()">📋 复制控制台代码</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>方法4: 创建同源测试页面（理论方法）</h2>
     <p>创建一个可以在 Reddit 域名下运行的测试页面（需要部署到 Reddit 或使用代理）。</p>
     <button onclick="showSameOriginSolution()">查看解决方案</button>
     <div id="sameOriginSolution" class="result" style="display:none;"></div>
   </div>
 
   <div class="card">
-    <h2>方法4: 通过 URL 参数传递检测脚本</h2>
+    <h2>方法5: 通过 URL 参数传递检测脚本（实验性）</h2>
     <p>尝试通过 URL 参数将检测代码传递给 iframe（可能被 CSP 阻止）。</p>
     <button onclick="loadWithScriptParam()">通过 URL 参数加载</button>
     <div id="urlParamResult" class="result" style="display:none;"></div>
   </div>
 
   <script>
-    // 方法1: 在 iframe 中加载测试页面
+    let redditFrameLoaded = false;
+
+    // 方法1: 在 iframe 中加载 Reddit
+    function loadRedditInIframe() {
+      const frame = document.getElementById('redditFrame');
+      const detectBtn = document.getElementById('detectBtn');
+      
+      frame.src = 'https://www.reddit.com';
+      frame.style.display = 'block';
+      
+      frame.onload = function() {
+        redditFrameLoaded = true;
+        detectBtn.disabled = false;
+        detectBtn.textContent = '2️⃣ 在 Reddit 页面中执行检测（已就绪）';
+        detectBtn.className = 'success';
+      };
+    }
+
+    // 方法1: 在 Reddit iframe 中执行检测
+    function executeDetectionInRedditIframe() {
+      if (!redditFrameLoaded) {
+        alert('请先加载 Reddit！');
+        return;
+      }
+
+      const frame = document.getElementById('redditFrame');
+      const output = document.getElementById('testResult');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在 Reddit 页面中执行检测...';
+      output.className = 'result warning';
+
+      try {
+        // 尝试访问 iframe 的 window 对象
+        const iframeWindow = frame.contentWindow;
+        const iframeDoc = frame.contentDocument || iframeWindow.document;
+
+        // 创建检测脚本
+        const script = `
+          (function() {
+            fetch('https://oauth.reddit.com/api/v1/me', {
+              credentials: 'include',
+              mode: 'cors',
+              cache: 'no-store'
+            })
+            .then(r => r.json())
+            .then(data => {
+              const hasUserData = !!(data.name || data.id || data.username);
+              window.parent.postMessage({
+                type: 'iframeLoginStatus',
+                method: 'Reddit页面内fetch',
+                success: true,
+                loggedIn: hasUserData,
+                userData: hasUserData ? {
+                  name: data.name,
+                  id: data.id,
+                  username: data.username
+                } : null,
+                allFields: Object.keys(data),
+                fullData: data
+              }, '*');
+            })
+            .catch(e => {
+              window.parent.postMessage({
+                type: 'iframeLoginStatus',
+                method: 'Reddit页面内fetch',
+                success: false,
+                error: e.message
+              }, '*');
+            });
+          })();
+        `;
+
+        // 尝试注入脚本
+        try {
+          // 方法1: 直接 eval（如果同源）
+          iframeWindow.eval(script);
+        } catch(e1) {
+          // 方法2: 通过 script 标签注入
+          try {
+            const scriptEl = iframeDoc.createElement('script');
+            scriptEl.textContent = script;
+            iframeDoc.body.appendChild(scriptEl);
+          } catch(e2) {
+            // 方法3: 通过 URL 参数传递（需要 Reddit 配合，不太可能）
+            throw new Error('无法注入脚本：' + e2.message);
+          }
+        }
+
+        // 监听响应
+        const handler = (e) => {
+          if (e.data && e.data.type === 'iframeLoginStatus') {
+            window.removeEventListener('message', handler);
+            
+            if (e.data.error) {
+              output.textContent = JSON.stringify({
+                method: 'Reddit页面内fetch',
+                success: false,
+                error: e.data.error,
+                note: '可能原因：1. 同源策略阻止脚本注入 2. Reddit 的 CSP 阻止 3. 需要手动在 Reddit 页面中执行检测代码'
+              }, null, 2);
+              output.className = 'result error';
+            } else {
+              const result = e.data;
+              result.conclusion = result.loggedIn 
+                ? '✅ 通过 Reddit 页面内 fetch 检测到登录状态！'
+                : '❌ Reddit 页面内 fetch 也检测不到登录状态';
+              
+              output.textContent = JSON.stringify(result, null, 2);
+              output.className = result.loggedIn ? 'result success' : 'result warning';
+            }
+          }
+        };
+        window.addEventListener('message', handler);
+
+        // 超时处理
+        setTimeout(() => {
+          window.removeEventListener('message', handler);
+          if (output.textContent.includes('正在')) {
+            output.textContent = JSON.stringify({
+              method: 'Reddit页面内fetch',
+              success: false,
+              error: '超时：无法注入脚本或 Reddit 页面没有响应',
+              note: '可能原因：1. 同源策略阻止脚本注入 2. Reddit 的 CSP 阻止\n\n解决方案：使用 Bookmarklet 方法（方法2），在 Reddit 页面中手动执行检测代码'
+            }, null, 2);
+            output.className = 'result error';
+          }
+        }, 10000);
+
+      } catch(e) {
+        output.textContent = JSON.stringify({
+          method: 'Reddit页面内fetch',
+          success: false,
+          error: e.message,
+          note: '无法访问 iframe 内容（同源策略限制）。\n\n解决方案：\n1. 使用 Bookmarklet 方法（方法2），在 Reddit 页面中手动执行\n2. 或者，在 Reddit 页面中打开开发者工具，在控制台中执行：\nfetch("https://oauth.reddit.com/api/v1/me", {credentials:"include"}).then(r=>r.json()).then(d=>console.log(d))'
+        }, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 旧方法1: 在 iframe 中加载测试页面（保留作为备选）
     function loadTestPageInIframe() {
       const frame = document.getElementById('testFrame');
       const output = document.getElementById('testResult');
@@ -247,6 +427,25 @@ javascript:(function(){fetch('https://oauth.reddit.com/api/v1/me',{credentials:'
           output.className = 'result error';
         }
       }, 15000);
+    }
+
+    // 方法3: 复制控制台代码
+    function copyConsoleCode() {
+      const code = `fetch('https://oauth.reddit.com/api/v1/me', {credentials: 'include'})
+  .then(r => r.json())
+  .then(data => {
+    const loggedIn = !!(data.name || data.id || data.username);
+    console.log('登录状态:', loggedIn ? '✅ 已登录 - ' + data.name : '❌ 未登录');
+    console.log('完整数据:', data);
+    alert('登录状态: ' + (loggedIn ? '✅ 已登录 - ' + data.name : '❌ 未登录'));
+  })
+  .catch(e => console.error('检测失败:', e));`;
+      
+      navigator.clipboard.writeText(code).then(() => {
+        alert('控制台代码已复制！\n\n使用方法：\n1. 在 Reddit 页面中按 F12\n2. 切换到"控制台"标签\n3. 粘贴代码并按回车');
+      }).catch(() => {
+        prompt('请复制以下代码：', code);
+      });
     }
 
     // 方法2: 复制 Bookmarklet
