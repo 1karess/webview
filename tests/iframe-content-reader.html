@@ -153,10 +153,12 @@
     </div>
 
     <div class="method">
-      <h3>方法 11: 通过 iframe src 变化检测（实用）</h3>
-      <button onclick="method11_SrcChangeDetection()" class="success">🔍 检测 src 变化</button>
-      <p><small>即使无法访问 location，也可以通过 iframe.src 的变化判断页面跳转</small></p>
+      <h3>方法 11: 通过 iframe src 变化检测（最实用⭐）</h3>
+      <button onclick="method11_SrcChangeDetection()" class="success">🔍 检测 src 变化（5秒）</button>
+      <button onclick="method11_ContinuousMonitoring()" class="success">📡 持续监听URL变化（实时）</button>
+      <p><small>✅ 不受同源策略限制！可以读取 iframe.src 的完整URL信息，检测登录状态</small></p>
       <div id="method11" class="result" style="display:none;"></div>
+      <div id="method11-continuous" class="result" style="display:none;"></div>
     </div>
 
     <div class="method">
@@ -884,6 +886,129 @@
         output.textContent = JSON.stringify(result, null, 2);
         output.className = 'result success';
       }, 5000);
+    }
+
+    // 方法11增强版：持续监听URL变化（实时）
+    let method11_monitoringInterval = null;
+    let method11_monitoringObserver = null;
+    
+    function method11_ContinuousMonitoring() {
+      const output = document.getElementById('method11-continuous');
+      output.style.display = 'block';
+      
+      // 如果已经在监听，先停止
+      if (method11_monitoringInterval || method11_monitoringObserver) {
+        if (method11_monitoringInterval) clearInterval(method11_monitoringInterval);
+        if (method11_monitoringObserver) method11_monitoringObserver.disconnect();
+        method11_monitoringInterval = null;
+        method11_monitoringObserver = null;
+        output.innerHTML = '<p style="color: #666;">⏸️ 已停止监听</p>';
+        return;
+      }
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.innerHTML = '<p style="color: red;">❌ 请先加载 iframe</p>';
+        return;
+      }
+
+      let lastSrc = frame.src;
+      let changeCount = 0;
+      const changes = [];
+      const startTime = new Date().toISOString();
+
+      // 创建结果显示区域
+      const statusDiv = document.createElement('div');
+      statusDiv.style.cssText = 'padding: 10px; background: #f0f0f0; border-radius: 4px; margin: 10px 0;';
+      statusDiv.innerHTML = `
+        <p><strong>📡 实时监听中...</strong> <button onclick="method11_ContinuousMonitoring()" style="float: right; padding: 4px 8px;">停止</button></p>
+        <p>开始时间: ${new Date().toLocaleString()}</p>
+        <p>当前URL: <code>${frame.src}</code></p>
+        <p>变化次数: <span id="change-count">0</span></p>
+        <div id="url-changes" style="max-height: 300px; overflow-y: auto; margin-top: 10px;"></div>
+      `;
+      output.innerHTML = '';
+      output.appendChild(statusDiv);
+      output.className = 'result success';
+
+      const changesDiv = document.getElementById('url-changes');
+      const countSpan = document.getElementById('change-count');
+
+      // 分析URL并显示登录状态
+      function analyzeURL(url) {
+        try {
+          const urlObj = new URL(url);
+          const indicators = {
+            isLoginPage: urlObj.pathname.includes('/login') || urlObj.pathname.includes('/signin'),
+            isUserPage: urlObj.pathname.includes('/user/') || urlObj.pathname.includes('/u/'),
+            isAccountPage: urlObj.pathname.includes('/account') || urlObj.pathname.includes('/settings'),
+            isHomePage: urlObj.pathname === '/' || urlObj.pathname === '',
+            hasQueryParams: urlObj.search.length > 0
+          };
+
+          let status = '未知';
+          let statusEmoji = '❓';
+          if (indicators.isLoginPage) {
+            status = '在登录页面';
+            statusEmoji = '🔐';
+          } else if (indicators.isUserPage || indicators.isAccountPage) {
+            status = '可能在用户相关页面（可能已登录）';
+            statusEmoji = '✅';
+          } else if (indicators.isHomePage) {
+            status = '在主页';
+            statusEmoji = '🏠';
+          }
+
+          return { status, statusEmoji, indicators, pathname: urlObj.pathname };
+        } catch(e) {
+          return { status: '无法解析', statusEmoji: '❌', indicators: {}, pathname: '' };
+        }
+      }
+
+      // 每500ms检查一次URL变化
+      method11_monitoringInterval = setInterval(() => {
+        const currentSrc = frame.src;
+        if (currentSrc !== lastSrc) {
+          changeCount++;
+          const changeTime = new Date().toLocaleString();
+          const analysis = analyzeURL(currentSrc);
+          
+          changes.push({
+            time: changeTime,
+            from: lastSrc,
+            to: currentSrc,
+            analysis: analysis
+          });
+
+          // 更新显示
+          countSpan.textContent = changeCount;
+          const changeItem = document.createElement('div');
+          changeItem.style.cssText = 'padding: 8px; margin: 5px 0; background: white; border-left: 3px solid #0a66c2;';
+          changeItem.innerHTML = `
+            <strong>变化 #${changeCount}</strong> (${changeTime})<br>
+            <small>${analysis.statusEmoji} ${analysis.status}</small><br>
+            <code style="font-size: 11px; color: #666;">${currentSrc}</code>
+          `;
+          changesDiv.insertBefore(changeItem, changesDiv.firstChild);
+
+          // 如果检测到登录相关页面，高亮显示
+          if (analysis.indicators.isUserPage || analysis.indicators.isAccountPage) {
+            changeItem.style.borderLeftColor = '#0a66c2';
+            changeItem.style.background = '#e3f2fd';
+          }
+
+          lastSrc = currentSrc;
+        }
+      }, 500);
+
+      // 同时使用MutationObserver监听src属性变化
+      method11_monitoringObserver = new MutationObserver(function(mutations) {
+        const currentSrc = frame.src;
+        if (currentSrc !== lastSrc) {
+          // 这个变化会被上面的setInterval捕获，这里不需要重复处理
+        }
+      });
+      method11_monitoringObserver.observe(frame, { attributes: true, attributeFilter: ['src'] });
     }
 
     // 方法12: 通过 Bridge 检测 iframe 内的资源
