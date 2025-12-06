@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iframe 内容读取测试工具</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 { color: #333; }
+    h2 { color: #666; margin-top: 0; }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+      width: 100%;
+      max-width: 400px;
+    }
+    button:hover { background: #0056b3; }
+    button.success { background: #28a745; }
+    .result {
+      background: #f8f9fa;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .result.success { border-left-color: #28a745; }
+    .result.error { border-left-color: #dc3545; }
+    .result.warning { border-left-color: #ffc107; }
+    iframe {
+      width: 100%;
+      height: 600px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      margin: 10px 0;
+    }
+    .method {
+      background: #e7f3ff;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 4px;
+      border-left: 4px solid #007bff;
+    }
+    .method h3 { margin-top: 0; color: #0056b3; }
+    .status {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+    .status.success { background: #28a745; color: white; }
+    .status.error { background: #dc3545; color: white; }
+    .status.warning { background: #ffc107; color: #333; }
+  </style>
+</head>
+<body>
+  <h1>🔍 iframe 内容读取测试工具</h1>
+  <p>尝试各种方法读取 iframe 内的内容（不使用控制台）</p>
+
+  <div class="card">
+    <h2>步骤 1: 加载 Reddit 到 iframe</h2>
+    <button onclick="loadReddit()" class="success">在 iframe 中加载 Reddit</button>
+    <iframe id="redditFrame" style="display:none;"></iframe>
+  </div>
+
+  <div class="card">
+    <h2>步骤 2: 尝试读取 iframe 内容</h2>
+    
+    <div class="method">
+      <h3>方法 1: 直接访问 iframe DOM（同源策略限制）</h3>
+      <button onclick="method1_DirectAccess()">尝试直接访问</button>
+      <div id="method1" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 2: 通过 iframe URL 变化检测</h3>
+      <button onclick="method2_URLDetection()">检测 URL 变化</button>
+      <div id="method2" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 3: 通过 postMessage 通信（如果 iframe 支持）</h3>
+      <button onclick="method3_PostMessage()">尝试 postMessage</button>
+      <div id="method3" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 4: 检测 iframe 加载的资源</h3>
+      <button onclick="method4_ResourceDetection()">检测加载的资源</button>
+      <div id="method4" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 5: 通过 iframe 的 referrer 和 location</h3>
+      <button onclick="method5_LocationDetection()">检测 location</button>
+      <div id="method5" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 6: 注入脚本到 iframe（如果可能）</h3>
+      <button onclick="method6_ScriptInjection()">尝试注入脚本</button>
+      <div id="method6" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 7: 通过 iframe 的 title 和 name</h3>
+      <button onclick="method7_TitleDetection()">检测 title</button>
+      <div id="method7" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 8: 通过 iframe 的 contentWindow 属性</h3>
+      <button onclick="method8_WindowProperties()">检测 window 属性</button>
+      <div id="method8" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>步骤 3: 综合测试（一键测试所有方法）</h2>
+    <button onclick="runAllMethods()" class="success" style="font-weight: bold; padding: 15px 30px; font-size: 16px;">🚀 运行所有方法</button>
+    <div id="allMethods" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    let iframeLoaded = false;
+
+    function loadReddit() {
+      const frame = document.getElementById('redditFrame');
+      frame.src = 'https://www.reddit.com';
+      frame.style.display = 'block';
+      iframeLoaded = true;
+      
+      frame.onload = function() {
+        setTimeout(() => {
+          alert('Reddit 已加载到 iframe。\n\n现在可以尝试各种方法读取 iframe 内容。\n\n💡 提示：由于同源策略，大部分方法可能失败，但我们可以尝试。');
+        }, 1000);
+      };
+    }
+
+    // 方法1: 直接访问 iframe DOM
+    function method1_DirectAccess() {
+      const output = document.getElementById('method1');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试直接访问 iframe DOM...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '直接访问 iframe DOM',
+        timestamp: new Date().toISOString(),
+        attempts: []
+      };
+
+      try {
+        // 尝试访问 contentDocument
+        const doc = frame.contentDocument;
+        if (doc) {
+          result.attempts.push({
+            type: 'contentDocument',
+            success: true,
+            title: doc.title,
+            url: doc.URL,
+            bodyText: doc.body ? doc.body.innerText.slice(0, 200) : '无body',
+            note: '✅ 成功访问（同源）'
+          });
+        } else {
+          result.attempts.push({
+            type: 'contentDocument',
+            success: false,
+            error: 'contentDocument 为 null'
+          });
+        }
+      } catch(e) {
+        result.attempts.push({
+          type: 'contentDocument',
+          success: false,
+          error: e.message,
+          note: '❌ 同源策略限制：' + e.message
+        });
+      }
+
+      try {
+        // 尝试访问 contentWindow
+        const win = frame.contentWindow;
+        if (win) {
+          result.attempts.push({
+            type: 'contentWindow',
+            success: true,
+            location: win.location ? win.location.href : '无法访问',
+            note: win.location ? '✅ 可以访问 location' : '⚠️ 可以访问 window，但无法访问 location（同源策略）'
+          });
+        }
+      } catch(e) {
+        result.attempts.push({
+          type: 'contentWindow',
+          success: false,
+          error: e.message
+        });
+      }
+
+      result.conclusion = result.attempts.some(a => a.success) 
+        ? '✅ 可以访问 iframe 内容（同源）'
+        : '❌ 无法访问 iframe 内容（不同源，受同源策略限制）';
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.attempts.some(a => a.success) ? 'result success' : 'result error';
+    }
+
+    // 方法2: 通过 URL 变化检测
+    function method2_URLDetection() {
+      const output = document.getElementById('method2');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe URL 变化...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 URL 变化检测',
+        timestamp: new Date().toISOString(),
+        currentURL: frame.src,
+        detected: {}
+      };
+
+      try {
+        // 尝试访问 location
+        const win = frame.contentWindow;
+        if (win && win.location) {
+          result.detected.currentURL = win.location.href;
+          result.detected.hostname = win.location.hostname;
+          result.detected.pathname = win.location.pathname;
+          result.detected.search = win.location.search;
+          result.success = true;
+          result.note = '✅ 可以访问 iframe 的 URL（同源）';
+        } else {
+          result.detected.currentURL = frame.src;
+          result.success = false;
+          result.note = '⚠️ 只能访问 iframe 的 src 属性，无法访问内部 location（不同源）';
+        }
+      } catch(e) {
+        result.error = e.message;
+        result.note = '❌ 无法访问 iframe 的 location（同源策略限制）';
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法3: postMessage 通信
+    function method3_PostMessage() {
+      const output = document.getElementById('method3');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试 postMessage 通信...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: 'postMessage 通信',
+        timestamp: new Date().toISOString(),
+        attempts: []
+      };
+
+      // 监听消息
+      let messageReceived = false;
+      const messageHandler = function(e) {
+        messageReceived = true;
+        result.attempts.push({
+          type: '收到消息',
+          origin: e.origin,
+          data: e.data,
+          source: e.source === frame.contentWindow ? 'iframe' : '其他'
+        });
+      };
+      window.addEventListener('message', messageHandler);
+
+      // 尝试发送消息
+      try {
+        const win = frame.contentWindow;
+        if (win) {
+          win.postMessage({ type: 'requestUserData', action: 'getUserInfo' }, '*');
+          result.attempts.push({
+            type: '发送消息',
+            success: true,
+            note: '已发送消息到 iframe'
+          });
+        }
+      } catch(e) {
+        result.attempts.push({
+          type: '发送消息',
+          success: false,
+          error: e.message
+        });
+      }
+
+      // 等待响应
+      setTimeout(() => {
+        window.removeEventListener('message', messageHandler);
+        result.messageReceived = messageReceived;
+        result.conclusion = messageReceived 
+          ? '✅ iframe 响应了消息（可能支持 postMessage）'
+          : '❌ iframe 没有响应消息（可能不支持或需要特定格式）';
+        
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = messageReceived ? 'result success' : 'result warning';
+      }, 2000);
+    }
+
+    // 方法4: 检测加载的资源
+    function method4_ResourceDetection() {
+      const output = document.getElementById('method4');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe 加载的资源...';
+      output.className = 'result warning';
+
+      const result = {
+        method: '检测加载的资源',
+        timestamp: new Date().toISOString(),
+        note: '由于浏览器限制，无法直接检测 iframe 加载的资源。但可以通过 Network 面板查看（需要开发者工具）。'
+      };
+
+      // 尝试通过 Performance API
+      try {
+        const perfEntries = performance.getEntriesByType('resource');
+        const iframeResources = perfEntries.filter(entry => 
+          entry.name.includes('reddit.com')
+        );
+        
+        result.detectedResources = iframeResources.map(entry => ({
+          url: entry.name,
+          type: entry.initiatorType,
+          size: entry.transferSize,
+          duration: entry.duration
+        }));
+
+        result.success = iframeResources.length > 0;
+        result.note = `检测到 ${iframeResources.length} 个 Reddit 相关资源`;
+      } catch(e) {
+        result.error = e.message;
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法5: 检测 location
+    function method5_LocationDetection() {
+      const output = document.getElementById('method5');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe location...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '检测 location',
+        timestamp: new Date().toISOString(),
+        src: frame.src
+      };
+
+      try {
+        const win = frame.contentWindow;
+        if (win && win.location) {
+          result.location = {
+            href: win.location.href,
+            hostname: win.location.hostname,
+            pathname: win.location.pathname,
+            search: win.location.search,
+            hash: win.location.hash
+          };
+          result.success = true;
+          result.note = '✅ 可以访问 location（同源）';
+        } else {
+          result.success = false;
+          result.note = '⚠️ 无法访问 location（不同源）';
+        }
+      } catch(e) {
+        result.error = e.message;
+        result.note = '❌ 同源策略限制：' + e.message;
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法6: 注入脚本
+    function method6_ScriptInjection() {
+      const output = document.getElementById('method6');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在尝试注入脚本到 iframe...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '注入脚本',
+        timestamp: new Date().toISOString(),
+        attempts: []
+      };
+
+      try {
+        const doc = frame.contentDocument;
+        if (doc) {
+          // 同源，可以注入
+          const script = doc.createElement('script');
+          script.textContent = `
+            (function() {
+              try {
+                const userInfo = {
+                  title: document.title,
+                  url: window.location.href,
+                  hasNotification: !!document.querySelector('[aria-label*="notification"], [aria-label*="通知"]'),
+                  hasUserAvatar: !!document.querySelector('[aria-label*="user"], [aria-label*="用户"]'),
+                  bodyText: document.body ? document.body.innerText.slice(0, 500) : ''
+                };
+                window.parent.postMessage({ type: 'iframeUserData', data: userInfo }, '*');
+              } catch(e) {
+                window.parent.postMessage({ type: 'iframeError', error: e.message }, '*');
+              }
+            })();
+          `;
+          doc.body.appendChild(script);
+          
+          result.attempts.push({
+            type: '注入脚本',
+            success: true,
+            note: '✅ 成功注入脚本（同源）'
+          });
+
+          // 监听响应
+          let messageReceived = false;
+          const handler = function(e) {
+            if (e.data && e.data.type === 'iframeUserData') {
+              messageReceived = true;
+              result.receivedData = e.data.data;
+              window.removeEventListener('message', handler);
+            }
+          };
+          window.addEventListener('message', handler);
+
+          setTimeout(() => {
+            result.messageReceived = messageReceived;
+            result.conclusion = messageReceived 
+              ? '✅ 成功读取 iframe 内容'
+              : '⚠️ 脚本已注入，但未收到响应';
+            
+            output.textContent = JSON.stringify(result, null, 2);
+            output.className = messageReceived ? 'result success' : 'result warning';
+          }, 2000);
+        } else {
+          result.attempts.push({
+            type: '注入脚本',
+            success: false,
+            error: '无法访问 contentDocument（不同源）',
+            note: '❌ 同源策略限制'
+          });
+          output.textContent = JSON.stringify(result, null, 2);
+          output.className = 'result error';
+        }
+      } catch(e) {
+        result.attempts.push({
+          type: '注入脚本',
+          success: false,
+          error: e.message
+        });
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = 'result error';
+      }
+    }
+
+    // 方法7: 检测 title
+    function method7_TitleDetection() {
+      const output = document.getElementById('method7');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe title...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '检测 title',
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        const doc = frame.contentDocument;
+        if (doc) {
+          result.title = doc.title;
+          result.success = true;
+          result.note = '✅ 可以访问 title（同源）';
+        } else {
+          result.success = false;
+          result.note = '⚠️ 无法访问 title（不同源）';
+        }
+      } catch(e) {
+        result.error = e.message;
+        result.note = '❌ 同源策略限制';
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法8: 检测 window 属性
+    function method8_WindowProperties() {
+      const output = document.getElementById('method8');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在检测 iframe window 属性...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '检测 window 属性',
+        timestamp: new Date().toISOString(),
+        accessible: {}
+      };
+
+      try {
+        const win = frame.contentWindow;
+        if (win) {
+          result.accessible.windowExists = true;
+          
+          // 尝试访问各种属性
+          const properties = ['location', 'document', 'navigator', 'localStorage', 'sessionStorage'];
+          properties.forEach(prop => {
+            try {
+              const value = win[prop];
+              result.accessible[prop] = value ? '可访问' : 'null';
+            } catch(e) {
+              result.accessible[prop] = '无法访问: ' + e.message;
+            }
+          });
+
+          result.success = true;
+          result.note = '✅ 可以访问 window（但某些属性可能受同源策略限制）';
+        } else {
+          result.success = false;
+          result.note = '❌ 无法访问 contentWindow';
+        }
+      } catch(e) {
+        result.error = e.message;
+        result.note = '❌ 同源策略限制';
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 运行所有方法
+    async function runAllMethods() {
+      const output = document.getElementById('allMethods');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在运行所有方法，请稍候...';
+      output.className = 'result warning';
+
+      const results = {
+        timestamp: new Date().toISOString(),
+        methods: {}
+      };
+
+      // 运行所有方法
+      output.textContent = '⏳ 方法1/8: 直接访问...';
+      method1_DirectAccess();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法2/8: URL检测...';
+      method2_URLDetection();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法3/8: postMessage...';
+      method3_PostMessage();
+      await new Promise(r => setTimeout(r, 2500));
+
+      output.textContent = '⏳ 方法4/8: 资源检测...';
+      method4_ResourceDetection();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法5/8: location检测...';
+      method5_LocationDetection();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法6/8: 脚本注入...';
+      method6_ScriptInjection();
+      await new Promise(r => setTimeout(r, 2500));
+
+      output.textContent = '⏳ 方法7/8: title检测...';
+      method7_TitleDetection();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法8/8: window属性...';
+      method8_WindowProperties();
+      await new Promise(r => setTimeout(r, 500));
+
+      // 收集所有结果
+      const methodOutputs = ['method1', 'method2', 'method3', 'method4', 'method5', 'method6', 'method7', 'method8'];
+      methodOutputs.forEach((id, index) => {
+        const el = document.getElementById(id);
+        if (el && el.textContent) {
+          try {
+            results.methods[`方法${index + 1}`] = JSON.parse(el.textContent);
+          } catch(e) {
+            results.methods[`方法${index + 1}`] = { raw: el.textContent };
+          }
+        }
+      });
+
+      // 分析结果
+      const successfulMethods = Object.entries(results.methods)
+        .filter(([name, data]) => data.success || (data.attempts && data.attempts.some(a => a.success)))
+        .map(([name]) => name);
+
+      results.summary = {
+        totalMethods: 8,
+        successfulMethods: successfulMethods,
+        conclusion: successfulMethods.length > 0
+          ? `✅ 找到 ${successfulMethods.length} 个可以读取 iframe 内容的方法`
+          : '❌ 所有方法都无法读取 iframe 内容（受同源策略限制）'
+      };
+
+      output.textContent = JSON.stringify(results, null, 2);
+      output.className = successfulMethods.length > 0 ? 'result success' : 'result warning';
+    }
+  </script>
+</body>
+</html>
+
