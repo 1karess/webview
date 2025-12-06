@@ -151,6 +151,27 @@
       <button onclick="method10_NavigationListener()">监听导航</button>
       <div id="method10" class="result" style="display:none;"></div>
     </div>
+
+    <div class="method">
+      <h3>方法 11: 通过 iframe src 变化检测（实用）</h3>
+      <button onclick="method11_SrcChangeDetection()" class="success">🔍 检测 src 变化</button>
+      <p><small>即使无法访问 location，也可以通过 iframe.src 的变化判断页面跳转</small></p>
+      <div id="method11" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 12: 通过 Bridge 检测 iframe 内的资源</h3>
+      <button onclick="method12_BridgeResourceDetection()">Bridge 资源检测</button>
+      <p><small>使用 Bridge 访问 iframe 内的 API，检测登录状态</small></p>
+      <div id="method12" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 13: 通过 iframe 尺寸变化检测</h3>
+      <button onclick="method13_SizeDetection()">检测尺寸变化</button>
+      <p><small>某些内容可能导致 iframe 尺寸变化</small></p>
+      <div id="method13" class="result" style="display:none;"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -831,12 +852,24 @@
       method9_URLBasedDetection();
       await new Promise(r => setTimeout(r, 500));
 
-      output.textContent = '⏳ 方法10/10: 导航监听...';
+      output.textContent = '⏳ 方法10/13: 导航监听...';
       method10_NavigationListener();
       await new Promise(r => setTimeout(r, 3500));
 
+      output.textContent = '⏳ 方法11/13: src变化检测（实用）...';
+      method11_SrcChangeDetection();
+      await new Promise(r => setTimeout(r, 5500));
+
+      output.textContent = '⏳ 方法12/13: Bridge资源检测...';
+      method12_BridgeResourceDetection();
+      await new Promise(r => setTimeout(r, 2000));
+
+      output.textContent = '⏳ 方法13/13: 尺寸变化检测...';
+      method13_SizeDetection();
+      await new Promise(r => setTimeout(r, 10500));
+
       // 收集所有结果
-      const methodOutputs = ['method1', 'method2', 'method3', 'method4', 'method5', 'method6', 'method7', 'method8', 'method9', 'method10'];
+      const methodOutputs = ['method1', 'method2', 'method3', 'method4', 'method5', 'method6', 'method7', 'method8', 'method9', 'method10', 'method11', 'method12', 'method13'];
       methodOutputs.forEach((id, index) => {
         const el = document.getElementById(id);
         if (el && el.textContent) {
@@ -853,15 +886,21 @@
         .filter(([name, data]) => data.success || (data.attempts && data.attempts.some(a => a.success)))
         .map(([name]) => name);
 
+      // 找出实用方法
+      const practicalMethods = successfulMethods.filter(m => 
+        m.includes('方法11') || m.includes('方法12') || m.includes('方法8')
+      );
+
       results.summary = {
-        totalMethods: 10,
+        totalMethods: 13,
         successfulMethods: successfulMethods,
+        practicalMethods: practicalMethods,
         conclusion: successfulMethods.length > 0
           ? `✅ 找到 ${successfulMethods.length} 个可以读取 iframe 内容的方法`
           : '❌ 所有方法都无法读取 iframe 内容（受同源策略限制）',
-        practicalMethods: successfulMethods.filter(m => m.includes('方法9') || m.includes('方法8')).length > 0
-          ? '🔍 关键发现：方法8（window属性）和方法9（URL检测）可能可以获取有用信息'
-          : ''
+        recommendation: practicalMethods.length > 0
+          ? `🔍 推荐使用：${practicalMethods.join('、')}（这些方法最实用）`
+          : '⚠️ 所有方法都受同源策略限制，无法直接读取 iframe 内容'
       };
 
       output.textContent = JSON.stringify(results, null, 2);
