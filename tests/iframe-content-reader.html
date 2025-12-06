@@ -177,6 +177,13 @@
       <p><small>某些内容可能导致 iframe 尺寸变化</small></p>
       <div id="method13" class="result" style="display:none;"></div>
     </div>
+
+    <div class="method">
+      <h3>方法 14: 通过 iframe 加载时间推断（侧信道）</h3>
+      <button onclick="method14_LoadTimeAnalysis()" class="success">⏱️ 分析加载时间</button>
+      <p><small>已登录的页面可能加载时间不同（需要对比测试）</small></p>
+      <div id="method14" class="result" style="display:none;"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -620,6 +627,40 @@
       function checkExistingResources() {
         try {
           const perfEntries = performance.getEntriesByType('resource');
+          
+          // 诊断：显示所有资源（用于调试）
+          const allResources = perfEntries.map(entry => ({
+            url: entry.name,
+            type: entry.initiatorType || 'unknown',
+            size: entry.transferSize || 0
+          }));
+          
+          // 显示诊断信息
+          if (detectedAPIs.size === 0 && allResources.length > 0) {
+            const debugInfo = document.getElementById('debug-info');
+            if (!debugInfo) {
+              const debugDiv = document.createElement('div');
+              debugDiv.id = 'debug-info';
+              debugDiv.style.cssText = 'margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; font-size: 12px;';
+              debugDiv.innerHTML = `
+                <strong>🔍 诊断信息：</strong><br>
+                <p>Performance API 总资源数: ${perfEntries.length}</p>
+                <p>Reddit 相关资源: ${perfEntries.filter(e => e.name.includes('reddit.com')).length}</p>
+                <p>⚠️ 可能原因：</p>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                  <li>Performance API 在 WebView 中可能无法检测跨域 iframe 的请求</li>
+                  <li>API 请求可能在 iframe 加载前就已完成</li>
+                  <li>或者需要特殊的权限/设置</li>
+                </ul>
+                <details>
+                  <summary style="cursor: pointer; color: #666;">查看所有检测到的资源（前10个）</summary>
+                  <pre style="font-size: 10px; max-height: 200px; overflow-y: auto; background: white; padding: 5px; margin-top: 5px;">${JSON.stringify(allResources.slice(0, 10), null, 2)}</pre>
+                </details>
+              `;
+              statusDiv.appendChild(debugDiv);
+            }
+          }
+          
           const redditResources = perfEntries.filter(entry => 
             entry.name.includes('reddit.com')
           );
@@ -1443,6 +1484,84 @@
         output.textContent = JSON.stringify(result, null, 2);
         output.className = result.changes.length > 0 ? 'result success' : 'result warning';
       }, 10000);
+    }
+
+    // 方法14: 通过 iframe 加载时间推断（侧信道方法）
+    function method14_LoadTimeAnalysis() {
+      const output = document.getElementById('method14');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在分析 iframe 加载时间...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 iframe 加载时间推断',
+        timestamp: new Date().toISOString(),
+        analysis: {}
+      };
+
+      try {
+        // 从 Performance API 获取 iframe 加载时间
+        const perfEntries = performance.getEntriesByType('resource');
+        const iframeEntry = perfEntries.find(entry => 
+          entry.name.includes('reddit.com') && 
+          (entry.initiatorType === 'iframe' || entry.name === frame.src)
+        );
+
+        if (iframeEntry) {
+          result.analysis.loadTime = iframeEntry.duration;
+          result.analysis.transferSize = iframeEntry.transferSize || 0;
+          result.analysis.decodedBodySize = iframeEntry.decodedBodySize || 0;
+          result.analysis.encodedBodySize = iframeEntry.encodedBodySize || 0;
+          
+          // 分析加载时间
+          if (iframeEntry.duration > 2000) {
+            result.analysis.note = '加载时间较长，可能包含更多内容（已登录页面可能加载更多资源）';
+          } else if (iframeEntry.duration < 1000) {
+            result.analysis.note = '加载时间较短，可能是轻量页面';
+          } else {
+            result.analysis.note = '加载时间正常';
+          }
+
+          // 检查是否有其他 Reddit 资源
+          const allRedditResources = perfEntries.filter(entry => 
+            entry.name.includes('reddit.com')
+          );
+          result.analysis.totalRedditResources = allRedditResources.length;
+          result.analysis.resourceUrls = allRedditResources.map(e => e.name);
+
+          if (allRedditResources.length > 1) {
+            result.analysis.note += `（检测到 ${allRedditResources.length} 个 Reddit 相关资源）`;
+          }
+        } else {
+          result.analysis.error = '无法从 Performance API 获取 iframe 加载信息';
+          result.analysis.note = '⚠️ Performance API 可能无法检测跨域 iframe 的详细信息';
+        }
+
+        // 尝试通过其他方式获取加载时间
+        const loadStart = frame.getAttribute('data-load-start');
+        if (loadStart) {
+          const loadDuration = Date.now() - parseInt(loadStart);
+          result.analysis.estimatedLoadTime = loadDuration;
+        }
+
+        result.success = !!iframeEntry;
+        result.conclusion = iframeEntry 
+          ? '✅ 可以获取加载时间信息（但无法直接推断登录状态，需要对比测试）'
+          : '❌ 无法获取加载时间信息（Performance API 限制）';
+      } catch(e) {
+        result.error = e.message;
+        result.conclusion = '❌ 分析失败';
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
     }
 
     // 运行所有方法
