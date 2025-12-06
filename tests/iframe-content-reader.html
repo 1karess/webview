@@ -139,6 +139,18 @@
       <button onclick="method8_WindowProperties()">检测 window 属性</button>
       <div id="method8" class="result" style="display:none;"></div>
     </div>
+
+    <div class="method">
+      <h3>方法 9: 通过 URL 变化检测登录状态（实用方法）</h3>
+      <button onclick="method9_URLBasedDetection()" class="success">🔍 检测 URL 变化（推荐）</button>
+      <div id="method9" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="method">
+      <h3>方法 10: 监听 iframe 导航事件</h3>
+      <button onclick="method10_NavigationListener()">监听导航</button>
+      <div id="method10" class="result" style="display:none;"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -584,18 +596,42 @@
           result.accessible.windowExists = true;
           
           // 尝试访问各种属性
-          const properties = ['location', 'document', 'navigator', 'localStorage', 'sessionStorage'];
+          const properties = ['location', 'document', 'navigator', 'localStorage', 'sessionStorage', 'history', 'screen'];
           properties.forEach(prop => {
             try {
               const value = win[prop];
-              result.accessible[prop] = value ? '可访问' : 'null';
+              if (prop === 'location' && value) {
+                // location 可以访问！尝试读取详细信息
+                try {
+                  result.accessible[prop] = {
+                    status: '可访问',
+                    href: value.href,
+                    hostname: value.hostname,
+                    pathname: value.pathname,
+                    search: value.search,
+                    hash: value.hash
+                  };
+                } catch(e2) {
+                  result.accessible[prop] = '可访问但无法读取属性: ' + e2.message;
+                }
+              } else {
+                result.accessible[prop] = value ? '可访问' : 'null';
+              }
             } catch(e) {
               result.accessible[prop] = '无法访问: ' + e.message;
             }
           });
 
+          // 关键发现：如果 location 可以访问，尝试读取更多信息
+          if (result.accessible.location && result.accessible.location.status === '可访问') {
+            result.criticalFinding = '🔍 关键发现：可以访问 iframe 的 location！';
+            result.locationInfo = result.accessible.location;
+            result.note = '✅ 可以访问 window 和 location（可以通过 URL 变化检测登录状态）';
+          } else {
+            result.note = '✅ 可以访问 window（但某些属性可能受同源策略限制）';
+          }
+
           result.success = true;
-          result.note = '✅ 可以访问 window（但某些属性可能受同源策略限制）';
         } else {
           result.success = false;
           result.note = '❌ 无法访问 contentWindow';
@@ -607,6 +643,143 @@
 
       output.textContent = JSON.stringify(result, null, 2);
       output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法9: 通过 URL 变化检测登录状态（实用方法）
+    function method9_URLBasedDetection() {
+      const output = document.getElementById('method9');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在通过 URL 检测登录状态...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '通过 URL 变化检测登录状态',
+        timestamp: new Date().toISOString(),
+        detection: {}
+      };
+
+      // 尝试访问 location
+      try {
+        const win = frame.contentWindow;
+        if (win && win.location) {
+          const loc = win.location;
+          
+          result.detection.currentURL = loc.href;
+          result.detection.hostname = loc.hostname;
+          result.detection.pathname = loc.pathname;
+          result.detection.search = loc.search;
+          result.detection.hash = loc.hash;
+
+          // 分析 URL 判断登录状态
+          const url = loc.href;
+          const indicators = {
+            hasLoginPath: url.includes('/login') || url.includes('/signin'),
+            hasUserPath: url.includes('/user/') || url.includes('/u/'),
+            hasAccountPath: url.includes('/account') || url.includes('/settings'),
+            hasMessagesPath: url.includes('/message') || url.includes('/inbox'),
+            isHomePage: url === 'https://www.reddit.com/' || url === 'https://www.reddit.com',
+            hasQueryParams: loc.search.length > 0
+          };
+
+          result.detection.indicators = indicators;
+
+          // 判断登录状态
+          let loginStatus = '未知';
+          if (indicators.hasLoginPath) {
+            loginStatus = '可能在登录页面';
+          } else if (indicators.hasUserPath || indicators.hasAccountPath || indicators.hasMessagesPath) {
+            loginStatus = '可能已登录（有用户相关路径）';
+          } else if (indicators.isHomePage) {
+            loginStatus = '在主页（无法确定登录状态）';
+          }
+
+          result.detection.loginStatus = loginStatus;
+          result.success = true;
+          result.note = '✅ 可以访问 location，可以通过 URL 判断页面状态';
+        } else {
+          result.success = false;
+          result.note = '⚠️ 无法访问 location';
+        }
+      } catch(e) {
+        result.error = e.message;
+        result.note = '❌ 同源策略限制';
+      }
+
+      output.textContent = JSON.stringify(result, null, 2);
+      output.className = result.success ? 'result success' : 'result warning';
+    }
+
+    // 方法10: 监听 iframe 导航事件
+    function method10_NavigationListener() {
+      const output = document.getElementById('method10');
+      output.style.display = 'block';
+      output.textContent = '⏳ 正在监听 iframe 导航事件...';
+      output.className = 'result warning';
+
+      const frame = document.getElementById('redditFrame');
+      if (!iframeLoaded || !frame.src) {
+        output.textContent = '❌ 请先加载 iframe';
+        output.className = 'result error';
+        return;
+      }
+
+      const result = {
+        method: '监听 iframe 导航事件',
+        timestamp: new Date().toISOString(),
+        events: []
+      };
+
+      // 记录初始 URL
+      let lastURL = frame.src;
+      result.initialURL = lastURL;
+
+      // 监听 iframe 的 load 事件
+      frame.addEventListener('load', function() {
+        const currentURL = frame.src;
+        if (currentURL !== lastURL) {
+          result.events.push({
+            type: 'URL变化',
+            from: lastURL,
+            to: currentURL,
+            timestamp: new Date().toISOString()
+          });
+          lastURL = currentURL;
+        }
+      });
+
+      // 尝试通过 location 监听
+      try {
+        const win = frame.contentWindow;
+        if (win && win.location) {
+          result.canAccessLocation = true;
+          result.currentLocation = win.location.href;
+          result.note = '✅ 可以访问 location，可以监听 URL 变化';
+        } else {
+          result.canAccessLocation = false;
+          result.note = '⚠️ 无法访问 location，只能监听 load 事件';
+        }
+      } catch(e) {
+        result.canAccessLocation = false;
+        result.error = e.message;
+      }
+
+      // 等待一段时间收集事件
+      setTimeout(() => {
+        result.eventsCollected = result.events.length;
+        result.conclusion = result.events.length > 0
+          ? `✅ 检测到 ${result.events.length} 个导航事件`
+          : '⚠️ 未检测到导航事件（可能页面没有跳转）';
+        
+        output.textContent = JSON.stringify(result, null, 2);
+        output.className = result.events.length > 0 ? 'result success' : 'result warning';
+      }, 3000);
     }
 
     // 运行所有方法
@@ -650,12 +823,20 @@
       method7_TitleDetection();
       await new Promise(r => setTimeout(r, 500));
 
-      output.textContent = '⏳ 方法8/8: window属性...';
+      output.textContent = '⏳ 方法8/10: window属性...';
       method8_WindowProperties();
       await new Promise(r => setTimeout(r, 500));
 
+      output.textContent = '⏳ 方法9/10: URL检测（实用）...';
+      method9_URLBasedDetection();
+      await new Promise(r => setTimeout(r, 500));
+
+      output.textContent = '⏳ 方法10/10: 导航监听...';
+      method10_NavigationListener();
+      await new Promise(r => setTimeout(r, 3500));
+
       // 收集所有结果
-      const methodOutputs = ['method1', 'method2', 'method3', 'method4', 'method5', 'method6', 'method7', 'method8'];
+      const methodOutputs = ['method1', 'method2', 'method3', 'method4', 'method5', 'method6', 'method7', 'method8', 'method9', 'method10'];
       methodOutputs.forEach((id, index) => {
         const el = document.getElementById(id);
         if (el && el.textContent) {
@@ -673,11 +854,14 @@
         .map(([name]) => name);
 
       results.summary = {
-        totalMethods: 8,
+        totalMethods: 10,
         successfulMethods: successfulMethods,
         conclusion: successfulMethods.length > 0
           ? `✅ 找到 ${successfulMethods.length} 个可以读取 iframe 内容的方法`
-          : '❌ 所有方法都无法读取 iframe 内容（受同源策略限制）'
+          : '❌ 所有方法都无法读取 iframe 内容（受同源策略限制）',
+        practicalMethods: successfulMethods.filter(m => m.includes('方法9') || m.includes('方法8')).length > 0
+          ? '🔍 关键发现：方法8（window属性）和方法9（URL检测）可能可以获取有用信息'
+          : ''
       };
 
       output.textContent = JSON.stringify(results, null, 2);
