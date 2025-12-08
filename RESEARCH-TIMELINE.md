@@ -271,14 +271,65 @@
 ### 方法分类
 
 #### 方法1-3：直接访问方法（都失败）
-- **方法1**：直接访问iframe DOM → 同源策略阻止
-- **方法2**：检测URL变化 → 同源策略阻止
-- **方法3**：postMessage通信 → Reddit不支持
+
+**方法1：直接访问iframe DOM**
+- **原理**：尝试直接访问`iframe.contentDocument`和`iframe.contentWindow`
+- **代码**：
+  ```javascript
+  const doc = frame.contentDocument;  // 尝试访问文档
+  const win = frame.contentWindow;   // 尝试访问窗口
+  ```
+- **结果**：❌ 失败
+- **错误**：`Blocked a frame with origin "..." from accessing a cross-origin frame`
+- **原因**：同源策略限制，无法访问跨域iframe的DOM
+
+**方法2：通过iframe URL变化检测**
+- **原理**：尝试访问`iframe.contentWindow.location`来检测URL变化
+- **结果**：❌ 失败
+- **原因**：同源策略限制，无法访问跨域iframe的location对象
+
+**方法3：通过postMessage通信**
+- **原理**：使用`postMessage` API向iframe发送消息，等待响应
+- **代码**：
+  ```javascript
+  frame.contentWindow.postMessage('getUserInfo', '*');
+  window.addEventListener('message', (event) => {
+    // 接收iframe的响应
+  });
+  ```
+- **结果**：⚠️ 部分成功（可以发送消息，但Reddit不支持postMessage通信）
+- **原因**：需要iframe内部主动监听并响应消息，Reddit没有实现
 
 #### 方法4：检测加载的资源（不稳定）
 - **原理**：使用Performance API检测iframe内部的API请求
-- **结果**：第一次成功检测到`/api/v1/me`请求，但后续无法复现
-- **原因**：Performance API在WebView中可能受限
+- **第一次测试成功**（2025-12-06 02:38:03）：
+  ```json
+  {
+    "detectedResources": [
+      {
+        "url": "https://www.reddit.com/",
+        "type": "iframe",
+        "duration": 1042
+      },
+      {
+        "url": "https://oauth.reddit.com/api/v1/me",
+        "type": "fetch",
+        "duration": 185
+      }
+    ]
+  }
+  ```
+  - ✅ 成功检测到了`/api/v1/me`请求（Reddit的用户信息API）
+  - ✅ 说明iframe内部确实在尝试获取用户信息
+- **后续测试失败**：
+  - ❌ 即使滚动、点击，也无法检测到API请求
+  - ❌ 持续监听也无法检测到
+- **原因分析**：
+  1. Performance API在WebView中可能受限
+  2. 跨域iframe的请求可能不会出现在父页面的Performance API中
+  3. 请求时机问题：API请求可能在iframe加载前就已完成
+  4. WebView可能出于隐私保护，限制了跨域请求的可见性
+- **结论**：Performance API检测不可靠，不能作为稳定的检测方法
 
 #### 方法5-10：其他直接访问方法（都失败）
 - 方法5-7：location、脚本注入、title → 同源策略阻止
@@ -286,17 +337,46 @@
 - 方法9-10：URL检测、导航事件 → 同源策略阻止
 
 #### 方法11：src变化检测（成功但有限）
-- **原理**：直接读取`iframe.src`（不受同源策略限制）
-- **结果**：可以读取URL信息
-- **限制**：Reddit是SPA，URL不变，无法判断登录状态
+- **原理**：直接读取`iframe.src`属性（DOM属性，不受同源策略限制）
+- **代码**：
+  ```javascript
+  const currentSrc = frame.src;  // 不受同源策略限制！
+  const url = new URL(currentSrc);
+  // 分析URL路径，判断是否在登录页、用户页等
+  ```
+- **结果**：✅ 成功，但有限制
+  - ✅ 可以读取完整的URL信息
+  - ✅ 可以分析URL路径（如`/login`、`/user/xxx`）
+  - ❌ 对于Reddit（SPA），URL不变，无法判断登录状态
+- **发现**：这是最实用的方法之一，不受同源策略限制，但对于SPA（单页应用），URL不会变化
 
 #### 方法12：Bridge检测（失败）
-- **原理**：使用Bridge访问Reddit API
-- **结果**：Bridge可用，但不携带Cookie，返回匿名数据
+- **原理**：使用`TXWebKitNativeFetch`（Bridge）直接访问Reddit API
+- **代码**：
+  ```javascript
+  const response = await window.TXWebKitNativeFetch('https://oauth.reddit.com/api/v1/me');
+  const data = await response.json();
+  // 检查是否有用户信息
+  ```
+- **结果**：❌ 失败
+  - ✅ Bridge可用，可以访问API
+  - ❌ 返回的数据只有`{"features": {}}`，没有用户信息
+  - **原因**：Bridge**不携带Cookie**，所以Reddit返回匿名用户数据
+- **发现**：Bridge可以绕过CORS限制，但Bridge不携带Cookie，无法获取登录用户的信息。这说明了Cookie隔离的存在
 
 #### 方法13：尺寸变化检测（失败）
-- **原理**：监听iframe尺寸变化
-- **结果**：未检测到尺寸变化
+- **原理**：监听iframe的尺寸变化，某些内容可能导致尺寸改变
+- **代码**：
+  ```javascript
+  setInterval(() => {
+    const width = frame.offsetWidth;
+    const height = frame.offsetHeight;
+    // 检测尺寸变化
+  }, 500);
+  ```
+- **结果**：❌ 失败
+  - ⚠️ 未检测到尺寸变化
+  - **原因**：Reddit页面尺寸固定，登录状态不影响尺寸
 
 ### 方法对比总结
 
