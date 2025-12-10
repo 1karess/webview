@@ -187,19 +187,19 @@
       <div class="stats">
         <div class="stat-card">
           <div class="stat-value" id="clickCount">0</div>
-          <div class="stat-label">链接点击</div>
+          <div class="stat-label">APP链接点击</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="visibilityCount">0</div>
-          <div class="stat-label">可见性变化</div>
+          <div class="stat-value" id="redirectSuccessCount">0</div>
+          <div class="stat-label">✅ 确认跳转成功</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="blurCount">0</div>
-          <div class="stat-label">窗口失焦</div>
+          <div class="stat-value" id="redirectFailCount">0</div>
+          <div class="stat-label">❌ 跳转失败(未安装)</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="totalEvents">0</div>
-          <div class="stat-label">总事件数</div>
+          <div class="stat-value" id="manualSwitchCount">0</div>
+          <div class="stat-label">⚠️ 可能手动切换</div>
         </div>
       </div>
     </div>
@@ -214,7 +214,10 @@
         <a href="reddit://" class="test-link">📱 跳转到 Reddit APP</a>
       </div>
       <p style="margin-top: 15px; font-size: 12px; color: #666;">
-        💡 提示：如果APP已安装，点击后会跳转到APP；如果未安装，可能显示错误或没有反应。
+        💡 <strong>测试说明</strong>：
+        <br>• 如果APP已安装：点击后会立即跳转到APP，页面会进入后台 → 显示"✅ 确认跳转成功"
+        <br>• 如果APP未安装：点击后页面不会跳转，3秒后会显示"❌ 跳转失败（未安装APP）"
+        <br>• 如果手动切换应用：没有点击APP链接就切换，或点击后超过1.5秒才切换 → 显示"⚠️ 可能手动切换"
       </p>
     </div>
     
@@ -229,11 +232,13 @@
     <div class="section">
       <h2>📚 检测方法说明</h2>
       <ul style="margin-left: 20px; color: #666;">
-        <li><strong>方法1：链接点击检测</strong> - 拦截所有链接点击，检测APP scheme</li>
-        <li><strong>方法2：可见性变化检测</strong> - 监听页面进入后台（visibilitychange）</li>
-        <li><strong>方法3：窗口失焦检测</strong> - 监听窗口失去焦点（blur）</li>
-        <li><strong>方法4：组合判断</strong> - 结合点击和可见性变化，提高准确率</li>
+        <li><strong>✅ 确认跳转成功</strong> - 点击APP链接后1.5秒内进入后台 = 用户已安装APP并成功跳转</li>
+        <li><strong>❌ 跳转失败（未安装APP）</strong> - 点击APP链接后3秒内未进入后台 = 用户可能未安装APP</li>
+        <li><strong>⚠️ 可能手动切换</strong> - 点击后超过1.5秒才进入后台，或没有点击APP链接就进入后台 = 可能是手动切换应用</li>
       </ul>
+      <p style="margin-top: 10px; font-size: 12px; color: #666;">
+        💡 <strong>工作原理</strong>：通过时间差判断。如果用户点击APP链接后立即（1.5秒内）进入后台，说明跳转成功；如果3秒后还在前台，说明跳转失败（未安装APP）。
+      </p>
     </div>
   </div>
 
@@ -244,17 +249,24 @@
     // 统计数据
     let stats = {
       clicks: 0,
-      visibility: 0,
-      blur: 0,
-      total: 0
+      redirectSuccess: 0,      // 确认跳转成功
+      redirectFail: 0,         // 跳转失败（未安装APP）
+      manualSwitch: 0          // 可能手动切换
     };
+    
+    // APP跳转检测配置
+    const REDIRECT_WINDOW_MS = 1500;  // 1.5秒内进入后台 = 跳转成功
+    const FAIL_DETECTION_MS = 3000;   // 3秒后还没进入后台 = 跳转失败
+    
+    // 跟踪状态
+    let pendingRedirect = null;  // { clickTime, url, timeoutId, successTimeoutId }
     
     // 更新统计
     function updateStats() {
       document.getElementById('clickCount').textContent = stats.clicks;
-      document.getElementById('visibilityCount').textContent = stats.visibility;
-      document.getElementById('blurCount').textContent = stats.blur;
-      document.getElementById('totalEvents').textContent = stats.total;
+      document.getElementById('redirectSuccessCount').textContent = stats.redirectSuccess;
+      document.getElementById('redirectFailCount').textContent = stats.redirectFail;
+      document.getElementById('manualSwitchCount').textContent = stats.manualSwitch;
     }
     
     // 记录结果
@@ -274,8 +286,22 @@
     // 清空结果
     function clearResults() {
       resultsDiv.innerHTML = '<div class="result-item info">结果已清空，等待新事件...</div>';
-      stats = { clicks: 0, visibility: 0, blur: 0, total: 0 };
+      stats = { clicks: 0, redirectSuccess: 0, redirectFail: 0, manualSwitch: 0 };
+      if (pendingRedirect) {
+        clearTimeout(pendingRedirect.timeoutId);
+        clearTimeout(pendingRedirect.successTimeoutId);
+        pendingRedirect = null;
+      }
       updateStats();
+    }
+    
+    // 清除待处理的跳转
+    function clearPendingRedirect() {
+      if (pendingRedirect) {
+        clearTimeout(pendingRedirect.timeoutId);
+        clearTimeout(pendingRedirect.successTimeoutId);
+        pendingRedirect = null;
+      }
     }
     
     // 检测是否是APP scheme
@@ -294,17 +320,48 @@
     }
     
     // 方法1：拦截链接点击
-    let lastClickTime = null;
     document.addEventListener('click', function(e) {
       const target = e.target.closest('a');
       if (target && target.href) {
         if (isAppScheme(target.href)) {
-          lastClickTime = Date.now();
+          const clickTime = Date.now();
           stats.clicks++;
-          stats.total++;
           updateStats();
           
-          log(`✅ 检测到APP跳转链接点击: ${target.href}`, 'warning');
+          // 清除之前的待处理跳转
+          clearPendingRedirect();
+          
+          log(`🔵 检测到APP跳转链接点击: ${target.href}`, 'warning');
+          log(`⏱️ 开始检测跳转结果（等待${REDIRECT_WINDOW_MS}ms内进入后台 = 成功，${FAIL_DETECTION_MS}ms后仍在前台 = 失败）`, 'info');
+          
+          // 设置跳转失败检测（如果3秒后还没进入后台，说明跳转失败）
+          const failTimeoutId = setTimeout(function() {
+            if (pendingRedirect && pendingRedirect.clickTime === clickTime) {
+              // 跳转失败：点击后3秒内没有进入后台
+              stats.redirectFail++;
+              updateStats();
+              
+              log(`❌ 跳转失败：点击后${FAIL_DETECTION_MS}ms内未进入后台，用户可能未安装APP`, 'error');
+              
+              sendToAPI({
+                type: 'app_redirect_failed',
+                url: target.href,
+                timestamp: new Date().toISOString(),
+                confidence: 'high',
+                reason: 'no_background_switch'
+              });
+              
+              pendingRedirect = null;
+            }
+          }, FAIL_DETECTION_MS);
+          
+          // 记录待处理的跳转
+          pendingRedirect = {
+            clickTime: clickTime,
+            url: target.href,
+            timeoutId: null,
+            successTimeoutId: failTimeoutId
+          };
           
           // 尝试发送到API（如果有）
           sendToAPI({
@@ -317,50 +374,71 @@
       }
     }, true); // 使用捕获阶段
     
-    // 方法2：监听可见性变化
+    // 方法2：监听可见性变化（核心判断逻辑）
     document.addEventListener('visibilitychange', function() {
       if (document.hidden) {
-        stats.visibility++;
-        stats.total++;
-        updateStats();
+        // 页面进入后台
+        const now = Date.now();
         
-        const timeSinceClick = lastClickTime ? Date.now() - lastClickTime : null;
-        
-        if (timeSinceClick !== null && timeSinceClick < 2000) {
-          // 点击后2秒内进入后台，很可能是跳转成功
-          log(`✅ 确认：用户成功跳转到APP（点击后${timeSinceClick}ms进入后台）`, 'warning');
+        if (pendingRedirect) {
+          const timeSinceClick = now - pendingRedirect.clickTime;
           
-          sendToAPI({
-            type: 'app_redirect_confirmed',
-            timeSinceClick: timeSinceClick,
-            timestamp: new Date().toISOString(),
-            confidence: 'high'
-          });
+          if (timeSinceClick <= REDIRECT_WINDOW_MS) {
+            // ✅ 确认跳转成功：点击后1.5秒内进入后台
+            stats.redirectSuccess++;
+            updateStats();
+            
+            // 清除失败检测定时器
+            clearTimeout(pendingRedirect.successTimeoutId);
+            
+            log(`✅ 确认跳转成功：用户已安装APP并成功跳转（点击后${timeSinceClick}ms进入后台）`, 'warning');
+            
+            sendToAPI({
+              type: 'app_redirect_confirmed',
+              url: pendingRedirect.url,
+              timeSinceClick: timeSinceClick,
+              timestamp: new Date().toISOString(),
+              confidence: 'high'
+            });
+            
+            pendingRedirect = null;
+          } else {
+            // ⚠️ 可能手动切换：点击后超过1.5秒才进入后台
+            stats.manualSwitch++;
+            updateStats();
+            
+            log(`⚠️ 可能手动切换：点击后${timeSinceClick}ms才进入后台（超过${REDIRECT_WINDOW_MS}ms阈值）`, 'info');
+            
+            // 清除失败检测定时器
+            clearTimeout(pendingRedirect.successTimeoutId);
+            pendingRedirect = null;
+          }
         } else {
-          log('⚠️ 页面进入后台（可能是跳转到APP，也可能是切换应用）', 'info');
+          // 没有待处理的跳转，可能是用户手动切换应用
+          stats.manualSwitch++;
+          updateStats();
+          
+          log('⚠️ 页面进入后台（没有检测到APP链接点击，可能是手动切换应用）', 'info');
         }
         
         statusDiv.textContent = '⏸️ 页面在后台';
         statusDiv.className = 'status inactive';
       } else {
+        // 页面重新可见
         log('✅ 页面重新可见（用户返回webview）', 'info');
         statusDiv.textContent = '✅ 正在监听中...';
         statusDiv.className = 'status active';
       }
     });
     
-    // 方法3：监听窗口失焦
+    // 方法3：监听窗口失焦（辅助检测，主要依赖visibilitychange）
     window.addEventListener('blur', function() {
-      stats.blur++;
-      stats.total++;
-      updateStats();
-      
-      const timeSinceClick = lastClickTime ? Date.now() - lastClickTime : null;
-      
-      if (timeSinceClick !== null && timeSinceClick < 2000) {
-        log(`✅ 窗口失去焦点（点击后${timeSinceClick}ms，可能是跳转到APP）`, 'info');
-      } else {
-        log('⚠️ 窗口失去焦点（可能是切换应用）', 'info');
+      // 这个事件作为辅助，主要判断还是靠visibilitychange
+      if (pendingRedirect) {
+        const timeSinceClick = Date.now() - pendingRedirect.clickTime;
+        if (timeSinceClick <= REDIRECT_WINDOW_MS) {
+          log(`🔵 窗口失去焦点（点击后${timeSinceClick}ms，辅助确认跳转）`, 'info');
+        }
       }
     });
     
