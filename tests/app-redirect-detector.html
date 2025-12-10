@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APP跳转检测测试</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+      line-height: 1.6;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #666;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    
+    .section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      border-left: 4px solid #4CAF50;
+    }
+    
+    .section h2 {
+      color: #333;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    
+    .test-links {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 15px 0;
+    }
+    
+    .test-link {
+      display: inline-block;
+      padding: 12px 20px;
+      background: #2196F3;
+      color: white;
+      text-decoration: none;
+      border-radius: 6px;
+      text-align: center;
+      transition: background 0.3s;
+    }
+    
+    .test-link:hover {
+      background: #1976D2;
+    }
+    
+    .test-link.fb {
+      background: #1877F2;
+    }
+    
+    .test-link.instagram {
+      background: #E4405F;
+    }
+    
+    .test-link.twitter {
+      background: #1DA1F2;
+    }
+    
+    .results {
+      margin-top: 20px;
+      max-height: 400px;
+      overflow-y: auto;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+    }
+    
+    .result-item {
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #4CAF50;
+      padding-left: 10px;
+    }
+    
+    .result-item.warning {
+      border-left-color: #FF9800;
+    }
+    
+    .result-item.error {
+      border-left-color: #f44336;
+    }
+    
+    .result-item.info {
+      border-left-color: #2196F3;
+    }
+    
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin: 20px 0;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e0e0e0;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2196F3;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+    
+    .clear-btn {
+      padding: 10px 20px;
+      background: #f44336;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    
+    .clear-btn:hover {
+      background: #d32f2f;
+    }
+    
+    .status {
+      padding: 10px;
+      border-radius: 6px;
+      margin: 10px 0;
+      font-weight: bold;
+    }
+    
+    .status.active {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .status.inactive {
+      background: #f44336;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 APP跳转检测测试工具</h1>
+    <p class="subtitle">测试网站能否检测到用户点击APP跳转的行为</p>
+    
+    <div class="section">
+      <h2>📊 检测状态</h2>
+      <div id="status" class="status active">✅ 正在监听中...</div>
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-value" id="clickCount">0</div>
+          <div class="stat-label">链接点击</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="visibilityCount">0</div>
+          <div class="stat-label">可见性变化</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="blurCount">0</div>
+          <div class="stat-label">窗口失焦</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="totalEvents">0</div>
+          <div class="stat-label">总事件数</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>🧪 测试链接</h2>
+      <p style="margin-bottom: 15px;">点击下面的链接，模拟APP跳转行为：</p>
+      <div class="test-links">
+        <a href="fb://profile" class="test-link fb">📱 跳转到 Facebook APP</a>
+        <a href="instagram://user?username=test" class="test-link instagram">📱 跳转到 Instagram APP</a>
+        <a href="twitter://user?screen_name=test" class="test-link twitter">📱 跳转到 Twitter APP</a>
+        <a href="reddit://" class="test-link">📱 跳转到 Reddit APP</a>
+      </div>
+      <p style="margin-top: 15px; font-size: 12px; color: #666;">
+        💡 提示：如果APP已安装，点击后会跳转到APP；如果未安装，可能显示错误或没有反应。
+      </p>
+    </div>
+    
+    <div class="section">
+      <h2>📝 检测结果</h2>
+      <button class="clear-btn" onclick="clearResults()">清空结果</button>
+      <div id="results" class="results">
+        <div class="result-item info">等待检测事件...</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>📚 检测方法说明</h2>
+      <ul style="margin-left: 20px; color: #666;">
+        <li><strong>方法1：链接点击检测</strong> - 拦截所有链接点击，检测APP scheme</li>
+        <li><strong>方法2：可见性变化检测</strong> - 监听页面进入后台（visibilitychange）</li>
+        <li><strong>方法3：窗口失焦检测</strong> - 监听窗口失去焦点（blur）</li>
+        <li><strong>方法4：组合判断</strong> - 结合点击和可见性变化，提高准确率</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    const resultsDiv = document.getElementById('results');
+    const statusDiv = document.getElementById('status');
+    
+    // 统计数据
+    let stats = {
+      clicks: 0,
+      visibility: 0,
+      blur: 0,
+      total: 0
+    };
+    
+    // 更新统计
+    function updateStats() {
+      document.getElementById('clickCount').textContent = stats.clicks;
+      document.getElementById('visibilityCount').textContent = stats.visibility;
+      document.getElementById('blurCount').textContent = stats.blur;
+      document.getElementById('totalEvents').textContent = stats.total;
+    }
+    
+    // 记录结果
+    function log(message, type = 'info') {
+      const item = document.createElement('div');
+      item.className = `result-item ${type}`;
+      const time = new Date().toLocaleTimeString();
+      item.textContent = `[${time}] ${message}`;
+      resultsDiv.insertBefore(item, resultsDiv.firstChild);
+      
+      // 限制显示数量
+      while (resultsDiv.children.length > 100) {
+        resultsDiv.removeChild(resultsDiv.lastChild);
+      }
+    }
+    
+    // 清空结果
+    function clearResults() {
+      resultsDiv.innerHTML = '<div class="result-item info">结果已清空，等待新事件...</div>';
+      stats = { clicks: 0, visibility: 0, blur: 0, total: 0 };
+      updateStats();
+    }
+    
+    // 检测是否是APP scheme
+    function isAppScheme(url) {
+      try {
+        const urlObj = new URL(url);
+        const appSchemes = ['fb:', 'fb://', 'instagram:', 'twitter:', 'reddit:', 'whatsapp:', 'telegram:'];
+        return appSchemes.some(scheme => urlObj.protocol.startsWith(scheme));
+      } catch(e) {
+        // 可能是相对URL或其他格式
+        return url.startsWith('fb://') || 
+               url.startsWith('instagram://') || 
+               url.startsWith('twitter://') ||
+               url.startsWith('reddit://');
+      }
+    }
+    
+    // 方法1：拦截链接点击
+    let lastClickTime = null;
+    document.addEventListener('click', function(e) {
+      const target = e.target.closest('a');
+      if (target && target.href) {
+        if (isAppScheme(target.href)) {
+          lastClickTime = Date.now();
+          stats.clicks++;
+          stats.total++;
+          updateStats();
+          
+          log(`✅ 检测到APP跳转链接点击: ${target.href}`, 'warning');
+          
+          // 尝试发送到API（如果有）
+          sendToAPI({
+            type: 'app_link_click',
+            url: target.href,
+            timestamp: new Date().toISOString(),
+            confidence: 'high'
+          });
+        }
+      }
+    }, true); // 使用捕获阶段
+    
+    // 方法2：监听可见性变化
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        stats.visibility++;
+        stats.total++;
+        updateStats();
+        
+        const timeSinceClick = lastClickTime ? Date.now() - lastClickTime : null;
+        
+        if (timeSinceClick !== null && timeSinceClick < 2000) {
+          // 点击后2秒内进入后台，很可能是跳转成功
+          log(`✅ 确认：用户成功跳转到APP（点击后${timeSinceClick}ms进入后台）`, 'warning');
+          
+          sendToAPI({
+            type: 'app_redirect_confirmed',
+            timeSinceClick: timeSinceClick,
+            timestamp: new Date().toISOString(),
+            confidence: 'high'
+          });
+        } else {
+          log('⚠️ 页面进入后台（可能是跳转到APP，也可能是切换应用）', 'info');
+        }
+        
+        statusDiv.textContent = '⏸️ 页面在后台';
+        statusDiv.className = 'status inactive';
+      } else {
+        log('✅ 页面重新可见（用户返回webview）', 'info');
+        statusDiv.textContent = '✅ 正在监听中...';
+        statusDiv.className = 'status active';
+      }
+    });
+    
+    // 方法3：监听窗口失焦
+    window.addEventListener('blur', function() {
+      stats.blur++;
+      stats.total++;
+      updateStats();
+      
+      const timeSinceClick = lastClickTime ? Date.now() - lastClickTime : null;
+      
+      if (timeSinceClick !== null && timeSinceClick < 2000) {
+        log(`✅ 窗口失去焦点（点击后${timeSinceClick}ms，可能是跳转到APP）`, 'info');
+      } else {
+        log('⚠️ 窗口失去焦点（可能是切换应用）', 'info');
+      }
+    });
+    
+    window.addEventListener('focus', function() {
+      log('✅ 窗口重新获得焦点（用户返回）', 'info');
+    });
+    
+    // 方法4：拦截 window.location 跳转（如果可能）
+    try {
+      const originalLocation = window.location;
+      let locationProxy = new Proxy(originalLocation, {
+        set: function(target, property, value) {
+          if (property === 'href' && typeof value === 'string' && isAppScheme(value)) {
+            log(`✅ 检测到 window.location 跳转: ${value}`, 'warning');
+            
+            sendToAPI({
+              type: 'location_redirect',
+              url: value,
+              timestamp: new Date().toISOString(),
+              confidence: 'high'
+            });
+          }
+          target[property] = value;
+          return true;
+        }
+      });
+      
+      // 注意：在某些环境中可能无法代理 location
+    } catch(e) {
+      // 无法代理 location，这是正常的
+    }
+    
+    // 发送到API（示例）
+    function sendToAPI(data) {
+      // 这里可以发送到你的服务器
+      // fetch('https://your-api.com/track-redirect', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(data)
+      // }).catch(err => console.error('API错误:', err));
+      
+      // 暂时只在控制台输出
+      console.log('📤 发送事件到API:', data);
+    }
+    
+    // 初始化
+    log('🔍 开始监听APP跳转事件...', 'info');
+    log('💡 提示：点击上面的测试链接，观察检测结果', 'info');
+    
+    // 显示当前环境信息
+    log(`📱 当前环境: ${navigator.userAgent}`, 'info');
+    log(`🌐 平台: ${navigator.platform}`, 'info');
+    
+    // 定期检查页面状态
+    setInterval(function() {
+      if (document.hidden) {
+        // 页面在后台
+      } else {
+        // 页面在前台
+      }
+    }, 1000);
+  </script>
+</body>
+</html>
