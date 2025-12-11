@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebView API扫描工具</title>
+  <title>Facebook登录环境对比工具</title>
   <style>
     * {
       margin: 0;
@@ -19,7 +19,7 @@
     }
     
     .container {
-      max-width: 1200px;
+      max-width: 1000px;
       margin: 0 auto;
       background: white;
       padding: 20px;
@@ -139,6 +139,79 @@
       margin-top: 5px;
     }
     
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    .comparison-table th,
+    .comparison-table td {
+      padding: 10px;
+      text-align: left;
+      border: 1px solid #ddd;
+    }
+    
+    .comparison-table th {
+      background: #f5f5f5;
+      font-weight: bold;
+    }
+    
+    .comparison-table tr.added {
+      background: #fff3cd;
+    }
+    
+    .comparison-table tr.removed {
+      background: #ffebee;
+    }
+    
+    .api-list {
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 15px 0;
+    }
+    
+    .api-item {
+      padding: 8px;
+      margin: 5px 0;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .api-name {
+      font-weight: bold;
+      color: #333;
+      font-family: 'Courier New', monospace;
+    }
+    
+    .api-type {
+      font-size: 12px;
+      color: #666;
+      margin-left: 10px;
+    }
+    
+    .api-category {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #e3f2fd;
+      color: #1976D2;
+    }
+    
+    .api-category.bridge {
+      background: #f3e5f5;
+      color: #7b1fa2;
+    }
+    
+    .api-category.private {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    
     .results {
       margin-top: 20px;
       max-height: 500px;
@@ -170,76 +243,6 @@
       border-left-color: #2196F3;
     }
     
-    .result-item.bridge {
-      border-left-color: #9C27B0;
-    }
-    
-    .api-list {
-      max-height: 400px;
-      overflow-y: auto;
-      margin: 15px 0;
-    }
-    
-    .api-item {
-      padding: 8px;
-      margin: 5px 0;
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-radius: 4px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .api-name {
-      font-weight: bold;
-      color: #333;
-    }
-    
-    .api-type {
-      font-size: 12px;
-      color: #666;
-      margin-left: 10px;
-    }
-    
-    .api-category {
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: #e3f2fd;
-      color: #1976D2;
-    }
-    
-    .api-category.bridge {
-      background: #f3e5f5;
-      color: #7b1fa2;
-    }
-    
-    .api-category.private {
-      background: #fff3e0;
-      color: #e65100;
-    }
-    
-    .progress {
-      width: 100%;
-      height: 20px;
-      background: #e0e0e0;
-      border-radius: 10px;
-      overflow: hidden;
-      margin: 10px 0;
-    }
-    
-    .progress-bar {
-      height: 100%;
-      background: #4CAF50;
-      transition: width 0.3s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-size: 12px;
-    }
-    
     .status {
       padding: 10px;
       border-radius: 6px;
@@ -264,59 +267,40 @@
     
     textarea {
       width: 100%;
-      min-height: 200px;
+      min-height: 150px;
       padding: 10px;
       border: 1px solid #ddd;
       border-radius: 4px;
       font-family: 'Courier New', monospace;
       font-size: 12px;
     }
-    
-    .tabs {
-      display: flex;
-      border-bottom: 2px solid #e0e0e0;
-      margin: 20px 0;
-    }
-    
-    .tab {
-      padding: 10px 20px;
-      cursor: pointer;
-      border: none;
-      background: none;
-      color: #666;
-      font-size: 14px;
-    }
-    
-    .tab.active {
-      color: #2196F3;
-      border-bottom: 2px solid #2196F3;
-      font-weight: bold;
-    }
-    
-    .tab-content {
-      display: none;
-    }
-    
-    .tab-content.active {
-      display: block;
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>🔍 WebView API扫描工具</h1>
-    <p class="subtitle">扫描并对比不同WebView环境中的API差异</p>
+    <h1>🔍 Facebook登录环境对比工具</h1>
+    <p class="subtitle">对比Chrome/Safari和WebView中登录Facebook时的API差异</p>
     
     <div class="info-box">
-      <strong>📋 当前环境信息</strong>
-      <div id="envInfo" style="margin-top: 10px; font-size: 12px;">
-        正在检测...
-      </div>
+      <strong>📋 使用说明</strong>
+      <ol style="margin: 10px 0 0 20px; font-size: 14px;">
+        <li><strong>步骤1</strong>：在Chrome/Safari中登录Facebook，然后打开此页面，点击"扫描当前环境"</li>
+        <li><strong>步骤2</strong>：导出数据，保存为基准数据</li>
+        <li><strong>步骤3</strong>：在WebView（QQ）中登录Facebook，然后打开此页面，点击"扫描当前环境"</li>
+        <li><strong>步骤4</strong>：导入步骤2的基准数据，自动对比差异</li>
+      </ol>
     </div>
     
     <div class="section">
-      <h2>📊 扫描状态</h2>
-      <div id="status" class="status ready">✅ 就绪，可以开始扫描</div>
+      <h2>📊 当前环境</h2>
+      <div id="envInfo" style="margin-top: 10px; font-size: 12px;">
+        正在检测...
+      </div>
+      <div id="status" class="status ready" style="margin-top: 10px;">✅ 就绪，可以开始扫描</div>
+    </div>
+    
+    <div class="section">
+      <h2>📊 扫描结果统计</h2>
       <div class="stats">
         <div class="stat-card">
           <div class="stat-value" id="totalAPIs">0</div>
@@ -331,104 +315,49 @@
           <div class="stat-label">私有属性</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value" id="customCount">0</div>
-          <div class="stat-label">自定义对象</div>
+          <div class="stat-value" id="addedCount">0</div>
+          <div class="stat-label">新增API（对比后）</div>
         </div>
-      </div>
-      <div class="progress">
-        <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
       </div>
     </div>
     
     <div class="section">
       <h2>🎯 操作</h2>
-      <button class="btn primary" onclick="startScan()">🚀 开始扫描</button>
+      <button class="btn primary" onclick="startScan()">🚀 扫描当前环境</button>
       <button class="btn secondary" onclick="exportData()">💾 导出数据</button>
-      <button class="btn" onclick="loadData()">📂 加载数据</button>
+      <button class="btn" onclick="importBaseline()">📂 导入基准数据</button>
       <button class="btn danger" onclick="clearResults()">🗑️ 清空结果</button>
-      <div class="warning-box" style="margin-top: 15px;">
-        <strong>⚠️ 重要提示</strong>
-        <ul style="margin: 10px 0 0 20px; font-size: 12px;">
-          <li>扫描结果会自动保存到浏览器localStorage</li>
-          <li>导出数据后可以在其他环境中对比</li>
-          <li>建议在不同网站中运行扫描，然后对比差异</li>
-        </ul>
-      </div>
     </div>
     
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab('all')">所有API</button>
-      <button class="tab" onclick="switchTab('bridges')">Bridge类型</button>
-      <button class="tab" onclick="switchTab('private')">私有属性</button>
-      <button class="tab" onclick="switchTab('custom')">自定义对象</button>
-      <button class="tab" onclick="switchTab('export')">导出/导入</button>
-    </div>
-    
-    <div id="tab-all" class="tab-content active">
-      <div class="section">
-        <h2>📝 扫描到的API</h2>
-        <div id="apiList" class="api-list">
-          <div style="text-align: center; color: #666; padding: 20px;">
-            点击"开始扫描"按钮开始扫描
-          </div>
+    <div class="section">
+      <h2>📝 对比结果</h2>
+      <div id="comparisonResults" style="display: none;">
+        <h3 style="margin-bottom: 10px;">新增的API（WebView独有）</h3>
+        <div id="addedAPIs" class="api-list">
+          <div style="text-align: center; color: #666; padding: 20px;">暂无新增API</div>
+        </div>
+        
+        <h3 style="margin: 20px 0 10px 0;">缺失的API（标准浏览器有，WebView没有）</h3>
+        <div id="removedAPIs" class="api-list">
+          <div style="text-align: center; color: #666; padding: 20px;">暂无缺失API</div>
         </div>
       </div>
-    </div>
-    
-    <div id="tab-bridges" class="tab-content">
-      <div class="section">
-        <h2>🔧 Bridge类型API</h2>
-        <div id="bridgeList" class="api-list">
-          <div style="text-align: center; color: #666; padding: 20px;">
-            暂无Bridge类型API
-          </div>
-        </div>
+      <div id="noComparison" style="text-align: center; color: #666; padding: 20px;">
+        请先导入基准数据，然后扫描当前环境，会自动对比差异
       </div>
     </div>
     
-    <div id="tab-private" class="tab-content">
-      <div class="section">
-        <h2>🔒 私有属性</h2>
-        <div id="privateList" class="api-list">
-          <div style="text-align: center; color: #666; padding: 20px;">
-            暂无私有属性
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div id="tab-custom" class="tab-content">
-      <div class="section">
-        <h2>🎨 自定义对象</h2>
-        <div id="customList" class="api-list">
-          <div style="text-align: center; color: #666; padding: 20px;">
-            暂无自定义对象
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    <div id="tab-export" class="tab-content">
-      <div class="section">
-        <h2>💾 导出/导入数据</h2>
-        <p style="margin-bottom: 10px;">导出当前扫描结果（JSON格式）：</p>
-        <button class="btn primary" onclick="exportData()">📥 导出数据</button>
-        <p style="margin: 20px 0 10px 0;">导入数据（用于对比）：</p>
-        <textarea id="importData" placeholder="粘贴JSON数据..."></textarea>
-        <button class="btn secondary" onclick="importData()" style="margin-top: 10px;">📤 导入数据</button>
-        <div class="info-box" style="margin-top: 15px;">
-          <strong>💡 使用说明</strong>
-          <ul style="margin: 10px 0 0 20px; font-size: 12px;">
-            <li>在标准浏览器中扫描，导出数据作为基准</li>
-            <li>在WebView中扫描，导出数据</li>
-            <li>导入基准数据，自动对比差异</li>
-          </ul>
+    <div class="section">
+      <h2>📋 当前扫描到的所有API</h2>
+      <div id="apiList" class="api-list">
+        <div style="text-align: center; color: #666; padding: 20px;">
+          点击"扫描当前环境"按钮开始扫描
         </div>
       </div>
     </div>
     
     <div class="section">
-      <h2>📋 详细日志</h2>
+      <h2>📝 详细日志</h2>
       <div id="results" class="results">
         <div class="result-item info">等待开始扫描...</div>
       </div>
@@ -450,7 +379,7 @@
       }
     };
     
-    let baselineData = null; // 基准数据（标准浏览器）
+    let baselineData = null;
     
     // 初始化
     function init() {
@@ -520,21 +449,20 @@
       };
       
       const allAPIs = new Set();
-      const apiDetails = [];
       
-      // 方法1：for...in（可枚举属性）
+      // 方法1：for...in
       log('📋 方法1：扫描可枚举属性...', 'info');
       for (let key in window) {
         allAPIs.add(key);
       }
       
-      // 方法2：Object.getOwnPropertyNames（所有自有属性）
+      // 方法2：Object.getOwnPropertyNames
       log('📋 方法2：扫描所有自有属性...', 'info');
       Object.getOwnPropertyNames(window).forEach(key => {
         allAPIs.add(key);
       });
       
-      // 方法3：Object.keys（可枚举自有属性）
+      // 方法3：Object.keys
       log('📋 方法3：扫描可枚举自有属性...', 'info');
       Object.keys(window).forEach(key => {
         allAPIs.add(key);
@@ -542,9 +470,6 @@
       
       // 收集详细信息
       log('📋 收集API详细信息...', 'info');
-      let processed = 0;
-      const total = allAPIs.size;
-      
       allAPIs.forEach(key => {
         try {
           const value = window[key];
@@ -556,21 +481,9 @@
             enumerable: descriptor?.enumerable ?? true,
             configurable: descriptor?.configurable ?? true,
             writable: descriptor?.writable ?? true,
-            category: categorizeAPI(key, value),
-            properties: null
+            category: categorizeAPI(key, value)
           };
           
-          // 如果是对象，收集属性
-          if (typeof value === 'object' && value !== null) {
-            try {
-              const props = Object.keys(value).slice(0, 20);
-              apiInfo.properties = props;
-            } catch(e) {
-              apiInfo.properties = [];
-            }
-          }
-          
-          apiDetails.push(apiInfo);
           scanResults.apis.push(apiInfo);
           
           // 分类
@@ -583,11 +496,6 @@
           } else {
             scanResults.categorized.others.push(apiInfo);
           }
-          
-          processed++;
-          const progress = (processed / total) * 100;
-          document.getElementById('progressBar').style.width = progress + '%';
-          document.getElementById('progressBar').textContent = Math.round(progress) + '%';
         } catch(e) {
           // 忽略无法访问的属性
         }
@@ -602,7 +510,7 @@
       // 更新显示
       updateDisplay();
       
-      // 对比基准数据
+      // 如果有基准数据，自动对比
       if (baselineData) {
         compareWithBaseline();
       }
@@ -616,7 +524,6 @@
     function categorizeAPI(name, value) {
       const nameLower = name.toLowerCase();
       
-      // Bridge类型
       if (nameLower.includes('bridge') || 
           nameLower.includes('native') ||
           nameLower.startsWith('tx') ||
@@ -624,12 +531,10 @@
         return 'bridge';
       }
       
-      // 私有属性
       if (name.startsWith('__')) {
         return 'private';
       }
       
-      // 自定义对象（排除标准API）
       const standardAPIs = [
         'navigator', 'document', 'window', 'location', 'history', 'screen',
         'localStorage', 'sessionStorage', 'fetch', 'XMLHttpRequest',
@@ -646,42 +551,25 @@
     
     // 更新显示
     function updateDisplay() {
-      // 更新统计
       document.getElementById('totalAPIs').textContent = scanResults.apis.length;
       document.getElementById('bridgeCount').textContent = scanResults.categorized.bridges.length;
       document.getElementById('privateCount').textContent = scanResults.categorized.private.length;
-      document.getElementById('customCount').textContent = scanResults.categorized.custom.length;
       
       // 更新API列表
-      updateAPIList('all', scanResults.apis);
-      updateAPIList('bridges', scanResults.categorized.bridges);
-      updateAPIList('private', scanResults.categorized.private);
-      updateAPIList('custom', scanResults.categorized.custom);
-    }
-    
-    // 更新API列表显示
-    function updateAPIList(type, apis) {
-      const listDiv = document.getElementById(type === 'all' ? 'apiList' : 
-                                              type === 'bridges' ? 'bridgeList' :
-                                              type === 'private' ? 'privateList' : 'customList');
-      
-      if (apis.length === 0) {
-        listDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">暂无数据</div>';
-        return;
+      const apiListDiv = document.getElementById('apiList');
+      if (scanResults.apis.length === 0) {
+        apiListDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">暂无数据</div>';
+      } else {
+        apiListDiv.innerHTML = scanResults.apis.map(api => `
+          <div class="api-item">
+            <div>
+              <span class="api-name">${api.name}</span>
+              <span class="api-type">(${api.type})</span>
+              <span class="api-category ${api.category}">${getCategoryLabel(api.category)}</span>
+            </div>
+          </div>
+        `).join('');
       }
-      
-      listDiv.innerHTML = apis.map(api => `
-        <div class="api-item">
-          <div>
-            <span class="api-name">${api.name}</span>
-            <span class="api-type">(${api.type})</span>
-            <span class="api-category ${api.category}">${getCategoryLabel(api.category)}</span>
-          </div>
-          <div style="font-size: 11px; color: #999;">
-            ${api.properties ? `${api.properties.length} 属性` : ''}
-          </div>
-        </div>
-      `).join('');
     }
     
     // 获取分类标签
@@ -697,7 +585,10 @@
     
     // 对比基准数据
     function compareWithBaseline() {
-      if (!baselineData) return;
+      if (!baselineData) {
+        log('⚠️ 没有基准数据，无法对比', 'warning');
+        return;
+      }
       
       const baselineAPIs = new Set(baselineData.apis.map(a => a.name));
       const currentAPIs = new Set(scanResults.apis.map(a => a.name));
@@ -712,11 +603,46 @@
       log(`新增API：${added.length} 个`, added.length > 0 ? 'warning' : 'info');
       log(`缺失API：${removed.length} 个`, removed.length > 0 ? 'warning' : 'info');
       
+      // 更新显示
+      document.getElementById('addedCount').textContent = added.length;
+      
+      // 显示对比结果
+      document.getElementById('noComparison').style.display = 'none';
+      document.getElementById('comparisonResults').style.display = 'block';
+      
+      // 显示新增API
+      const addedDiv = document.getElementById('addedAPIs');
       if (added.length > 0) {
+        addedDiv.innerHTML = added.map(api => `
+          <div class="api-item">
+            <div>
+              <span class="api-name">${api.name}</span>
+              <span class="api-type">(${api.type})</span>
+              <span class="api-category ${api.category}">${getCategoryLabel(api.category)}</span>
+            </div>
+          </div>
+        `).join('');
         log('新增的API列表：', 'warning');
         added.forEach(api => {
           log(`  + ${api.name} (${api.type}) [${getCategoryLabel(api.category)}]`, 'warning');
         });
+      } else {
+        addedDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">无新增API</div>';
+      }
+      
+      // 显示缺失API
+      const removedDiv = document.getElementById('removedAPIs');
+      if (removed.length > 0) {
+        removedDiv.innerHTML = removed.map(api => `
+          <div class="api-item">
+            <div>
+              <span class="api-name">${api.name}</span>
+              <span class="api-type">(${api.type})</span>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        removedDiv.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">无缺失API</div>';
       }
     }
     
@@ -727,75 +653,15 @@
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `api-scan-${scanResults.webview}-${Date.now()}.json`;
+      link.download = `facebook-env-scan-${scanResults.webview}-${Date.now()}.json`;
       link.click();
       URL.revokeObjectURL(url);
       
       log('✅ 数据已导出', 'info');
     }
     
-    // 导入数据
-    function importData() {
-      const dataStr = document.getElementById('importData').value;
-      if (!dataStr) {
-        alert('请先粘贴JSON数据');
-        return;
-      }
-      
-      try {
-        const data = JSON.parse(dataStr);
-        
-        // 判断是否是基准数据
-        if (data.webview && data.webview.includes('标准浏览器')) {
-          baselineData = data;
-          log('✅ 基准数据已加载', 'info');
-          log(`基准环境：${data.webview}`, 'info');
-          log(`基准API数量：${data.apis.length}`, 'info');
-          
-          // 如果有当前扫描结果，立即对比
-          if (scanResults.apis.length > 0) {
-            compareWithBaseline();
-          }
-        } else {
-          // 对比两个扫描结果
-          if (scanResults.apis.length > 0) {
-            compareWithBaseline();
-          } else {
-            alert('请先进行扫描，然后再导入数据进行对比');
-          }
-        }
-      } catch(e) {
-        alert('数据格式错误：' + e.message);
-        log('❌ 导入失败：' + e.message, 'error');
-      }
-    }
-    
-    // 保存到localStorage
-    function saveToStorage() {
-      try {
-        localStorage.setItem('apiScanResults', JSON.stringify(scanResults));
-        log('💾 数据已保存到localStorage', 'info');
-      } catch(e) {
-        log('❌ 保存失败：' + e.message, 'error');
-      }
-    }
-    
-    // 从localStorage加载
-    function loadFromStorage() {
-      try {
-        const saved = localStorage.getItem('apiScanResults');
-        if (saved) {
-          scanResults = JSON.parse(saved);
-          updateDisplay();
-          log('📂 已加载上次扫描结果', 'info');
-        }
-      } catch(e) {
-        // 忽略错误
-      }
-    }
-    
-    // 加载数据（从文件）
-    function loadData() {
+    // 导入基准数据
+    function importBaseline() {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
@@ -805,27 +671,48 @@
           const reader = new FileReader();
           reader.onload = function(e) {
             try {
-              const data = JSON.parse(e.target.result);
-              if (data.webview && data.webview.includes('标准浏览器')) {
-                baselineData = data;
-                document.getElementById('importData').value = JSON.stringify(data, null, 2);
-                log('✅ 基准数据已加载', 'info');
-                if (scanResults.apis.length > 0) {
-                  compareWithBaseline();
-                }
-              } else {
-                scanResults = data;
-                updateDisplay();
-                log('✅ 扫描结果已加载', 'info');
+              baselineData = JSON.parse(e.target.result);
+              log('✅ 基准数据已加载', 'info');
+              log(`基准环境：${baselineData.webview}`, 'info');
+              log(`基准API数量：${baselineData.apis.length}`, 'info');
+              
+              // 如果有当前扫描结果，立即对比
+              if (scanResults.apis.length > 0) {
+                compareWithBaseline();
               }
             } catch(err) {
               alert('文件格式错误：' + err.message);
+              log('❌ 导入失败：' + err.message, 'error');
             }
           };
           reader.readAsText(file);
         }
       };
       input.click();
+    }
+    
+    // 保存到localStorage
+    function saveToStorage() {
+      try {
+        localStorage.setItem('facebookEnvScanResults', JSON.stringify(scanResults));
+        log('💾 数据已保存到localStorage', 'info');
+      } catch(e) {
+        log('❌ 保存失败：' + e.message, 'error');
+      }
+    }
+    
+    // 从localStorage加载
+    function loadFromStorage() {
+      try {
+        const saved = localStorage.getItem('facebookEnvScanResults');
+        if (saved) {
+          scanResults = JSON.parse(saved);
+          updateDisplay();
+          log('📂 已加载上次扫描结果', 'info');
+        }
+      } catch(e) {
+        // 忽略错误
+      }
     }
     
     // 清空结果
@@ -848,20 +735,11 @@
       document.getElementById('results').innerHTML = '<div class="result-item info">结果已清空</div>';
       document.getElementById('status').textContent = '✅ 就绪，可以开始扫描';
       document.getElementById('status').className = 'status ready';
-      document.getElementById('progressBar').style.width = '0%';
-      document.getElementById('progressBar').textContent = '0%';
-      localStorage.removeItem('apiScanResults');
+      document.getElementById('addedCount').textContent = '0';
+      document.getElementById('noComparison').style.display = 'block';
+      document.getElementById('comparisonResults').style.display = 'none';
+      localStorage.removeItem('facebookEnvScanResults');
       log('🗑️ 结果已清空', 'info');
-    }
-    
-    // 切换标签
-    function switchTab(tab) {
-      // 更新标签状态
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      event.target.classList.add('active');
-      document.getElementById(`tab-${tab}`).classList.add('active');
     }
     
     // 初始化
