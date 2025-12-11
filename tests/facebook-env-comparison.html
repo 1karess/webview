@@ -282,13 +282,39 @@
     <p class="subtitle">对比Chrome/Safari和WebView中登录Facebook时的API差异</p>
     
     <div class="info-box">
-      <strong>📋 使用说明</strong>
+      <strong>📋 使用说明（重要！）</strong>
       <ol style="margin: 10px 0 0 20px; font-size: 14px;">
-        <li><strong>步骤1</strong>：在Chrome/Safari中登录Facebook，然后打开此页面，点击"扫描当前环境"</li>
-        <li><strong>步骤2</strong>：导出数据，保存为基准数据</li>
-        <li><strong>步骤3</strong>：在WebView（QQ）中登录Facebook，然后打开此页面，点击"扫描当前环境"</li>
-        <li><strong>步骤4</strong>：导入步骤2的基准数据，自动对比差异</li>
+        <li><strong>步骤1</strong>：在Chrome/Safari中打开Facebook并登录</li>
+        <li><strong>步骤2</strong>：在Facebook页面中，点击下面的"生成扫描脚本"按钮，复制脚本代码</li>
+        <li><strong>步骤3</strong>：在Facebook页面的控制台中粘贴并运行脚本，扫描结果会显示</li>
+        <li><strong>步骤4</strong>：复制扫描结果，粘贴到下面的"扫描结果"框中，点击"导入扫描结果"</li>
+        <li><strong>步骤5</strong>：导出数据，保存为基准数据</li>
+        <li><strong>步骤6</strong>：在QQ WebView中重复步骤1-4</li>
+        <li><strong>步骤7</strong>：导入步骤5的基准数据，自动对比差异</li>
       </ol>
+      <div class="warning-box" style="margin-top: 10px;">
+        <strong>⚠️ 关键理解</strong>：工具需要扫描<strong>Facebook页面所在环境</strong>的API，不是工具页面本身的API。所以需要在Facebook页面中运行扫描脚本。
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>🔧 生成扫描脚本</h2>
+      <p style="margin-bottom: 10px;">点击下面的按钮，生成可以在目标网页（如Facebook）中运行的扫描脚本：</p>
+      <button class="btn primary" onclick="generateScanScript()">📝 生成扫描脚本</button>
+      <div id="scriptOutput" style="display: none; margin-top: 15px;">
+        <p style="margin-bottom: 10px;"><strong>复制下面的代码，在目标网页的控制台中运行：</strong></p>
+        <textarea id="scanScript" readonly style="font-family: 'Courier New', monospace; font-size: 11px; min-height: 300px;"></textarea>
+        <p style="margin-top: 10px; font-size: 12px; color: #666;">
+          💡 提示：在Facebook页面中按F12打开控制台，粘贴代码并回车运行。扫描结果会显示在控制台中，复制结果后粘贴到下面的"扫描结果"框中。
+        </p>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h2>📥 导入扫描结果</h2>
+      <p style="margin-bottom: 10px;">将从目标网页扫描到的结果粘贴到这里：</p>
+      <textarea id="scanResultInput" placeholder="粘贴扫描结果（JSON格式）..."></textarea>
+      <button class="btn secondary" onclick="importScanResult()" style="margin-top: 10px;">📤 导入扫描结果</button>
     </div>
     
     <div class="section">
@@ -296,7 +322,7 @@
       <div id="envInfo" style="margin-top: 10px; font-size: 12px;">
         正在检测...
       </div>
-      <div id="status" class="status ready" style="margin-top: 10px;">✅ 就绪，可以开始扫描</div>
+      <div id="status" class="status ready" style="margin-top: 10px;">✅ 就绪，请使用上面的扫描脚本在目标网页中扫描</div>
     </div>
     
     <div class="section">
@@ -323,10 +349,12 @@
     
     <div class="section">
       <h2>🎯 操作</h2>
-      <button class="btn primary" onclick="startScan()">🚀 扫描当前环境</button>
       <button class="btn secondary" onclick="exportData()">💾 导出数据</button>
-      <button class="btn" onclick="importBaseline()">📂 导入基准数据</button>
+      <button class="btn" onclick="importBaseline()">📂 导入基准数据（用于对比）</button>
       <button class="btn danger" onclick="clearResults()">🗑️ 清空结果</button>
+      <div class="warning-box" style="margin-top: 15px;">
+        <strong>⚠️ 注意</strong>：扫描需要在目标网页（如Facebook）中运行，不是在工具页面中运行。请使用上面生成的扫描脚本。
+      </div>
     </div>
     
     <div class="section">
@@ -351,7 +379,7 @@
       <h2>📋 当前扫描到的所有API</h2>
       <div id="apiList" class="api-list">
         <div style="text-align: center; color: #666; padding: 20px;">
-          点击"扫描当前环境"按钮开始扫描
+          请使用上面的扫描脚本在目标网页中扫描，然后导入结果
         </div>
       </div>
     </div>
@@ -359,7 +387,7 @@
     <div class="section">
       <h2>📝 详细日志</h2>
       <div id="results" class="results">
-        <div class="result-item info">等待开始扫描...</div>
+        <div class="result-item info">等待导入扫描结果...</div>
       </div>
     </div>
   </div>
@@ -380,6 +408,188 @@
     };
     
     let baselineData = null;
+    
+    // 生成扫描脚本
+    function generateScanScript() {
+      const script = `
+// ========== WebView API扫描脚本 ==========
+// 在目标网页（如Facebook）的控制台中运行此脚本
+// 扫描结果会显示在控制台中，复制后粘贴到工具页面
+
+(function() {
+  console.log('🚀 开始扫描window对象...');
+  
+  const scanResults = {
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    webview: detectWebView(),
+    apis: [],
+    categorized: {
+      bridges: [],
+      private: [],
+      custom: [],
+      others: []
+    }
+  };
+  
+  // 检测WebView类型
+  function detectWebView() {
+    const ua = navigator.userAgent;
+    if (ua.includes('QQ/')) return 'QQ WebView';
+    if (ua.includes('MicroMessenger')) return '微信 WebView';
+    if (ua.includes('AlipayClient')) return '支付宝 WebView';
+    if (ua.includes('Chrome') && !ua.includes('QQ') && !ua.includes('MicroMessenger')) return 'Chrome（标准浏览器）';
+    if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari（标准浏览器）';
+    return '未知';
+  }
+  
+  // 分类API
+  function categorizeAPI(name, value) {
+    const nameLower = name.toLowerCase();
+    if (nameLower.includes('bridge') || nameLower.includes('native') || 
+        nameLower.startsWith('tx') || nameLower.includes('webkit')) {
+      return 'bridge';
+    }
+    if (name.startsWith('__')) {
+      return 'private';
+    }
+    const standardAPIs = ['navigator', 'document', 'window', 'location', 'history', 'screen',
+      'localStorage', 'sessionStorage', 'fetch', 'XMLHttpRequest',
+      'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
+      'console', 'alert', 'confirm', 'prompt'];
+    if (!standardAPIs.includes(name) && typeof value === 'object' && value !== null) {
+      return 'custom';
+    }
+    return 'other';
+  }
+  
+  const allAPIs = new Set();
+  
+  // 方法1：for...in
+  for (let key in window) {
+    allAPIs.add(key);
+  }
+  
+  // 方法2：Object.getOwnPropertyNames
+  Object.getOwnPropertyNames(window).forEach(key => {
+    allAPIs.add(key);
+  });
+  
+  // 方法3：Object.keys
+  Object.keys(window).forEach(key => {
+    allAPIs.add(key);
+  });
+  
+  // 收集详细信息
+  allAPIs.forEach(key => {
+    try {
+      const value = window[key];
+      const descriptor = Object.getOwnPropertyDescriptor(window, key);
+      const apiInfo = {
+        name: key,
+        type: typeof value,
+        enumerable: descriptor?.enumerable ?? true,
+        configurable: descriptor?.configurable ?? true,
+        writable: descriptor?.writable ?? true,
+        category: categorizeAPI(key, value)
+      };
+      scanResults.apis.push(apiInfo);
+      
+      if (apiInfo.category === 'bridge') {
+        scanResults.categorized.bridges.push(apiInfo);
+      } else if (apiInfo.category === 'private') {
+        scanResults.categorized.private.push(apiInfo);
+      } else if (apiInfo.category === 'custom') {
+        scanResults.categorized.custom.push(apiInfo);
+      } else {
+        scanResults.categorized.others.push(apiInfo);
+      }
+    } catch(e) {
+      // 忽略无法访问的属性
+    }
+  });
+  
+  // 排序
+  scanResults.apis.sort((a, b) => a.name.localeCompare(b.name));
+  
+  // 显示结果
+  console.log('✅ 扫描完成！');
+  console.log('📊 统计信息：');
+  console.log('  总API数量：', scanResults.apis.length);
+  console.log('  Bridge类型：', scanResults.categorized.bridges.length);
+  console.log('  私有属性：', scanResults.categorized.private.length);
+  console.log('  自定义对象：', scanResults.categorized.custom.length);
+  console.log('\\n📋 扫描结果（JSON）：');
+  console.log(JSON.stringify(scanResults, null, 2));
+  console.log('\\n💡 请复制上面的JSON结果，粘贴到工具页面的"扫描结果"框中');
+  
+  // 返回结果（方便复制）
+  return scanResults;
+})();
+`;
+      
+      document.getElementById('scanScript').value = script.trim();
+      document.getElementById('scriptOutput').style.display = 'block';
+      log('✅ 扫描脚本已生成', 'info');
+      log('💡 请复制脚本，在目标网页（如Facebook）的控制台中运行', 'info');
+    }
+    
+    // 导入扫描结果
+    function importScanResult() {
+      const resultText = document.getElementById('scanResultInput').value;
+      if (!resultText) {
+        alert('请先粘贴扫描结果');
+        return;
+      }
+      
+      try {
+        const data = JSON.parse(resultText);
+        
+        // 验证数据格式
+        if (!data.apis || !Array.isArray(data.apis)) {
+          throw new Error('数据格式错误：缺少apis数组');
+        }
+        
+        scanResults = data;
+        scanResults.webview = scanResults.webview || detectWebView();
+        
+        // 保存
+        saveToStorage();
+        
+        // 更新显示
+        updateDisplay();
+        
+        // 更新环境信息
+        updateEnvInfo();
+        
+        // 如果有基准数据，自动对比
+        if (baselineData) {
+          compareWithBaseline();
+        }
+        
+        log('✅ 扫描结果已导入', 'info');
+        log(`环境：${scanResults.webview}`, 'info');
+        log(`API数量：${scanResults.apis.length}`, 'info');
+        
+        // 清空输入框
+        document.getElementById('scanResultInput').value = '';
+      } catch(e) {
+        alert('数据格式错误：' + e.message);
+        log('❌ 导入失败：' + e.message, 'error');
+      }
+    }
+    
+    // 检测WebView类型（用于导入时）
+    function detectWebView() {
+      const ua = navigator.userAgent;
+      if (ua.includes('QQ/')) return 'QQ WebView';
+      if (ua.includes('MicroMessenger')) return '微信 WebView';
+      if (ua.includes('AlipayClient')) return '支付宝 WebView';
+      if (ua.includes('Chrome') && !ua.includes('QQ') && !ua.includes('MicroMessenger')) return 'Chrome（标准浏览器）';
+      if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari（标准浏览器）';
+      return '未知';
+    }
     
     // 初始化
     function init() {
@@ -428,97 +638,7 @@
       }
     }
     
-    // 开始扫描
-    function startScan() {
-      log('🚀 开始扫描window对象...', 'info');
-      document.getElementById('status').textContent = '🔄 正在扫描...';
-      document.getElementById('status').className = 'status scanning';
-      
-      scanResults = {
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        userAgent: navigator.userAgent,
-        webview: scanResults.webview,
-        apis: [],
-        categorized: {
-          bridges: [],
-          private: [],
-          custom: [],
-          others: []
-        }
-      };
-      
-      const allAPIs = new Set();
-      
-      // 方法1：for...in
-      log('📋 方法1：扫描可枚举属性...', 'info');
-      for (let key in window) {
-        allAPIs.add(key);
-      }
-      
-      // 方法2：Object.getOwnPropertyNames
-      log('📋 方法2：扫描所有自有属性...', 'info');
-      Object.getOwnPropertyNames(window).forEach(key => {
-        allAPIs.add(key);
-      });
-      
-      // 方法3：Object.keys
-      log('📋 方法3：扫描可枚举自有属性...', 'info');
-      Object.keys(window).forEach(key => {
-        allAPIs.add(key);
-      });
-      
-      // 收集详细信息
-      log('📋 收集API详细信息...', 'info');
-      allAPIs.forEach(key => {
-        try {
-          const value = window[key];
-          const descriptor = Object.getOwnPropertyDescriptor(window, key);
-          
-          const apiInfo = {
-            name: key,
-            type: typeof value,
-            enumerable: descriptor?.enumerable ?? true,
-            configurable: descriptor?.configurable ?? true,
-            writable: descriptor?.writable ?? true,
-            category: categorizeAPI(key, value)
-          };
-          
-          scanResults.apis.push(apiInfo);
-          
-          // 分类
-          if (apiInfo.category === 'bridge') {
-            scanResults.categorized.bridges.push(apiInfo);
-          } else if (apiInfo.category === 'private') {
-            scanResults.categorized.private.push(apiInfo);
-          } else if (apiInfo.category === 'custom') {
-            scanResults.categorized.custom.push(apiInfo);
-          } else {
-            scanResults.categorized.others.push(apiInfo);
-          }
-        } catch(e) {
-          // 忽略无法访问的属性
-        }
-      });
-      
-      // 排序
-      scanResults.apis.sort((a, b) => a.name.localeCompare(b.name));
-      
-      // 保存
-      saveToStorage();
-      
-      // 更新显示
-      updateDisplay();
-      
-      // 如果有基准数据，自动对比
-      if (baselineData) {
-        compareWithBaseline();
-      }
-      
-      log(`✅ 扫描完成！共发现 ${scanResults.apis.length} 个API`, 'info');
-      document.getElementById('status').textContent = '✅ 扫描完成';
-      document.getElementById('status').className = 'status complete';
-    }
+    // 注意：startScan函数已移除，扫描需要在目标网页中运行
     
     // 分类API
     function categorizeAPI(name, value) {
@@ -733,7 +853,7 @@
       baselineData = null;
       updateDisplay();
       document.getElementById('results').innerHTML = '<div class="result-item info">结果已清空</div>';
-      document.getElementById('status').textContent = '✅ 就绪，可以开始扫描';
+      document.getElementById('status').textContent = '✅ 就绪，请使用扫描脚本在目标网页中扫描';
       document.getElementById('status').className = 'status ready';
       document.getElementById('addedCount').textContent = '0';
       document.getElementById('noComparison').style.display = 'block';
