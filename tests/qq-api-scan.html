@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ WebView API / Bridge 扫描（静态版）</title>
+  <style>
+    body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      line-height: 1.6;
+    }
+    a { color: #4ec9b0; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    h1 { color: #4ec9b0; margin-bottom: 10px; }
+    .subtitle { color: #858585; margin-bottom: 18px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin: 12px 0; }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover { background: #005a9e; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .box {
+      background: #252526;
+      padding: 14px;
+      border-radius: 6px;
+      border-left: 4px solid #007acc;
+      margin: 10px 0;
+    }
+    .box.success { border-left-color: #16825d; }
+    .box.warn { border-left-color: #d7ba7d; }
+    .box.error { border-left-color: #a31515; }
+    pre {
+      background: #2d2d30;
+      padding: 12px;
+      border-radius: 6px;
+      overflow: auto;
+      max-height: 520px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #2d2d30;
+      color: #9cdcfe;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .k { color: #9cdcfe; }
+    .v { color: #ce9178; }
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>QQ WebView API / Bridge 扫描（静态版）</h1>
+  <div class="subtitle">
+    你不需要控制台：点按钮即可把“QQ 比普通浏览器多出来的 API 名称”显示出来。
+    <br>建议基线也用同一台手机的浏览器（Chrome/Safari），不要用电脑浏览器做基线。
+  </div>
+
+  <div id="status" class="box">状态：等待开始</div>
+
+  <div class="row">
+    <button id="btnSnapshot" onclick="runSnapshot()">立即扫描一次</button>
+    <button id="btnWatch" onclick="startWatch()">开始持续监控（10s）</button>
+    <button id="btnStop" onclick="stopWatch()" disabled>停止监控</button>
+    <button onclick="copyJSON()">复制当前 JSON</button>
+    <button onclick="downloadJSON()">下载当前 JSON</button>
+  </div>
+
+  <div class="box">
+    <div><span class="k">环境：</span><span id="ua" class="v"></span></div>
+    <div><span class="k">时间：</span><span id="ts" class="v"></span></div>
+    <div><span class="k">扫描统计：</span><span id="stats" class="v"></span></div>
+  </div>
+
+  <div class="box">
+    <div><strong>疑似 Bridge / 注入点快速命中</strong></div>
+    <pre id="quickHits">(empty)</pre>
+  </div>
+
+  <div class="box">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+      <div><strong>基线对比（不用控制台）</strong><span class="pill">推荐</span></div>
+      <div style="color:#858585; font-size:12px;">先在手机浏览器跑一次复制 JSON，再回到 QQ WebView 粘贴这里点“对比”。</div>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <input id="baselineFile" type="file" accept="application/json" style="color:#d4d4d4;" />
+      <button onclick="loadBaselineFromFile()">从文件读取基线</button>
+      <button onclick="compareWithBaseline()">与基线对比</button>
+      <button onclick="clearBaseline()">清空基线</button>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="color:#9cdcfe; margin-bottom:6px;">把“手机浏览器”导出的 JSON 粘贴到这里：</div>
+      <textarea id="baselineText" placeholder="手机浏览器打开本页 → 点“复制当前 JSON/下载当前 JSON” → 粘贴到这里" style="width:100%; min-height:120px; background:#2d2d30; color:#d4d4d4; border:1px solid #3e3e42; border-radius:6px; padding:10px; font-size:12px;"></textarea>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="color:#9cdcfe; margin-bottom:6px;">对比结果（QQ 比基线“新增”的名字）：</div>
+      <pre id="baselineDiff">(empty)</pre>
+    </div>
+  </div>
+
+  <div class="box">
+    <div><strong>当前扫描结果 JSON</strong></div>
+    <pre id="output">(empty)</pre>
+  </div>
+
+  <script src="./qq-api-scan.js"></script>
+</body>
+</html>
