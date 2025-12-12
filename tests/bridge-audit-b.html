@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Audit - 测试页 B</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .sub{color:#666;margin:0 0 14px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer}
+    input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:14px}
+    textarea{min-height:90px}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1;min-width:240px}
+    .hint{color:#666;font-size:13px;margin-top:6px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:360px}
+    a{color:#0a66c2;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .pill{display:inline-block;background:#fff3cd;color:#7a5b00;border:1px solid #ffe08a;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>Bridge Audit（系统性记录）- 测试页 B <span class="pill">B</span></h1>
+  <p class="sub">说明：B 页内容与 A 页相同，用来测试“换页面/换来源后 API 是否仍可见/可用”。</p>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>App 名称（你手动填）</label>
+        <input id="appName" placeholder="例如：QQ / 微信 / 支付宝 …" />
+      </div>
+      <div>
+        <label>打开入口（你手动填）</label>
+        <input id="entry" placeholder="例如：聊天链接 / 内置浏览器 / 活动页 / 小程序 …" />
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>轮 1：可见性（自动）</strong>
+    <div class="row" style="margin-top:10px;">
+      <button onclick="runScan()">扫描“按钮/API”</button>
+      <button onclick="downloadJSON()">下载本页结果 JSON</button>
+    </div>
+    <div class="hint">把本页结果和 A 页结果做对比，就是“换页面/来源”的边界证据。</div>
+  </div>
+
+  <div class="card">
+    <strong>扫描结果</strong>
+    <pre id="out">(empty)</pre>
+  </div>
+
+  <script src="./bridge-audit.js"></script>
+</body>
+</html>

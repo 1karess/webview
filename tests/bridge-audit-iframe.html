@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bridge Audit - iframe 边界测试</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .sub{color:#666;margin:0 0 14px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+    iframe{width:100%;height:420px;border:2px solid #ddd;border-radius:10px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:360px}
+    .hint{color:#666;font-size:13px;margin-top:6px}
+    a{color:#0a66c2;text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>Bridge Audit - iframe 边界测试</h1>
+  <p class="sub">目的：模拟“第三方内容/广告/嵌入页面”的情况，看 iframe 子页面是否也能看到/使用同样的 API。</p>
+
+  <div class="card">
+    <strong>操作</strong>
+    <div class="hint">点击“运行 iframe 扫描”，子页面会扫描它自己能看到的 API，并把结果通过 postMessage 回传到这里。</div>
+    <button onclick="runIframeScan()">运行 iframe 扫描</button>
+  </div>
+
+  <div class="card">
+    <strong>iframe 子页面</strong>
+    <div class="hint">子页面地址：<code id="childUrl"></code></div>
+    <iframe id="child"></iframe>
+  </div>
+
+  <div class="card">
+    <strong>回传结果</strong>
+    <pre id="out">(empty)</pre>
+  </div>
+
+  <script>
+    const child = document.getElementById('child');
+    const out = document.getElementById('out');
+    const childUrl = new URL('./bridge-audit-iframe-child.html', location.href).toString();
+    document.getElementById('childUrl').textContent = childUrl;
+    child.src = childUrl;
+
+    window.addEventListener('message', (e) => {
+      if (!e.data || e.data.type !== 'bridge-audit-iframe-result') return;
+      out.textContent = JSON.stringify(e.data.payload, null, 2);
+    });
+
+    function runIframeScan() {
+      out.textContent = '等待 iframe 返回结果…';
+      child.contentWindow.postMessage({ type: 'bridge-audit-iframe-run' }, '*');
+    }
+  </script>
+</body>
+</html>

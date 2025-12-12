@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>iframe child</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:14px}
+    .hint{color:#666;font-size:13px;margin:0 0 10px}
+    pre{background:#0b1020;color:#d7e2ff;padding:10px;border-radius:10px;overflow:auto;max-height:360px}
+  </style>
+</head>
+<body>
+  <div class="hint">我是 iframe 子页面：我会扫描我自己能看到的 API，并回传给父页面。</div>
+  <pre id="out">(waiting)</pre>
+
+  <script>
+    function safeStringify(v, maxLen=180){
+      try{
+        if(typeof v==='function'){
+          const s = Function.prototype.toString.call(v);
+          return s.length>maxLen?s.slice(0,maxLen)+'…':s;
+        }
+        if(typeof v==='string') return v.length>maxLen?v.slice(0,maxLen)+'…':v;
+        const s = JSON.stringify(v);
+        return s && s.length>maxLen?s.slice(0,maxLen)+'…':s;
+      }catch{ try{return String(v)}catch{return '[Unstringifiable]'} }
+    }
+
+    function listOwnNames(obj){
+      try{ return Object.getOwnPropertyNames(obj).sort(); } catch { return []; }
+    }
+
+    function suspiciousWindowNames(){
+      const pats=[/^mqq$/i,/^qq$/i,/^qz/i,/^tx/i,/^tbs/i,/^x5/i,/^webkit$/i,/bridge/i,/native/i,/jsbridge/i,/^__qq/i];
+      const names=listOwnNames(window);
+      return names.filter(n=>pats.some(re=>re.test(n))).slice(0,300);
+    }
+
+    function scan(){
+      const payload={
+        timestamp:new Date().toISOString(),
+        userAgent:navigator.userAgent,
+        location:{href:location.href, origin:location.origin},
+        windowOwnNamesCount:listOwnNames(window).length,
+        navigatorOwnNamesCount:listOwnNames(navigator).length,
+        documentOwnNamesCount:listOwnNames(document).length,
+        suspiciousWindowNames:suspiciousWindowNames(),
+        quickHits:{
+          mqq: { exists: 'mqq' in window, preview: safeStringify(window.mqq) },
+          qq: { exists: 'qq' in window, preview: safeStringify(window.qq) },
+          webkit: { exists: 'webkit' in window, preview: (()=>{try{return safeStringify(window.webkit)}catch(e){return String(e)}})() },
+          messageHandlers: { exists: (()=>{try{return !!(window.webkit && window.webkit.messageHandlers)}catch{return false}})() }
+        }
+      };
+      document.getElementById('out').textContent = JSON.stringify(payload, null, 2);
+      parent.postMessage({ type:'bridge-audit-iframe-result', payload }, '*');
+    }
+
+    window.addEventListener('message', (e)=>{
+      if(e.data && e.data.type==='bridge-audit-iframe-run') scan();
+    });
+
+    // 自动扫一次，方便你不点按钮也能看到
+    scan();
+  </script>
+</body>
+</html>

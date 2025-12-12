@@ -38,6 +38,26 @@
   </div>
 
   <div class="card">
+    <h3>QQ WebView API 扫描（不用控制台）</h3>
+    <p>在同一个 URL 下对比“手机浏览器 vs QQ WebView”，直接输出 QQ 新增的 API 名称。</p>
+    <p>
+      <a href="./tests/qq-api-scan.html">🧪 QQ API / Bridge 扫描页</a>
+    </p>
+    <p><small>推荐先用手机浏览器跑一次复制 JSON，再用 QQ 打开同一页粘贴对比。</small></p>
+  </div>
+
+  <div class="card">
+    <h3>Bridge Audit（按你“4轮实验”计划执行）</h3>
+    <p>给老师看的“系统性现象”工具：A页/B页/iframe 边界测试 + 导出 JSON 方便做两张表。</p>
+    <p>
+      <a href="./tests/bridge-audit-a.html">🅰️ 测试页 A</a> | 
+      <a href="./tests/bridge-audit-b.html">🅱️ 测试页 B</a> | 
+      <a href="./tests/bridge-audit-iframe.html">🧩 iframe 边界测试</a>
+    </p>
+    <p><small>建议：同一台手机用“浏览器 vs App WebView”对比；B 页最好部署到第二个域名（更像真实的“换来源”）。</small></p>
+  </div>
+
+  <div class="card">
     <h3>Cookie 同步查证工具</h3>
     <p>测试新窗口和 iframe 之间的 Cookie 同步机制，检测登录/注销状态同步问题。</p>
     <p>
@@ -53,24 +73,6 @@
       <a href="./tests/iframe-content-reader.html">🔍 iframe 内容读取工具</a>
     </p>
     <p><small>测试14种不同的方法读取 iframe 内容：直接访问、URL检测、postMessage、资源检测、加载时间分析等。</small></p>
-  </div>
-
-  <div class="card">
-    <h3>APP跳转检测工具</h3>
-    <p>检测网站能否知道用户点击了APP跳转（如Facebook提示跳转到APP）。</p>
-    <p>
-      <a href="./tests/app-redirect-detector.html">📱 APP跳转检测工具</a>
-    </p>
-    <p><small>测试多种方法检测APP跳转：链接点击检测、页面可见性变化、窗口失焦检测等。适合在QQ webview中测试Facebook等网站的APP跳转行为。</small></p>
-  </div>
-
-  <div class="card">
-    <h3>Facebook登录环境对比工具</h3>
-    <p>对比Chrome/Safari和WebView中登录Facebook时的API差异。</p>
-    <p>
-      <a href="./tests/facebook-env-comparison.html">🔍 Facebook环境对比工具</a>
-    </p>
-    <p><small>在Chrome/Safari中登录Facebook后扫描API，然后在WebView中登录Facebook后扫描API，对比两者的差异，找出WebView额外注入的API。</small></p>
   </div>
 
   <div class="card">
