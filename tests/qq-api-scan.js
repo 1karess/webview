@@ -22,6 +22,7 @@ const elQuickHits = document.getElementById('quickHits');
 const elBaselineText = document.getElementById('baselineText');
 const elBaselineDiff = document.getElementById('baselineDiff');
 const elBaselineFile = document.getElementById('baselineFile');
+const elCategorySummary = document.getElementById('categorySummary');
 
 let lastSnapshot = null;
 let watchTimer = null;
@@ -62,14 +63,71 @@ function listOwnKeys(obj) {
   return { names, symbols: symbols.map(s => s.toString()) };
 }
 
-function snapshotObject(label, obj) {
-  const keys = listOwnKeys(obj);
+function getProtoName(proto) {
+  try {
+    const ctor = proto && proto.constructor;
+    const n = ctor && ctor.name;
+    return n ? n : '(anonymous)';
+  } catch {
+    return '(unknown)';
+  }
+}
+
+function collectPrototypeChain(obj, maxDepth = 6) {
+  const chain = [];
+  let cur = obj;
+  for (let depth = 0; depth < maxDepth; depth++) {
+    let proto = null;
+    try { proto = Object.getPrototypeOf(cur); } catch { proto = null; }
+    if (!proto) break;
+    chain.push({ depth: depth + 1, proto });
+    cur = proto;
+  }
+  return chain;
+}
+
+function snapshotObject(label, obj, { maxProtoDepth = 6 } = {}) {
+  const own = listOwnKeys(obj);
+
+  const protoLevels = [];
+  const protoNamesUnion = new Set();
+  const protoSymbolsUnion = new Set();
+
+  const chain = collectPrototypeChain(obj, maxProtoDepth);
+  for (const { depth, proto } of chain) {
+    const keys = listOwnKeys(proto);
+    keys.names.forEach(n => protoNamesUnion.add(n));
+    keys.symbols.forEach(s => protoSymbolsUnion.add(s));
+    protoLevels.push({
+      depth,
+      protoName: getProtoName(proto),
+      ownNames: keys.names.sort(),
+      ownSymbols: keys.symbols.sort(),
+      count: keys.names.length + keys.symbols.length,
+    });
+  }
+
+  const allNames = Array.from(new Set([...own.names, ...protoNamesUnion])).sort();
+  const allSymbols = Array.from(new Set([...own.symbols, ...protoSymbolsUnion])).sort();
+
   return {
     label,
     ok: true,
-    ownNames: keys.names.sort(),
-    ownSymbols: keys.symbols.sort(),
-    count: keys.names.length + keys.symbols.length,
+    ownNames: own.names.sort(),
+    ownSymbols: own.symbols.sort(),
+    proto: {
+      maxDepth: maxProtoDepth,
+      levels: protoLevels,
+      unionNames: Array.from(protoNamesUnion).sort(),
+      unionSymbols: Array.from(protoSymbolsUnion).sort(),
+    },
+    allNames,
+    allSymbols,
+    count: {
+      own: own.names.length + own.symbols.length,
+      protoUnion: protoNamesUnion.size + protoSymbolsUnion.size,
+      all: allNames.length + allSymbols.length,
+    },
   };
 }
 
@@ -132,6 +190,94 @@ function diffNames(prevNames, nextNames) {
   return { added, removed };
 }
 
+function findPropertyOwner(obj, propName, maxDepth = 6) {
+  // 返回：{ where: 'own' | 'proto', depth, protoName }
+  try {
+    if (Object.prototype.hasOwnProperty.call(obj, propName)) {
+      return { where: 'own', depth: 0, protoName: null };
+    }
+  } catch {}
+
+  let cur = obj;
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    let proto = null;
+    try { proto = Object.getPrototypeOf(cur); } catch { proto = null; }
+    if (!proto) break;
+    try {
+      if (Object.prototype.hasOwnProperty.call(proto, propName)) {
+        return { where: 'proto', depth, protoName: getProtoName(proto) };
+      }
+    } catch {}
+    cur = proto;
+  }
+  return { where: 'unknown', depth: null, protoName: null };
+}
+
+function descriptorSummary(obj, propName) {
+  try {
+    // 需要在原型链上找 descriptor
+    let cur = obj;
+    for (let i = 0; i < 8; i++) {
+      const desc = Object.getOwnPropertyDescriptor(cur, propName);
+      if (desc) {
+        const isAccessor = !!(desc.get || desc.set);
+        return {
+          enumerable: !!desc.enumerable,
+          configurable: !!desc.configurable,
+          writable: isAccessor ? undefined : !!desc.writable,
+          hasGetter: !!desc.get,
+          hasSetter: !!desc.set,
+        };
+      }
+      cur = Object.getPrototypeOf(cur);
+      if (!cur) break;
+    }
+    return null;
+  } catch (e) {
+    return { error: String(e) };
+  }
+}
+
+function tryRead(obj, propName) {
+  try {
+    const v = obj[propName];
+    const t = typeof v;
+    const out = { ok: true, type: t };
+    if (t === 'function') {
+      out.function = { paramCount: v.length, sourcePreview: safeStringify(v, 220) };
+    } else {
+      out.valuePreview = safeStringify(v, 220);
+    }
+    return out;
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+function buildAddedDetails(scopeLabel, targetObj, addedNames, maxItems = 180) {
+  const details = {};
+  const list = addedNames.slice(0, maxItems);
+  for (const name of list) {
+    // 只对“字符串属性名”做画像，symbol（字符串化）无法可靠还原
+    if (typeof name !== 'string') continue;
+    const owner = findPropertyOwner(targetObj, name, 6);
+    details[name] = {
+      where: owner.where,
+      protoDepth: owner.depth,
+      protoName: owner.protoName,
+      descriptor: descriptorSummary(targetObj, name),
+      access: tryRead(targetObj, name),
+    };
+  }
+  return {
+    scope: scopeLabel,
+    maxItems,
+    shown: Object.keys(details).length,
+    truncated: addedNames.length > maxItems,
+    details,
+  };
+}
+
 function computeSnapshot() {
   const result = {
     testType: 'qq-webview-api-scan-static',
@@ -141,10 +287,10 @@ function computeSnapshot() {
     location: { href: location.href, origin: location.origin },
     quickHits: quickBridgeHits(),
     snapshots: {
-      window: snapshotObject('window', window),
-      navigator: snapshotObject('navigator', navigator),
-      document: snapshotObject('document', document),
-      location: snapshotObject('location', location),
+      window: snapshotObject('window', window, { maxProtoDepth: 6 }),
+      navigator: snapshotObject('navigator', navigator, { maxProtoDepth: 6 }),
+      document: snapshotObject('document', document, { maxProtoDepth: 6 }),
+      location: snapshotObject('location', location, { maxProtoDepth: 6 }),
     },
     watch: { diffs: [] },
   };
@@ -171,10 +317,10 @@ function render(result) {
   elUA.textContent = result.userAgent;
   elTS.textContent = result.timestamp;
 
-  const winCount = result.snapshots.window?.count ?? 0;
-  const navCount = result.snapshots.navigator?.count ?? 0;
-  const docCount = result.snapshots.document?.count ?? 0;
-  const mhCount = result.snapshots.webkitMessageHandlers?.count ?? 0;
+  const winCount = result.snapshots.window?.count?.all ?? 0;
+  const navCount = result.snapshots.navigator?.count?.all ?? 0;
+  const docCount = result.snapshots.document?.count?.all ?? 0;
+  const mhCount = result.snapshots.webkitMessageHandlers?.count?.all ?? 0;
 
   elStats.textContent = `window=${winCount}, navigator=${navCount}, document=${docCount}, messageHandlers=${mhCount}`;
   elQuickHits.textContent = JSON.stringify(result.quickHits, null, 2);
@@ -194,10 +340,15 @@ function pickNames(result, path) {
 
 function makeBaselineDiff(baseline, current) {
   const scopes = [
-    { label: 'window（全局对象名）', path: 'snapshots.window.ownNames' },
-    { label: 'navigator（浏览器能力名）', path: 'snapshots.navigator.ownNames' },
-    { label: 'document（文档相关名）', path: 'snapshots.document.ownNames' },
-    { label: 'webkit.messageHandlers（iOS 桥面名）', path: 'snapshots.webkitMessageHandlers.ownNames' },
+    { label: 'window（全局对象名：own）', path: 'snapshots.window.ownNames', target: window },
+    { label: 'window（全局对象名：含原型链）', path: 'snapshots.window.allNames', target: window },
+    { label: 'navigator（能力名：own）', path: 'snapshots.navigator.ownNames', target: navigator },
+    { label: 'navigator（能力名：含原型链）', path: 'snapshots.navigator.allNames', target: navigator },
+    { label: 'document（文档名：own）', path: 'snapshots.document.ownNames', target: document },
+    { label: 'document（文档名：含原型链）', path: 'snapshots.document.allNames', target: document },
+    { label: 'location（位置名：own）', path: 'snapshots.location.ownNames', target: location },
+    { label: 'location（位置名：含原型链）', path: 'snapshots.location.allNames', target: location },
+    { label: 'webkit.messageHandlers（iOS 桥面名）', path: 'snapshots.webkitMessageHandlers.allNames', target: null },
   ];
 
   const out = {
@@ -207,6 +358,7 @@ function makeBaselineDiff(baseline, current) {
     added: {},
     removed: {},
     summary: {},
+    addedDetails: {},
   };
 
   for (const s of scopes) {
@@ -216,6 +368,11 @@ function makeBaselineDiff(baseline, current) {
     out.added[s.label] = d.added;
     out.removed[s.label] = d.removed;
     out.summary[s.label] = { addedCount: d.added.length, removedCount: d.removed.length };
+
+    // 对“新增项”做结构/类型/可访问性画像（只做关键 scope，避免过大）
+    if (s.target && d.added.length > 0 && (s.label.includes('window') || s.label.includes('navigator') || s.label.includes('document') || s.label.includes('location'))) {
+      out.addedDetails[s.label] = buildAddedDetails(s.label, s.target, d.added);
+    }
   }
 
   const watchAdded = [];
@@ -243,11 +400,69 @@ function renderBaselineDiff(diffObj) {
   elBaselineDiff.textContent = JSON.stringify(diffObj, null, 2);
 }
 
+function classifyApiName(name) {
+  const s = String(name).toLowerCase();
+  const hit = (re) => re.test(s);
+
+  // 你关心的“按钮/API”大致分组（按关键词）
+  if (hit(/token|auth|oauth|session|cookie|login|logout|account|uid|user|passport/)) return '账号/登录/凭证';
+  if (hit(/imei|oaid|idfa|uuid|deviceid|androidid|serial|fingerprint|hwid/)) return '设备标识/指纹';
+  if (hit(/location|geo|gps|latitude|longitude/)) return '定位';
+  if (hit(/camera|photo|album|image|video|scan|qrcode/)) return '相机/相册/扫码';
+  if (hit(/pay|payment|wallet|order|billing|purchase/)) return '支付/钱包/订单';
+  if (hit(/clipboard|paste|copy/)) return '剪贴板';
+  if (hit(/contact|addressbook/)) return '通讯录';
+  if (hit(/push|notification/)) return '通知';
+  if (hit(/open|launch|navigate|route|jump|deeplink|schema/)) return '跳转/唤起/路由';
+  if (hit(/fetch|xhr|http|request|network|proxy/)) return '网络能力/请求';
+  if (hit(/storage|localstorage|sessionstorage|indexeddb|cookie/)) return '存储/会话';
+  if (hit(/bridge|jsbridge|native|webkit|messagehandler|mqq|qz|tbs|x5|tx/)) return '疑似 Bridge/注入';
+  return '其他/未分类';
+}
+
+function summarizeAddedNames(title, addedNames, maxList = 120) {
+  const counts = new Map();
+  for (const n of addedNames) {
+    const c = classifyApiName(n);
+    counts.set(c, (counts.get(c) ?? 0) + 1);
+  }
+
+  const sorted = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  const top = addedNames
+    .filter(n => classifyApiName(n) !== '其他/未分类')
+    .slice(0, maxList);
+
+  return {
+    title,
+    total: addedNames.length,
+    byCategory: Object.fromEntries(sorted),
+    topSuspiciousPreview: top,
+    truncated: top.length === maxList && addedNames.length > maxList,
+  };
+}
+
+function renderCategorySummary(diffObj) {
+  if (!elCategorySummary) return;
+
+  // 只总结最重要的两个面：window（含原型链） + messageHandlers
+  const winAll = diffObj?.added?.['window（全局对象名：含原型链）'] ?? [];
+  const mh = diffObj?.added?.['webkit.messageHandlers（iOS 桥面名）'] ?? [];
+
+  const summary = {
+    note: '这是“QQ 比手机浏览器新增”的分类汇总（先看这里，再看下面详细 diff）',
+    window_allNames: summarizeAddedNames('window（含原型链）新增', winAll),
+    webkit_messageHandlers: summarizeAddedNames('webkit.messageHandlers 新增', mh),
+  };
+
+  elCategorySummary.textContent = JSON.stringify(summary, null, 2);
+}
+
 function clearBaseline() {
   baselineResult = null;
   elBaselineText.value = '';
   elBaselineFile.value = '';
   elBaselineDiff.textContent = '(empty)';
+  if (elCategorySummary) elCategorySummary.textContent = '(empty)';
   setStatus('已清空基线', 'success');
 }
 
@@ -280,7 +495,8 @@ function compareWithBaseline() {
     }
     const diffObj = makeBaselineDiff(baselineResult, currentResult);
     renderBaselineDiff(diffObj);
-    setStatus('对比完成：请看“对比结果（新增的名字）”', 'success');
+    renderCategorySummary(diffObj);
+    setStatus('对比完成：先看“分类汇总”，再看详细 diff', 'success');
   } catch (e) {
     setStatus(`对比失败：${e.message}（确认粘贴的是完整 JSON）`, 'error');
   }
@@ -395,5 +611,6 @@ function downloadJSON() {
   elTS.textContent = nowISO();
   elStats.textContent = '未扫描';
   elBaselineDiff.textContent = '(empty)';
+  if (elCategorySummary) elCategorySummary.textContent = '(empty)';
   setStatus('就绪：先用手机浏览器跑一次作为基线；再用 QQ 打开同一页对比即可');
 })();

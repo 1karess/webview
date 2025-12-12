@@ -67,15 +67,24 @@
   <a href="../index.html">← 返回 WebView Tests</a>
   <h1>QQ WebView API / Bridge 扫描（静态版）</h1>
   <div class="subtitle">
-    你不需要控制台：点按钮即可把“QQ 比普通浏览器多出来的 API 名称”显示出来。
-    <br>建议基线也用同一台手机的浏览器（Chrome/Safari），不要用电脑浏览器做基线。
+    目标：把 <strong>QQ 聊天框里打开网页</strong>时，QQ 给网页<strong>额外增加</strong>的 JS API/Bridge 找出来。
+    <br>你不需要控制台：页面会直接显示“QQ 比手机浏览器多出来的 API 名称 + 分类”。
   </div>
 
   <div id="status" class="box">状态：等待开始</div>
 
+  <div class="box">
+    <div><strong>你要做的就 3 步（不混乱版）</strong></div>
+    <div style="color:#858585; font-size:12px; margin-top:6px;">
+      步骤 1：<strong>手机浏览器</strong>打开本页 → 点“生成基线（浏览器）” → 复制/下载基线 JSON。<br>
+      步骤 2：把同一个链接发到<strong>QQ 聊天</strong>里，用 QQ 打开本页 → 点“扫描 QQ 当前环境”。<br>
+      步骤 3：在 QQ 这里粘贴/导入基线 JSON → 点“对比并分类” → 直接看到 QQ 新增 API。
+    </div>
+  </div>
+
   <div class="row">
-    <button id="btnSnapshot" onclick="runSnapshot()">立即扫描一次</button>
-    <button id="btnWatch" onclick="startWatch()">开始持续监控（10s）</button>
+    <button onclick="runSnapshot()">扫描 QQ 当前环境</button>
+    <button id="btnWatch" onclick="startWatch()">监控延迟注入（10s，可选）</button>
     <button id="btnStop" onclick="stopWatch()" disabled>停止监控</button>
     <button onclick="copyJSON()">复制当前 JSON</button>
     <button onclick="downloadJSON()">下载当前 JSON</button>
@@ -88,19 +97,30 @@
   </div>
 
   <div class="box">
+    <div><strong>我到底测了什么？（说明）</strong></div>
+    <div style="color:#858585; font-size:12px; margin-top:6px;">
+      这页<strong>不会自动调用任何敏感功能</strong>（避免误触支付/相机/扫码），只做“枚举/对比/分类”。<br>
+      我会枚举这些地方的属性名（包含不可枚举 + 原型链 + symbol）：<br>
+      - <code>window</code> / <code>navigator</code> / <code>document</code> / <code>location</code><br>
+      - iOS 额外：<code>window.webkit.messageHandlers</code>（如果存在）<br>
+      然后用“手机浏览器基线”做差分，得到<strong>QQ 新增</strong>的名字，并按关键词做<strong>风险分类</strong>。
+    </div>
+  </div>
+
+  <div class="box">
     <div><strong>疑似 Bridge / 注入点快速命中</strong></div>
     <pre id="quickHits">(empty)</pre>
   </div>
 
   <div class="box">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-      <div><strong>基线对比（不用控制台）</strong><span class="pill">推荐</span></div>
-      <div style="color:#858585; font-size:12px;">先在手机浏览器跑一次复制 JSON，再回到 QQ WebView 粘贴这里点“对比”。</div>
+      <div><strong>步骤 1：生成/导入基线（手机浏览器）</strong><span class="pill">必须</span></div>
+      <div style="color:#858585; font-size:12px;">基线一定要用<strong>同一台手机</strong>的浏览器（Chrome/Safari），不要用电脑。</div>
     </div>
     <div class="row" style="margin-top:10px;">
       <input id="baselineFile" type="file" accept="application/json" style="color:#d4d4d4;" />
       <button onclick="loadBaselineFromFile()">从文件读取基线</button>
-      <button onclick="compareWithBaseline()">与基线对比</button>
+      <button onclick="compareWithBaseline()">对比并分类（步骤 3）</button>
       <button onclick="clearBaseline()">清空基线</button>
     </div>
     <div style="margin-top:10px;">
@@ -108,8 +128,12 @@
       <textarea id="baselineText" placeholder="手机浏览器打开本页 → 点“复制当前 JSON/下载当前 JSON” → 粘贴到这里" style="width:100%; min-height:120px; background:#2d2d30; color:#d4d4d4; border:1px solid #3e3e42; border-radius:6px; padding:10px; font-size:12px;"></textarea>
     </div>
     <div style="margin-top:10px;">
-      <div style="color:#9cdcfe; margin-bottom:6px;">对比结果（QQ 比基线“新增”的名字）：</div>
+      <div style="color:#9cdcfe; margin-bottom:6px;">步骤 3 输出：QQ 新增 API（含分类 + 细节画像）：</div>
       <pre id="baselineDiff">(empty)</pre>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="color:#9cdcfe; margin-bottom:6px;">分类汇总（你最该先看这个）：</div>
+      <pre id="categorySummary">(empty)</pre>
     </div>
   </div>
 
