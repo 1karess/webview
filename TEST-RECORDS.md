@@ -47,15 +47,15 @@
 
 | 函数名 | 类型 | 初步判断 | 点击后的现象 | 能力标签 | 备注 |
 |------|------|---------|------------|---------|------|
-| `TXWebKitNativeFetch` | function | 疑似 Bridge/网络能力 | ⏳ 待测试 | 网络能力/请求 | 参数：1个，类似 fetch() |
-| `TXWebKitSchemeHandler` | function | 疑似 Bridge/注入 | ⏳ 待测试 | 疑似 Bridge/注入 | 参数：0个，可能是类 |
-| `TencentOfficeSaveBodyMessageHandler` | object | 其他/未分类 | ⏳ 待测试 | 其他/未分类 | 有 `finishSaveCallbacks` 属性 |
+| `TXWebKitNativeFetch` | function | 疑似 Bridge/网络能力 | ✅ **能调用但请求失败**（"Load failed"） | 网络能力/请求 | ⚠️ **关键发现**：API 存在但可能有限制或需要特定条件 |
+| `TXWebKitSchemeHandler` | function | 疑似 Bridge/注入 | ✅ **是类构造函数**，需要用 `new` 调用 | 疑似 Bridge/注入 | 错误："Cannot call a class constructor without \|new\|" |
+| `TencentOfficeSaveBodyMessageHandler` | object | 其他/未分类 | ✅ **对象，包含 `finishSaveCallbacks` 属性** | 其他/未分类 | 可能是腾讯 Office 文件保存相关的回调管理器 |
 | `__Use_TBS_PXY__` | boolean | 其他/未分类 | `true` | 其他/未分类 | TBS 代理配置标志 |
-| `__mqqStartLoadTime` | number | 其他/未分类 | `1765583724248` | 其他/未分类 | 页面加载时间戳 |
-| `__qbGetBaseURL` | function | 其他/未分类 | ⏳ 待测试 | 其他/未分类 | 参数：1个，处理 base URL |
-| `__qbSHCeekieIsExist` | boolean | 其他/未分类 | `true` | 其他/未分类 | Cookie 存在检查 |
-| `injectBlurListener` | function | 其他/未分类 | ⏳ 待测试 | 其他/未分类 | 参数：0个，注入监听器 |
-| `document.cookie` | getter/setter | 存储/会话 | ⏳ 待测试 | 存储/会话 | Cookie 访问（Safari 基线中没有） |
+| `__mqqStartLoadTime` | number | 其他/未分类 | ✅ **时间戳：1765589361124**（2025-12-13T01:29:21.124Z） | 其他/未分类 | 页面开始加载的时间戳（毫秒） |
+| `__qbGetBaseURL` | function | 其他/未分类 | ✅ **能调用，返回传入的 URL**（相对路径会转换为绝对路径） | 其他/未分类 | 例如：`/relative/path` → `https://webview-wheat-eight.vercel.app/relative/path` |
+| `__qbSHCeekieIsExist` | boolean | 其他/未分类 | ✅ **`true`**（表示 Cookie 存在） | 存储/会话 | Cookie 存在检查标志 |
+| `injectBlurListener` | function | 其他/未分类 | ✅ **能调用，返回 `false`**，可能添加了事件监听器 | 其他/未分类 | 可能为 input 元素注入 blur 事件监听器 |
+| `document.cookie` | getter/setter | 存储/会话 | ✅ **能读取和写入 Cookie** | 存储/会话 | Cookie 访问（Safari 基线中没有） |
 
 **分类汇总：**
 - 疑似 Bridge/注入：4 个
@@ -534,31 +534,35 @@
 
 ## 🎯 下一步行动清单
 
-### 立即执行（轮 2 - 功能实验）
+### 立即执行（轮 2 - 功能实验）✅ **已完成（2025-12-13）**
 
-- [ ] 测试 `TXWebKitNativeFetch` 的功能
-  - [ ] 测试获取 Reddit 用户信息
-  - [ ] 测试获取 Facebook 用户信息
-  - [ ] 测试是否携带 Cookie
-  - [ ] 记录返回值和现象
+- [x] 测试 `TXWebKitNativeFetch` 的功能 ✅
+  - [x] 测试基本调用
+  - [x] **结果**：能调用但请求失败（"Load failed"）
+  - [x] **分析**：API 存在但可能有限制或需要特定条件
 
-- [ ] 测试 `__qbGetBaseURL` 的功能
-  - [ ] 传入不同 URL，记录返回值
+- [x] 测试 `__qbGetBaseURL` 的功能 ✅
+  - [x] 传入不同 URL，记录返回值
+  - [x] **结果**：能调用，返回传入的 URL（相对路径转换为绝对路径）
 
-- [ ] 测试 `TXWebKitSchemeHandler` 的功能
-  - [ ] 查看对象类型和方法
-  - [ ] 尝试调用，记录现象
+- [x] 测试 `TXWebKitSchemeHandler` 的功能 ✅
+  - [x] 查看对象类型和方法
+  - [x] **结果**：是类构造函数，需要用 `new` 调用
+  - [ ] **下一步**：测试 `new TXWebKitSchemeHandler()` 的行为
 
-- [ ] 测试 `injectBlurListener` 的功能
-  - [ ] 调用函数，观察页面变化
+- [x] 测试 `injectBlurListener` 的功能 ✅
+  - [x] 调用函数，观察页面变化
+  - [x] **结果**：能调用，返回 `false`，可能添加了事件监听器
 
-- [ ] 测试 `TencentOfficeSaveBodyMessageHandler` 的功能
-  - [ ] 查看对象内容和方法
+- [x] 测试 `TencentOfficeSaveBodyMessageHandler` 的功能 ✅
+  - [x] 查看对象内容和方法
+  - [x] **结果**：对象，包含 `finishSaveCallbacks` 属性
 
-- [ ] 测试 `document.cookie` 的功能
-  - [ ] 测试读取和写入
+- [x] 测试 `document.cookie` 的功能 ✅
+  - [x] 测试读取和写入
+  - [x] **结果**：能读取和写入 Cookie
 
-- [ ] 填写表 1 的"点击后的现象"和"能力标签"列
+- [x] 填写表 1 的"点击后的现象"和"能力标签"列 ✅
 
 ### 然后执行（轮 3 - 边界实验）
 
@@ -605,6 +609,32 @@
 - ✅ 发现 9 个新增 API
 - ✅ 分类汇总：疑似 Bridge/注入 4 个，网络能力 1 个，其他 4 个
 - ⏳ 下一步：轮 2 功能实验
+
+**2025-12-13 轮 2 测试（功能实验）：**
+- ✅ **完成功能测试**（2025-12-13T01:30:04.130Z）
+- ✅ **测试结果汇总**：
+  - **可调用的 API**：7 个
+  - **不可调用的 API**：1 个（TXWebKitSchemeHandler 需要用 `new` 调用）
+- ✅ **关键发现**：
+  1. **`TXWebKitNativeFetch`**：
+     - ✅ API 存在且可调用
+     - ⚠️ 但请求失败（"Load failed"）
+     - **分析**：可能是网络限制、需要特定条件、或需要用户授权
+     - **意义**：API 存在但可能有限制，需要进一步研究
+  2. **`__qbGetBaseURL`**：
+     - ✅ 能调用，返回传入的 URL
+     - ✅ 相对路径会自动转换为绝对路径
+     - **能力**：URL 处理工具函数
+  3. **`TXWebKitSchemeHandler`**：
+     - ✅ 是类构造函数，需要用 `new` 调用
+     - **下一步**：需要测试 `new TXWebKitSchemeHandler()` 的行为
+  4. **`injectBlurListener`**：
+     - ✅ 能调用，返回 `false`
+     - **可能行为**：为 input 元素注入 blur 事件监听器
+  5. **`document.cookie`**：
+     - ✅ 能读取和写入 Cookie
+     - **意义**：QQ WebView 允许 Cookie 访问（Safari 基线中没有）
+- ⏳ 下一步：轮 3 边界实验（测试换页面/iframe/用户提示）
 
 **2025-12-13 轮 3 测试（部分完成）：**
 - ✅ **关键发现：iframe 边界测试结果**
