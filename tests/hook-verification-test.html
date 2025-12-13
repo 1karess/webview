@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hook 功能验证测试</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:12px 16px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px;font-size:14px}
+    button:hover{background:#005a9e}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:400px;font-size:12px}
+    .result{background:#f8f9fa;padding:8px;border-radius:4px;margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;display:none}
+    .success{background:#d4edda;border-left:4px solid #28a745}
+    .error{background:#f8d7da;border-left:4px solid #dc3545}
+    .warning{background:#fff3cd;border-left:4px solid #ffc107}
+    .info{background:#d1ecf1;border-left:4px solid #17a2b8;padding:12px;border-radius:6px;margin:10px 0}
+  </style>
+</head>
+<body>
+  <h1>Hook 功能验证测试</h1>
+  <p>验证 Hook 是否真的拦截了请求、是否添加了请求头、是否检查了请求体。</p>
+  
+  <div class="info">
+    <strong>验证目标</strong>：<br>
+    1. Hook 是否真的拦截了 XMLHttpRequest 的 send 方法<br>
+    2. Hook 是否添加了请求头（tx_webkit_body_uuid）<br>
+    3. Hook 是否检查了请求体（shouldNativeHandleHTTPBody）<br>
+    4. Hook 是否保存了数据到原生（saveParamsToNative）
+  </div>
+
+  <div class="card">
+    <h3>验证 1：Hook 是否拦截了 XMLHttpRequest 的 send 方法</h3>
+    <p>方法：Hook XMLHttpRequest 的 send 方法，然后发起请求，检查是否被拦截。</p>
+    <button onclick="verify1()">开始验证</button>
+    <div id="verify1" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>验证 2：Hook 是否添加了请求头（tx_webkit_body_uuid）</h3>
+    <p>方法：发起一个 XMLHttpRequest 请求，检查服务器收到的请求头中是否有 tx_webkit_body_uuid。</p>
+    <button onclick="verify2()">开始验证</button>
+    <div id="verify2" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>验证 3：Hook 是否检查了请求体（shouldNativeHandleHTTPBody）</h3>
+    <p>方法：测试 shouldNativeHandleHTTPBody 方法，看它如何判断是否处理请求体。</p>
+    <button onclick="verify3()">开始验证</button>
+    <div id="verify3" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>验证 4：Hook 是否保存了数据到原生（saveParamsToNative）</h3>
+    <p>方法：调用 saveParamsToNative 方法，观察返回值。</p>
+    <button onclick="verify4()">开始验证</button>
+    <div id="verify4" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>验证 5：实际测试 Hook 代码是否被执行</h3>
+    <p>方法：创建一个 XMLHttpRequest，检查它的 send 方法是否被 Hook 修改。</p>
+    <button onclick="verify5()">开始验证</button>
+    <div id="verify5" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>验证 6：测试 Hook 的完整流程</h3>
+    <p>方法：调用 hookXMLHttpRequest，然后发起一个 POST 请求，检查完整的流程。</p>
+    <button onclick="verify6()">开始验证</button>
+    <div id="verify6" class="result"></div>
+  </div>
+
+  <script>
+    function showResult(id, data, isSuccess) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'block';
+      el.textContent = JSON.stringify(data, null, 2);
+      el.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
+    }
+
+    // 验证 1：Hook 是否拦截了 XMLHttpRequest 的 send 方法
+    function verify1() {
+      var result = {
+        step: '验证 Hook 是否拦截了 XMLHttpRequest 的 send 方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify1', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 测试 1：检查原始 XMLHttpRequest 的 send 方法
+      var originalXHR = new XMLHttpRequest();
+      var originalSend = originalXHR.send;
+      result.tests.push({
+        test: '检查原始 send 方法',
+        originalSendType: typeof originalSend,
+        originalSendName: originalSend.name,
+        conclusion: '✅ 原始 send 方法是: ' + typeof originalSend
+      });
+
+      // 测试 2：调用 hookXMLHttpRequest
+      try {
+        if (typeof cls.hookXMLHttpRequest === 'function') {
+          cls.hookXMLHttpRequest();
+          result.tests.push({
+            test: '调用 hookXMLHttpRequest',
+            success: true,
+            conclusion: '✅ hookXMLHttpRequest 调用成功'
+          });
+        } else {
+          result.error = 'hookXMLHttpRequest 方法不存在';
+          showResult('verify1', result, false);
+          return;
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('verify1', result, false);
+        return;
+      }
+
+      // 测试 3：检查 Hook 后的 XMLHttpRequest 的 send 方法
+      setTimeout(function() {
+        var hookedXHR = new XMLHttpRequest();
+        var hookedSend = hookedXHR.send;
+        result.tests.push({
+          test: '检查 Hook 后的 send 方法',
+          hookedSendType: typeof hookedSend,
+          hookedSendName: hookedSend.name,
+          sendChanged: originalSend !== hookedSend,
+          conclusion: originalSend !== hookedSend ? 
+            '✅ send 方法被修改了（Hook 可能生效）' : 
+            '⚠️ send 方法没有被修改（Hook 可能没有生效）'
+        });
+
+        // 测试 4：检查 send 方法的源码
+        try {
+          var sendCode = hookedSend.toString();
+          result.tests.push({
+            test: '检查 send 方法的源码',
+            sendCodeLength: sendCode.length,
+            containsSend: sendCode.includes('send'),
+            containsShouldNativeHandleHTTPBody: sendCode.includes('shouldNativeHandleHTTPBody'),
+            containsSaveParamsToNative: sendCode.includes('saveParamsToNative'),
+            containsTxWebkitBodyUuid: sendCode.includes('tx_webkit_body_uuid'),
+            conclusion: sendCode.includes('shouldNativeHandleHTTPBody') ? 
+              '✅ send 方法包含 Hook 代码（Hook 确实生效了）' : 
+              '⚠️ send 方法不包含 Hook 代码（Hook 可能没有生效）'
+          });
+        } catch(e) {
+          result.tests.push({
+            test: '检查 send 方法的源码',
+            error: e.message
+          });
+        }
+
+        result.conclusion = result.tests[result.tests.length - 1].conclusion;
+        showResult('verify1', result, true);
+      }, 500);
+    }
+
+    // 验证 2：Hook 是否添加了请求头（tx_webkit_body_uuid）
+    function verify2() {
+      var result = {
+        step: '验证 Hook 是否添加了请求头（tx_webkit_body_uuid）',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify2', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 调用 hookXMLHttpRequest
+      try {
+        if (typeof cls.hookXMLHttpRequest === 'function') {
+          cls.hookXMLHttpRequest();
+          result.tests.push({
+            test: '调用 hookXMLHttpRequest',
+            success: true,
+            conclusion: '✅ hookXMLHttpRequest 调用成功'
+          });
+        } else {
+          result.error = 'hookXMLHttpRequest 方法不存在';
+          showResult('verify2', result, false);
+          return;
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('verify2', result, false);
+        return;
+      }
+
+      // 发起一个 POST 请求（带请求体）
+      setTimeout(function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://httpbin.org/post');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        var testData = { test: 'hook-verification', data: 'test-body' };
+        xhr.send(JSON.stringify(testData));
+
+        xhr.onload = function() {
+          try {
+            var response = JSON.parse(xhr.responseText);
+            var headers = response.headers || {};
+            
+            result.tests.push({
+              test: '检查请求头',
+              success: true,
+              receivedHeaders: headers,
+              hasTxWebkitBodyUuid: 'Tx-Webkit-Body-Uuid' in headers || 'tx_webkit_body_uuid' in headers,
+              txWebkitBodyUuidValue: headers['Tx-Webkit-Body-Uuid'] || headers['tx_webkit_body_uuid'],
+              conclusion: ('Tx-Webkit-Body-Uuid' in headers || 'tx_webkit_body_uuid' in headers) ?
+                '✅ 请求头包含 tx_webkit_body_uuid（Hook 确实添加了请求头）' :
+                '⚠️ 请求头不包含 tx_webkit_body_uuid（Hook 可能没有添加请求头，或者只在特定条件下添加）'
+            });
+
+            result.conclusion = result.tests[result.tests.length - 1].conclusion;
+            showResult('verify2', result, true);
+          } catch(e) {
+            result.error = e.message;
+            showResult('verify2', result, false);
+          }
+        };
+
+        xhr.onerror = function() {
+          result.error = '请求失败';
+          showResult('verify2', result, false);
+        };
+      }, 500);
+    }
+
+    // 验证 3：Hook 是否检查了请求体（shouldNativeHandleHTTPBody）
+    function verify3() {
+      var result = {
+        step: '验证 Hook 是否检查了请求体（shouldNativeHandleHTTPBody）',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify3', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 测试 shouldNativeHandleHTTPBody 方法
+      if (typeof cls.shouldNativeHandleHTTPBody === 'function') {
+        var testBodies = [
+          { body: 'plain text', type: 'string' },
+          { body: JSON.stringify({test: 'json'}), type: 'JSON string' },
+          { body: new FormData(), type: 'FormData' },
+          { body: new Blob(['test'], {type: 'text/plain'}), type: 'Blob' },
+          { body: null, type: 'null' },
+          { body: undefined, type: 'undefined' }
+        ];
+
+        testBodies.forEach(function(testCase) {
+          try {
+            var ret = cls.shouldNativeHandleHTTPBody(testCase.body);
+            result.tests.push({
+              test: '测试 shouldNativeHandleHTTPBody(' + testCase.type + ')',
+              input: testCase.type,
+              output: ret,
+              outputType: typeof ret,
+              conclusion: '✅ 返回: ' + String(ret) + ' (' + typeof ret + ')'
+            });
+          } catch(e) {
+            result.tests.push({
+              test: '测试 shouldNativeHandleHTTPBody(' + testCase.type + ')',
+              input: testCase.type,
+              error: e.message
+            });
+          }
+        });
+
+        result.conclusion = '✅ 所有测试完成，查看 tests 字段了解 shouldNativeHandleHTTPBody 的判断逻辑';
+        showResult('verify3', result, true);
+      } else {
+        result.error = 'shouldNativeHandleHTTPBody 方法不存在';
+        showResult('verify3', result, false);
+      }
+    }
+
+    // 验证 4：Hook 是否保存了数据到原生（saveParamsToNative）
+    function verify4() {
+      var result = {
+        step: '验证 Hook 是否保存了数据到原生（saveParamsToNative）',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify4', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 测试 saveParamsToNative 方法
+      if (typeof cls.saveParamsToNative === 'function') {
+        var testData = [
+          { data: 'plain text', type: 'string' },
+          { data: JSON.stringify({test: 'json', sensitive: 'data'}), type: 'JSON string' },
+          { data: '{"password":"123456"}', type: 'sensitive JSON' }
+        ];
+
+        testData.forEach(function(testCase) {
+          try {
+            var promise = cls.saveParamsToNative(testCase.data);
+            if (promise && typeof promise.then === 'function') {
+              promise.then(function(ret) {
+                result.tests.push({
+                  test: '测试 saveParamsToNative(' + testCase.type + ')',
+                  input: testCase.type,
+                  output: ret,
+                  outputType: typeof ret,
+                  conclusion: '✅ 返回 Promise，resolve 值为: ' + String(ret) + ' (' + typeof ret + ')'
+                });
+                
+                if (result.tests.length === testData.length) {
+                  result.conclusion = '✅ 所有测试完成，saveParamsToNative 返回 Promise';
+                  showResult('verify4', result, true);
+                }
+              }).catch(function(e) {
+                result.tests.push({
+                  test: '测试 saveParamsToNative(' + testCase.type + ')',
+                  input: testCase.type,
+                  error: e.message,
+                  conclusion: '❌ Promise rejected: ' + e.message
+                });
+                
+                if (result.tests.length === testData.length) {
+                  showResult('verify4', result, false);
+                }
+              });
+            } else {
+              result.tests.push({
+                test: '测试 saveParamsToNative(' + testCase.type + ')',
+                input: testCase.type,
+                output: promise,
+                outputType: typeof promise,
+                conclusion: '⚠️ 返回的不是 Promise: ' + typeof promise
+              });
+              
+              if (result.tests.length === testData.length) {
+                showResult('verify4', result, false);
+              }
+            }
+          } catch(e) {
+            result.tests.push({
+              test: '测试 saveParamsToNative(' + testCase.type + ')',
+              input: testCase.type,
+              error: e.message
+            });
+            
+            if (result.tests.length === testData.length) {
+              showResult('verify4', result, false);
+            }
+          }
+        });
+      } else {
+        result.error = 'saveParamsToNative 方法不存在';
+        showResult('verify4', result, false);
+      }
+    }
+
+    // 验证 5：实际测试 Hook 代码是否被执行
+    function verify5() {
+      var result = {
+        step: '验证 Hook 代码是否被执行',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify5', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 调用 hookXMLHttpRequest
+      try {
+        if (typeof cls.hookXMLHttpRequest === 'function') {
+          cls.hookXMLHttpRequest();
+          result.tests.push({
+            test: '调用 hookXMLHttpRequest',
+            success: true,
+            conclusion: '✅ hookXMLHttpRequest 调用成功'
+          });
+        } else {
+          result.error = 'hookXMLHttpRequest 方法不存在';
+          showResult('verify5', result, false);
+          return;
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('verify5', result, false);
+        return;
+      }
+
+      // 创建一个 XMLHttpRequest 并检查它的 send 方法
+      setTimeout(function() {
+        var xhr = new XMLHttpRequest();
+        var sendMethod = xhr.send;
+        
+        // 检查 send 方法是否被修改
+        var sendCode = sendMethod.toString();
+        var isHooked = sendCode.includes('shouldNativeHandleHTTPBody') || 
+                      sendCode.includes('saveParamsToNative') || 
+                      sendCode.includes('tx_webkit_body_uuid');
+
+        result.tests.push({
+          test: '检查 XMLHttpRequest 的 send 方法',
+          sendCodeLength: sendCode.length,
+          sendCodePreview: sendCode.slice(0, 200),
+          isHooked: isHooked,
+          containsShouldNativeHandleHTTPBody: sendCode.includes('shouldNativeHandleHTTPBody'),
+          containsSaveParamsToNative: sendCode.includes('saveParamsToNative'),
+          containsTxWebkitBodyUuid: sendCode.includes('tx_webkit_body_uuid'),
+          conclusion: isHooked ?
+            '✅ send 方法包含 Hook 代码（Hook 确实生效了）' :
+            '⚠️ send 方法不包含 Hook 代码（Hook 可能没有生效，或者 Hook 代码在运行时动态注入）'
+        });
+
+        result.conclusion = result.tests[result.tests.length - 1].conclusion;
+        showResult('verify5', result, isHooked);
+      }, 500);
+    }
+
+    // 验证 6：测试 Hook 的完整流程
+    function verify6() {
+      var result = {
+        step: '测试 Hook 的完整流程',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('verify6', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 调用 hookXMLHttpRequest
+      try {
+        if (typeof cls.hookXMLHttpRequest === 'function') {
+          cls.hookXMLHttpRequest();
+          result.tests.push({
+            test: '调用 hookXMLHttpRequest',
+            success: true,
+            conclusion: '✅ hookXMLHttpRequest 调用成功'
+          });
+        } else {
+          result.error = 'hookXMLHttpRequest 方法不存在';
+          showResult('verify6', result, false);
+          return;
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('verify6', result, false);
+        return;
+      }
+
+      // 发起一个 POST 请求（带请求体）
+      setTimeout(function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://httpbin.org/post');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        var testData = { test: 'hook-full-flow', sensitive: 'data' };
+        xhr.send(JSON.stringify(testData));
+
+        xhr.onload = function() {
+          try {
+            var response = JSON.parse(xhr.responseText);
+            var headers = response.headers || {};
+            var data = response.json || response.data || {};
+            
+            result.tests.push({
+              test: '检查请求头',
+              hasTxWebkitBodyUuid: 'Tx-Webkit-Body-Uuid' in headers || 'tx_webkit_body_uuid' in headers,
+              txWebkitBodyUuidValue: headers['Tx-Webkit-Body-Uuid'] || headers['tx_webkit_body_uuid'],
+              conclusion: ('Tx-Webkit-Body-Uuid' in headers || 'tx_webkit_body_uuid' in headers) ?
+                '✅ 请求头包含 tx_webkit_body_uuid' :
+                '⚠️ 请求头不包含 tx_webkit_body_uuid'
+            });
+
+            result.tests.push({
+              test: '检查请求体',
+              sentData: testData,
+              receivedData: data,
+              dataSame: JSON.stringify(testData) === JSON.stringify(data),
+              conclusion: JSON.stringify(testData) === JSON.stringify(data) ?
+                '✅ 请求体正常传递' :
+                '⚠️ 请求体可能被修改'
+            });
+
+            result.conclusion = '✅ 完整流程测试完成，查看 tests 字段了解详细信息';
+            showResult('verify6', result, true);
+          } catch(e) {
+            result.error = e.message;
+            showResult('verify6', result, false);
+          }
+        };
+
+        xhr.onerror = function() {
+          result.error = '请求失败';
+          showResult('verify6', result, false);
+        };
+      }, 500);
+    }
+  </script>
+</body>
+</html>
+
