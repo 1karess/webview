@@ -203,9 +203,9 @@
 
   <div class="card">
     <h3>测试结果汇总</h3>
-    <button onclick="window.testButtonClick()">🔍 测试按钮是否工作</button>
-    <button onclick="window.copyResults()">复制完整测试结果 JSON</button>
-    <button onclick="window.testAllAPIs()">一键测试所有 API（深度）</button>
+    <button id="testBtn">🔍 测试按钮是否工作</button>
+    <button id="copyBtn">复制完整测试结果 JSON</button>
+    <button id="testAllBtn">一键测试所有 API（深度）</button>
     <div id="summary" class="result" style="display:none;"></div>
   </div>
 
@@ -1062,6 +1062,51 @@
         }
       }
     }
+    
+    // 使用事件监听器绑定按钮（更可靠）
+    function bindButtons() {
+      console.log('开始绑定按钮...');
+      const testBtn = document.getElementById('testBtn');
+      const copyBtn = document.getElementById('copyBtn');
+      const testAllBtn = document.getElementById('testAllBtn');
+      
+      if (testBtn) {
+        testBtn.addEventListener('click', function() {
+          console.log('testBtn clicked');
+          window.testButtonClick();
+        });
+        console.log('✅ testBtn 已绑定');
+      } else {
+        console.error('❌ testBtn 未找到');
+      }
+      
+      if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+          console.log('copyBtn clicked');
+          window.copyResults();
+        });
+        console.log('✅ copyBtn 已绑定');
+      }
+      
+      if (testAllBtn) {
+        testAllBtn.addEventListener('click', function() {
+          console.log('testAllBtn clicked');
+          window.testAllAPIs();
+        });
+        console.log('✅ testAllBtn 已绑定');
+      }
+    }
+    
+    // 页面加载完成后绑定按钮
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bindButtons);
+    } else {
+      // 如果已经加载完成，立即绑定
+      setTimeout(bindButtons, 100);
+    }
+    
+    // 也尝试立即绑定（防止某些情况下 DOMContentLoaded 不触发）
+    setTimeout(bindButtons, 500);
   </script>
 </body>
 </html>
