@@ -22,12 +22,18 @@
 <body>
   <h1>API 功能探索工具</h1>
   <p>直接调用这些 API，观察它们的行为和返回值，了解它们的作用。</p>
+  <div style="background:#fff3cd;padding:12px;border-radius:6px;margin:10px 0;border-left:4px solid #ffc107;">
+    <strong>⚠️ 如果按钮不工作：</strong><br>
+    1. 先测试：<a href="./ultra-simple-test.html" target="_blank">超简单测试页面</a><br>
+    2. 如果超简单页面能工作，告诉我，我会修复这个页面<br>
+    3. 所有结果会显示在页面上，不需要控制台
+  </div>
 
   <div class="card">
     <h3>1. TXWebKitNativeFetch - 网络请求</h3>
     <div class="api-item">
       <h4>测试网络请求功能</h4>
-      <button onclick="testTXFetch()">测试 TXWebKitNativeFetch</button>
+      <button id="btn1" onclick="window.testTXFetch()">测试 TXWebKitNativeFetch</button>
       <div id="result1" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -36,7 +42,7 @@
     <h3>2. TXWebKitSchemeHandler - 协议处理器</h3>
     <div class="api-item">
       <h4>测试协议处理功能</h4>
-      <button onclick="testSchemeHandler()">测试 TXWebKitSchemeHandler</button>
+      <button id="btn2" onclick="window.testSchemeHandler()">测试 TXWebKitSchemeHandler</button>
       <div id="result2" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -45,7 +51,7 @@
     <h3>3. __qbGetBaseURL - URL 处理</h3>
     <div class="api-item">
       <h4>测试 URL 处理功能</h4>
-      <button onclick="testQbGetBaseURL()">测试 __qbGetBaseURL</button>
+      <button id="btn3" onclick="window.testQbGetBaseURL()">测试 __qbGetBaseURL</button>
       <div id="result3" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -54,7 +60,7 @@
     <h3>4. __qbSHCeekieIsExist - Cookie 检查</h3>
     <div class="api-item">
       <h4>测试 Cookie 检查功能</h4>
-      <button onclick="testQbSHCeekieIsExist()">测试 __qbSHCeekieIsExist</button>
+      <button id="btn4" onclick="window.testQbSHCeekieIsExist()">测试 __qbSHCeekieIsExist</button>
       <div id="result4" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -63,7 +69,7 @@
     <h3>5. __mqqStartLoadTime - 加载时间</h3>
     <div class="api-item">
       <h4>测试加载时间功能</h4>
-      <button onclick="testMqqStartLoadTime()">测试 __mqqStartLoadTime</button>
+      <button id="btn5" onclick="window.testMqqStartLoadTime()">测试 __mqqStartLoadTime</button>
       <div id="result5" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -73,7 +79,7 @@
     <div class="api-item">
       <h4>测试事件注入功能</h4>
       <input type="text" id="testInput" placeholder="测试输入框" style="width:100%;padding:8px;margin:8px 0;">
-      <button onclick="testInjectBlurListener()">测试 injectBlurListener</button>
+      <button id="btn6" onclick="window.testInjectBlurListener()">测试 injectBlurListener</button>
       <div id="result6" class="result" style="display:none;"></div>
     </div>
   </div>
@@ -82,19 +88,20 @@
     <h3>7. TencentOfficeSaveBodyMessageHandler - 腾讯 Office</h3>
     <div class="api-item">
       <h4>测试腾讯 Office 功能</h4>
-      <button onclick="testTencentOffice()">测试 TencentOfficeSaveBodyMessageHandler</button>
+      <button id="btn7" onclick="window.testTencentOffice()">测试 TencentOfficeSaveBodyMessageHandler</button>
       <div id="result7" class="result" style="display:none;"></div>
     </div>
   </div>
 
   <div class="card">
     <h3>一键测试所有 API</h3>
-    <button onclick="testAll()" style="background:#28a745;padding:12px 20px;font-size:16px;">🚀 一键测试所有 API</button>
+    <button id="btnAll" onclick="window.testAll()" style="background:#28a745;padding:12px 20px;font-size:16px;">🚀 一键测试所有 API</button>
     <pre id="allResults" style="display:none;"></pre>
   </div>
 
   <script>
-    function showResult(id, data, isSuccess = true) {
+    // 确保所有函数都在全局作用域
+    window.showResult = function(id, data, isSuccess = true) {
       const el = document.getElementById(id);
       el.style.display = 'block';
       el.textContent = JSON.stringify(data, null, 2);
@@ -102,7 +109,7 @@
     }
 
     // 1. TXWebKitNativeFetch
-    async function testTXFetch() {
+    window.testTXFetch = async function() {
       const result = {
         api: 'TXWebKitNativeFetch',
         exists: typeof window.TXWebKitNativeFetch !== 'undefined',
@@ -111,7 +118,7 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        showResult('result1', result, false);
+        window.showResult('result1', result, false);
         return;
       }
 
@@ -155,11 +162,11 @@
         };
       } catch(e) {}
 
-      showResult('result1', result);
+      window.showResult('result1', result);
     }
 
     // 2. TXWebKitSchemeHandler
-    function testSchemeHandler() {
+    window.testSchemeHandler = function() {
       const result = {
         api: 'TXWebKitSchemeHandler',
         exists: typeof window.TXWebKitSchemeHandler !== 'undefined',
@@ -168,7 +175,7 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        showResult('result2', result, false);
+        window.showResult('result2', result, false);
         return;
       }
 
@@ -222,11 +229,11 @@
         });
       }
 
-      showResult('result2', result);
+      window.showResult('result2', result);
     }
 
     // 3. __qbGetBaseURL
-    function testQbGetBaseURL() {
+    window.testQbGetBaseURL = function() {
       const result = {
         api: '__qbGetBaseURL',
         exists: typeof window.__qbGetBaseURL !== 'undefined',
@@ -235,7 +242,7 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        showResult('result3', result, false);
+        window.showResult('result3', result, false);
         return;
       }
 
@@ -264,11 +271,11 @@
 
       result.conclusion = '这是一个 URL 处理工具函数，用于将相对路径转换为绝对路径';
 
-      showResult('result3', result);
+      window.showResult('result3', result);
     }
 
     // 4. __qbSHCeekieIsExist
-    function testQbSHCeekieIsExist() {
+    window.testQbSHCeekieIsExist = function() {
       const result = {
         api: '__qbSHCeekieIsExist',
         exists: typeof window.__qbSHCeekieIsExist !== 'undefined',
@@ -282,11 +289,11 @@
         result.error = 'API 不存在';
       }
 
-      showResult('result4', result, result.exists);
+      window.showResult('result4', result, result.exists);
     }
 
     // 5. __mqqStartLoadTime
-    function testMqqStartLoadTime() {
+    window.testMqqStartLoadTime = function() {
       const result = {
         api: '__mqqStartLoadTime',
         exists: typeof window.__mqqStartLoadTime !== 'undefined',
@@ -302,11 +309,11 @@
         result.error = 'API 不存在';
       }
 
-      showResult('result5', result, result.exists);
+      window.showResult('result5', result, result.exists);
     }
 
     // 6. injectBlurListener
-    function testInjectBlurListener() {
+    window.testInjectBlurListener = function() {
       const result = {
         api: 'injectBlurListener',
         exists: typeof window.injectBlurListener !== 'undefined',
@@ -315,7 +322,7 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        showResult('result6', result, false);
+        window.showResult('result6', result, false);
         return;
       }
 
@@ -347,20 +354,20 @@
                 blurFired,
                 conclusion: blurFired ? '✅ blur 事件正常' : '⚠️ blur 事件未触发'
               });
-              showResult('result6', result);
+              window.showResult('result6', result);
             }, 100);
           }, 100);
         } else {
-          showResult('result6', result);
+          window.showResult('result6', result);
         }
       } catch(e) {
         result.error = e.message;
-        showResult('result6', result, false);
+        window.showResult('result6', result, false);
       }
     }
 
     // 7. TencentOfficeSaveBodyMessageHandler
-    function testTencentOffice() {
+    window.testTencentOffice = function() {
       const result = {
         api: 'TencentOfficeSaveBodyMessageHandler',
         exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined',
@@ -369,7 +376,7 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        showResult('result7', result, false);
+        window.showResult('result7', result, false);
         return;
       }
 
@@ -398,29 +405,29 @@
         result.error = e.message;
       }
 
-      showResult('result7', result);
+      window.showResult('result7', result);
     }
 
     // 一键测试所有
-    async function testAll() {
+    window.testAll = async function() {
       const allResults = {
         timestamp: new Date().toISOString(),
         results: {}
       };
 
-      await testTXFetch();
+      await window.testTXFetch();
       await new Promise(r => setTimeout(r, 500));
-      testSchemeHandler();
+      window.testSchemeHandler();
       await new Promise(r => setTimeout(r, 500));
-      testQbGetBaseURL();
+      window.testQbGetBaseURL();
       await new Promise(r => setTimeout(r, 500));
-      testQbSHCeekieIsExist();
+      window.testQbSHCeekieIsExist();
       await new Promise(r => setTimeout(r, 500));
-      testMqqStartLoadTime();
+      window.testMqqStartLoadTime();
       await new Promise(r => setTimeout(r, 500));
-      testInjectBlurListener();
+      window.testInjectBlurListener();
       await new Promise(r => setTimeout(r, 500));
-      testTencentOffice();
+      window.testTencentOffice();
 
       // 收集所有结果
       setTimeout(() => {
