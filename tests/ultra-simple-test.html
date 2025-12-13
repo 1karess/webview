@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>超简单测试</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    button { padding: 15px 20px; font-size: 18px; margin: 10px; background: #007acc; color: white; border: none; border-radius: 5px; }
+    #output { margin-top: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>超简单按钮测试</h1>
+  <p>如果这个页面的按钮都不工作，说明 QQ WebView 可能阻止了 JavaScript 执行。</p>
+  
+  <button id="btn1">按钮 1</button>
+  <button id="btn2">按钮 2</button>
+  <button onclick="test3()">按钮 3 (内联)</button>
+  
+  <div id="output"></div>
+
+  <script>
+    // 最基础的方法
+    var btn1 = document.getElementById('btn1');
+    if (btn1) {
+      btn1.onclick = function() {
+        document.getElementById('output').innerHTML = '✅ 按钮 1 工作！';
+        alert('按钮 1 工作！');
+      };
+    }
+
+    var btn2 = document.getElementById('btn2');
+    if (btn2) {
+      btn2.onclick = function() {
+        document.getElementById('output').innerHTML = '✅ 按钮 2 工作！';
+        alert('按钮 2 工作！');
+      };
+    }
+
+    // 全局函数
+    function test3() {
+      document.getElementById('output').innerHTML = '✅ 按钮 3 工作！';
+      alert('按钮 3 工作！');
+    }
+
+    // 确保 test3 在全局
+    window.test3 = test3;
+
+    // 页面加载完成提示
+    window.onload = function() {
+      document.getElementById('output').innerHTML = '页面已加载，请点击按钮测试';
+      console.log('页面加载完成');
+    };
+  </script>
+</body>
+</html>
+
