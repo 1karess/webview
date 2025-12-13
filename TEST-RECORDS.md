@@ -685,14 +685,19 @@
     }
     ```
   - **安全意义分析**：
+    - ⚠️ **API 共享问题**：iframe 子页面可以访问主页面的 Bridge API，说明 API 在 iframe 和主页面之间**共享**
     - ⚠️ **部分隔离**：不是所有 API 都在 iframe 中可用，说明 QQ 有**部分隔离机制**
-    - ❌ **关键 API 未隔离**：最敏感的 API（`TXWebKitNativeFetch`、`TXWebKitSchemeHandler`）在 iframe 中**仍然可访问**
+    - ❌ **关键 API 共享**：最敏感的 API（`TXWebKitNativeFetch`、`TXWebKitSchemeHandler`）在 iframe 中**可以访问**，说明这些 API 是共享的
     - ❌ **严重安全风险**：这意味着：
-      - 广告可以调用网络请求 API
-      - XSS 攻击可以调用网络请求 API
-      - 第三方脚本可以调用网络请求 API
-      - 嵌入的第三方网页可以调用网络请求 API
+      - 广告可以调用网络请求 API（因为 API 共享）
+      - XSS 攻击可以调用网络请求 API（因为 API 共享）
+      - 第三方脚本可以调用网络请求 API（因为 API 共享）
+      - 嵌入的第三方网页可以调用网络请求 API（因为 API 共享）
     - ✅ **部分保护**：某些 API（如 `injectBlurListener`、`TencentOfficeSaveBodyMessageHandler`）在 iframe 中不可用，说明有**部分隔离**
+  - **与已有研究的关系**：
+    - ✅ **这是已知问题**：已有研究发现了 WebView Bridge API 在 iframe 和主页面之间共享的问题
+    - ✅ **你的发现验证了这个问题**：在 QQ WebView 中也存在 API 共享问题
+    - ⏳ **新的研究角度**：可以研究"为什么某些 API 共享而某些不共享"（部分隔离的机制）
   - **结论验证**：
     - ✅ **结论正确**：iframe 测试是在**同一个域名**下的，但 iframe 子页面可以访问主页面的 API，这确实说明**没有 iframe 隔离**
     - ✅ **测试方法正确**：iframe 测试不需要跨域名，因为测试的是"iframe 子页面是否能访问主页面环境中的 API"
