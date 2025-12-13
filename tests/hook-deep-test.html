@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hook 功能深入测试</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:12px 16px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px;font-size:14px}
+    button:hover{background:#005a9e}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:400px;font-size:12px}
+    .result{background:#f8f9fa;padding:8px;border-radius:4px;margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;display:none}
+    .success{background:#d4edda;border-left:4px solid #28a745}
+    .error{background:#f8d7da;border-left:4px solid #dc3545}
+    .warning{background:#fff3cd;border-left:4px solid #ffc107}
+    .info{background:#d1ecf1;border-left:4px solid #17a2b8;padding:12px;border-radius:6px;margin:10px 0}
+    .comparison{display:flex;gap:10px;flex-wrap:wrap}
+    .comparison > div{flex:1;min-width:300px}
+  </style>
+</head>
+<body>
+  <h1>Hook 功能深入测试</h1>
+  <p>对比 Hook 前后的网络请求，查看是否被拦截或修改。</p>
+  
+  <div class="info">
+    <strong>测试方法</strong>：<br>
+    1. 先发起一个正常的网络请求（Hook 前）<br>
+    2. 调用 Hook 方法<br>
+    3. 再发起一个网络请求（Hook 后）<br>
+    4. 对比两个请求的差异，看是否被拦截或修改
+  </div>
+
+  <div class="card">
+    <h3>测试 1：对比 Hook 前后的 fetch 请求</h3>
+    <button onclick="testFetchComparison()">开始测试</button>
+    <div class="comparison">
+      <div>
+        <h4>Hook 前的请求</h4>
+        <div id="fetchBefore" class="result"></div>
+      </div>
+      <div>
+        <h4>Hook 后的请求</h4>
+        <div id="fetchAfter" class="result"></div>
+      </div>
+    </div>
+    <div id="fetchComparison" class="result" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 2：对比 Hook 前后的 XMLHttpRequest</h3>
+    <button onclick="testXHRComparison()">开始测试</button>
+    <div class="comparison">
+      <div>
+        <h4>Hook 前的请求</h4>
+        <div id="xhrBefore" class="result"></div>
+      </div>
+      <div>
+        <h4>Hook 后的请求</h4>
+        <div id="xhrAfter" class="result"></div>
+      </div>
+    </div>
+    <div id="xhrComparison" class="result" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 3：监控所有网络请求（使用 Performance API）</h3>
+    <p>使用 Performance API 监控所有网络请求，看 Hook 是否影响了请求。</p>
+    <button onclick="testPerformanceMonitoring()">开始监控</button>
+    <div id="performanceResult" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 4：测试 Hook 是否能修改请求头</h3>
+    <p>发起一个带自定义请求头的请求，看 Hook 是否修改了请求头。</p>
+    <button onclick="testRequestHeaders()">开始测试</button>
+    <div id="headersResult" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 5：测试 Hook 是否能修改请求体</h3>
+    <p>发起一个 POST 请求，看 Hook 是否修改了请求体。</p>
+    <button onclick="testRequestBody()">开始测试</button>
+    <div id="bodyResult" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 6：测试 Hook 是否能修改响应</h3>
+    <p>发起一个请求，看 Hook 是否修改了响应。</p>
+    <button onclick="testResponseModification()">开始测试</button>
+    <div id="responseResult" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>测试 7：测试 Hook 的其他方法</h3>
+    <p>测试 hookFunction, getterFactory, setterFactory 的作用。</p>
+    <button onclick="testOtherMethods()">开始测试</button>
+    <div id="otherMethodsResult" class="result"></div>
+  </div>
+
+  <script>
+    function showResult(id, data, isSuccess) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'block';
+      el.textContent = JSON.stringify(data, null, 2);
+      el.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
+    }
+
+    // 测试 1：对比 Hook 前后的 fetch 请求
+    function testFetchComparison() {
+      var result = {
+        step: '对比 Hook 前后的 fetch 请求',
+        timestamp: new Date().toISOString(),
+        before: {},
+        after: {},
+        comparison: {}
+      };
+
+      // Hook 前的请求
+      fetch('https://httpbin.org/get?test=before&timestamp=' + Date.now())
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(data) {
+          result.before = {
+            url: data.url,
+            headers: data.headers,
+            args: data.args,
+            timestamp: new Date().toISOString()
+          };
+          showResult('fetchBefore', result.before, true);
+
+          // 调用 Hook
+          if (typeof window.TXWebKitSchemeHandler !== 'undefined' && 
+              typeof window.TXWebKitSchemeHandler.hookFetch === 'function') {
+            window.TXWebKitSchemeHandler.hookFetch();
+          }
+
+          // Hook 后的请求
+          setTimeout(function() {
+            fetch('https://httpbin.org/get?test=after&timestamp=' + Date.now())
+              .then(function(response) {
+                return response.json();
+              })
+              .then(function(data) {
+                result.after = {
+                  url: data.url,
+                  headers: data.headers,
+                  args: data.args,
+                  timestamp: new Date().toISOString()
+                };
+                showResult('fetchAfter', result.after, true);
+
+                // 对比差异
+                result.comparison = {
+                  urlSame: result.before.url === result.after.url,
+                  headersSame: JSON.stringify(result.before.headers) === JSON.stringify(result.after.headers),
+                  argsSame: JSON.stringify(result.before.args) === JSON.stringify(result.after.args),
+                  differences: []
+                };
+
+                // 找出差异
+                if (!result.comparison.urlSame) {
+                  result.comparison.differences.push('URL 不同');
+                }
+                if (!result.comparison.headersSame) {
+                  result.comparison.differences.push('请求头不同');
+                  result.comparison.headerDiff = {
+                    before: result.before.headers,
+                    after: result.after.headers
+                  };
+                }
+                if (!result.comparison.argsSame) {
+                  result.comparison.differences.push('参数不同');
+                }
+
+                if (result.comparison.differences.length === 0) {
+                  result.comparison.conclusion = '⚠️ 没有发现明显差异，但无法确定是否被 Hook 拦截（Hook 可能只是监控，没有修改）';
+                } else {
+                  result.comparison.conclusion = '✅ 发现差异：' + result.comparison.differences.join(', ');
+                }
+
+                showResult('fetchComparison', result.comparison, true);
+              })
+              .catch(function(e) {
+                result.after = { error: e.message };
+                showResult('fetchAfter', result.after, false);
+              });
+          }, 1000);
+        })
+        .catch(function(e) {
+          result.before = { error: e.message };
+          showResult('fetchBefore', result.before, false);
+        });
+    }
+
+    // 测试 2：对比 Hook 前后的 XMLHttpRequest
+    function testXHRComparison() {
+      var result = {
+        step: '对比 Hook 前后的 XMLHttpRequest',
+        timestamp: new Date().toISOString(),
+        before: {},
+        after: {},
+        comparison: {}
+      };
+
+      // Hook 前的请求
+      var xhr1 = new XMLHttpRequest();
+      xhr1.open('GET', 'https://httpbin.org/get?test=xhr_before&timestamp=' + Date.now());
+      xhr1.onload = function() {
+        try {
+          var data = JSON.parse(xhr1.responseText);
+          result.before = {
+            url: data.url,
+            headers: data.headers,
+            args: data.args,
+            status: xhr1.status,
+            timestamp: new Date().toISOString()
+          };
+          showResult('xhrBefore', result.before, true);
+
+          // 调用 Hook
+          if (typeof window.TXWebKitSchemeHandler !== 'undefined' && 
+              typeof window.TXWebKitSchemeHandler.hookXMLHttpRequest === 'function') {
+            window.TXWebKitSchemeHandler.hookXMLHttpRequest();
+          }
+
+          // Hook 后的请求
+          setTimeout(function() {
+            var xhr2 = new XMLHttpRequest();
+            xhr2.open('GET', 'https://httpbin.org/get?test=xhr_after&timestamp=' + Date.now());
+            xhr2.onload = function() {
+              try {
+                var data = JSON.parse(xhr2.responseText);
+                result.after = {
+                  url: data.url,
+                  headers: data.headers,
+                  args: data.args,
+                  status: xhr2.status,
+                  timestamp: new Date().toISOString()
+                };
+                showResult('xhrAfter', result.after, true);
+
+                // 对比差异
+                result.comparison = {
+                  urlSame: result.before.url === result.after.url,
+                  headersSame: JSON.stringify(result.before.headers) === JSON.stringify(result.after.headers),
+                  statusSame: result.before.status === result.after.status,
+                  differences: []
+                };
+
+                if (!result.comparison.urlSame) {
+                  result.comparison.differences.push('URL 不同');
+                }
+                if (!result.comparison.headersSame) {
+                  result.comparison.differences.push('请求头不同');
+                }
+                if (!result.comparison.statusSame) {
+                  result.comparison.differences.push('状态码不同');
+                }
+
+                if (result.comparison.differences.length === 0) {
+                  result.comparison.conclusion = '⚠️ 没有发现明显差异，但无法确定是否被 Hook 拦截';
+                } else {
+                  result.comparison.conclusion = '✅ 发现差异：' + result.comparison.differences.join(', ');
+                }
+
+                showResult('xhrComparison', result.comparison, true);
+              } catch(e) {
+                result.after = { error: e.message };
+                showResult('xhrAfter', result.after, false);
+              }
+            };
+            xhr2.onerror = function() {
+              result.after = { error: '请求失败' };
+              showResult('xhrAfter', result.after, false);
+            };
+            xhr2.send();
+          }, 1000);
+        } catch(e) {
+          result.before = { error: e.message };
+          showResult('xhrBefore', result.before, false);
+        }
+      };
+      xhr1.onerror = function() {
+        result.before = { error: '请求失败' };
+        showResult('xhrBefore', result.before, false);
+      };
+      xhr1.send();
+    }
+
+    // 测试 3：使用 Performance API 监控所有网络请求
+    function testPerformanceMonitoring() {
+      var result = {
+        step: '监控所有网络请求',
+        timestamp: new Date().toISOString(),
+        beforeHook: [],
+        afterHook: [],
+        comparison: {}
+      };
+
+      // 记录 Hook 前的请求
+      var entriesBefore = performance.getEntriesByType('resource');
+      result.beforeHook = entriesBefore.map(function(entry) {
+        return {
+          name: entry.name,
+          type: entry.initiatorType,
+          duration: entry.duration,
+          size: entry.transferSize
+        };
+      });
+
+      // 调用 Hook
+      if (typeof window.TXWebKitSchemeHandler !== 'undefined') {
+        if (typeof window.TXWebKitSchemeHandler.hookFetch === 'function') {
+          window.TXWebKitSchemeHandler.hookFetch();
+        }
+        if (typeof window.TXWebKitSchemeHandler.hookXMLHttpRequest === 'function') {
+          window.TXWebKitSchemeHandler.hookXMLHttpRequest();
+        }
+      }
+
+      // 发起一些请求
+      fetch('https://httpbin.org/get?test=perf1');
+      fetch('https://httpbin.org/get?test=perf2');
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'https://httpbin.org/get?test=perf3');
+      xhr.send();
+
+      // 等待请求完成
+      setTimeout(function() {
+        var entriesAfter = performance.getEntriesByType('resource');
+        result.afterHook = entriesAfter.map(function(entry) {
+          return {
+            name: entry.name,
+            type: entry.initiatorType,
+            duration: entry.duration,
+            size: entry.transferSize
+          };
+        });
+
+        // 找出新增的请求
+        var newRequests = result.afterHook.filter(function(after) {
+          return !result.beforeHook.some(function(before) {
+            return before.name === after.name;
+          });
+        });
+
+        result.comparison = {
+          beforeCount: result.beforeHook.length,
+          afterCount: result.afterHook.length,
+          newRequests: newRequests,
+          conclusion: newRequests.length > 0 ? 
+            '✅ 检测到 ' + newRequests.length + ' 个新请求' : 
+            '⚠️ 没有检测到新请求（可能是 Performance API 的限制）'
+        };
+
+        showResult('performanceResult', result, true);
+      }, 3000);
+    }
+
+    // 测试 4：测试 Hook 是否能修改请求头
+    function testRequestHeaders() {
+      var result = {
+        step: '测试 Hook 是否能修改请求头',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      // 调用 Hook
+      if (typeof window.TXWebKitSchemeHandler !== 'undefined' && 
+          typeof window.TXWebKitSchemeHandler.hookFetch === 'function') {
+        window.TXWebKitSchemeHandler.hookFetch();
+      }
+
+      // 发起一个带自定义请求头的请求
+      fetch('https://httpbin.org/headers', {
+        method: 'GET',
+        headers: {
+          'X-Custom-Header': 'test-value',
+          'X-Test-Header': 'hook-test'
+        }
+      })
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(data) {
+          result.tests.push({
+            test: '检查请求头',
+            success: true,
+            receivedHeaders: data.headers,
+            customHeaderPresent: data.headers['X-Custom-Header'] === 'test-value',
+            conclusion: data.headers['X-Custom-Header'] === 'test-value' ? 
+              '✅ 自定义请求头正常传递' : 
+              '⚠️ 自定义请求头可能被修改或移除'
+          });
+          showResult('headersResult', result, true);
+        })
+        .catch(function(e) {
+          result.error = e.message;
+          showResult('headersResult', result, false);
+        });
+    }
+
+    // 测试 5：测试 Hook 是否能修改请求体
+    function testRequestBody() {
+      var result = {
+        step: '测试 Hook 是否能修改请求体',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      // 调用 Hook
+      if (typeof window.TXWebKitSchemeHandler !== 'undefined' && 
+          typeof window.TXWebKitSchemeHandler.hookFetch === 'function') {
+        window.TXWebKitSchemeHandler.hookFetch();
+      }
+
+      // 发起一个 POST 请求
+      var testData = { test: 'hook-body-test', data: 'original-data' };
+      fetch('https://httpbin.org/post', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(testData)
+      })
+        .then(function(response) {
+          return response.json();
+        })
+        .then(function(data) {
+          result.tests.push({
+            test: '检查请求体',
+            success: true,
+            sentData: testData,
+            receivedData: data.json || data.data,
+            dataSame: JSON.stringify(testData) === JSON.stringify(data.json || data.data),
+            conclusion: JSON.stringify(testData) === JSON.stringify(data.json || data.data) ?
+              '✅ 请求体正常传递' :
+              '⚠️ 请求体可能被修改'
+          });
+          showResult('bodyResult', result, true);
+        })
+        .catch(function(e) {
+          result.error = e.message;
+          showResult('bodyResult', result, false);
+        });
+    }
+
+    // 测试 6：测试 Hook 是否能修改响应
+    function testResponseModification() {
+      var result = {
+        step: '测试 Hook 是否能修改响应',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      // 调用 Hook
+      if (typeof window.TXWebKitSchemeHandler !== 'undefined' && 
+          typeof window.TXWebKitSchemeHandler.hookFetch === 'function') {
+        window.TXWebKitSchemeHandler.hookFetch();
+      }
+
+      // 发起一个请求
+      fetch('https://httpbin.org/get?test=response')
+        .then(function(response) {
+          result.tests.push({
+            test: '检查响应',
+            success: true,
+            status: response.status,
+            statusText: response.statusText,
+            headers: {}
+          });
+
+          // 检查响应头
+          response.headers.forEach(function(value, key) {
+            result.tests[0].headers[key] = value;
+          });
+
+          return response.json();
+        })
+        .then(function(data) {
+          result.tests[0].data = data;
+          result.tests[0].conclusion = '✅ 响应正常，但无法确定是否被 Hook 修改（需要对比原始响应）';
+          showResult('responseResult', result, true);
+        })
+        .catch(function(e) {
+          result.error = e.message;
+          showResult('responseResult', result, false);
+        });
+    }
+
+    // 测试 7：测试 Hook 的其他方法
+    function testOtherMethods() {
+      var result = {
+        step: '测试 Hook 的其他方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('otherMethodsResult', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+      var methods = ['hookFunction', 'getterFactory', 'setterFactory'];
+
+      methods.forEach(function(methodName) {
+        if (typeof cls[methodName] === 'function') {
+          try {
+            var ret = cls[methodName]();
+            result.tests.push({
+              method: methodName,
+              success: true,
+              returnValue: ret,
+              returnType: typeof ret,
+              conclusion: '✅ 能调用，返回: ' + String(ret)
+            });
+          } catch(e) {
+            result.tests.push({
+              method: methodName,
+              success: false,
+              error: e.message,
+              conclusion: '❌ 调用失败: ' + e.message
+            });
+          }
+        } else {
+          result.tests.push({
+            method: methodName,
+            success: false,
+            error: '方法不存在',
+            conclusion: '❌ 方法不存在'
+          });
+        }
+      });
+
+      result.conclusion = '✅ 所有方法测试完成';
+      showResult('otherMethodsResult', result, true);
+    }
+  </script>
+</body>
+</html>
+
