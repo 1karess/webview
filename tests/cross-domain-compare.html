@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>跨域 API 对比工具</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .sub{color:#666;margin:0 0 14px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px}
+    button:hover{background:#005a9e}
+    input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:14px;box-sizing:border-box;margin:4px 0}
+    textarea{min-height:120px;font-family:monospace;font-size:12px}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:500px;font-size:12px}
+    .hint{color:#666;font-size:13px;margin-top:6px}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1;min-width:240px}
+    .success{color:#28a745;font-weight:bold}
+    .error{color:#dc3545;font-weight:bold}
+    .warning{color:#ffc107;font-weight:bold}
+    a{color:#0a66c2;text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>跨域 API 对比工具</h1>
+  <p class="sub">
+    <strong>目的</strong>：对比两个不同域名的 API 扫描结果，验证是否有页面来源限制<br>
+    <strong>使用方法</strong>：分别在两个域名扫描 API，然后在这里粘贴结果进行对比
+  </p>
+
+  <div class="card">
+    <h3>步骤 1：输入两个域名的扫描结果</h3>
+    
+    <div class="row">
+      <div>
+        <label><strong>域名 A 的扫描结果 JSON</strong></label>
+        <div class="hint">例如：webview-wheat-eight.vercel.app 的扫描结果</div>
+        <textarea id="jsonA" placeholder="粘贴域名 A 的 JSON 结果..."></textarea>
+        <input type="file" id="fileA" accept="application/json" />
+        <button onclick="loadFile('A')">从文件加载 A</button>
+      </div>
+      <div>
+        <label><strong>域名 B 的扫描结果 JSON</strong></label>
+        <div class="hint">例如：webview-test-domain2.vercel.app 的扫描结果</div>
+        <textarea id="jsonB" placeholder="粘贴域名 B 的 JSON 结果..."></textarea>
+        <input type="file" id="fileB" accept="application/json" />
+        <button onclick="loadFile('B')">从文件加载 B</button>
+      </div>
+    </div>
+    
+    <button onclick="compare()" style="background:#28a745;margin-top:10px;padding:12px 20px;font-size:16px;">🔍 开始对比</button>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <h3>对比结果</h3>
+    <div id="summary"></div>
+    <pre id="result"></pre>
+    <button onclick="copyResult()" style="background:#6c757d;margin-top:10px;">复制对比结果</button>
+  </div>
+
+  <script>
+    function loadFile(type) {
+      const fileInput = document.getElementById('file' + type);
+      const textarea = document.getElementById('json' + type);
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('请先选择文件');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const json = JSON.parse(e.target.result);
+          textarea.value = JSON.stringify(json, null, 2);
+          alert('✅ 文件加载成功');
+        } catch(err) {
+          alert('❌ 文件格式错误: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function compare() {
+      const jsonA = document.getElementById('jsonA').value;
+      const jsonB = document.getElementById('jsonB').value;
+
+      if (!jsonA || !jsonB) {
+        alert('请先输入两个域名的扫描结果');
+        return;
+      }
+
+      let dataA, dataB;
+      try {
+        dataA = JSON.parse(jsonA);
+        dataB = JSON.parse(jsonB);
+      } catch(e) {
+        alert('JSON 格式错误: ' + e.message);
+        return;
+      }
+
+      // 提取 API 列表
+      const getAPIs = (data) => {
+        const apis = new Set();
+        
+        // 从 suspiciousWindowNames 提取
+        if (data.suspiciousWindowNames) {
+          data.suspiciousWindowNames.forEach(api => apis.add(api));
+        }
+        
+        // 从 quickHits 提取
+        if (data.quickHits) {
+          Object.keys(data.quickHits).forEach(key => {
+            if (data.quickHits[key].exists) {
+              apis.add(key);
+            }
+          });
+        }
+        
+        // 从 snapshots 提取
+        if (data.snapshots && data.snapshots.window) {
+          if (data.snapshots.window.ownNames) {
+            data.snapshots.window.ownNames.forEach(name => {
+              // 过滤掉可疑的 API
+              if (/^(TX|__qb|__mqq|inject|Tencent)/i.test(name)) {
+                apis.add(name);
+              }
+            });
+          }
+        }
+        
+        return apis;
+      };
+
+      const apisA = getAPIs(dataA);
+      const apisB = getAPIs(dataB);
+
+      // 对比分析
+      const same = [...apisA].filter(api => apisB.has(api));
+      const onlyInA = [...apisA].filter(api => !apisB.has(api));
+      const onlyInB = [...apisB].filter(api => !apisA.has(api));
+
+      // 生成对比结果
+      const result = {
+        timestamp: new Date().toISOString(),
+        domainA: {
+          url: dataA.location?.href || dataA.page?.current || '未知',
+          timestamp: dataA.timestamp || '未知',
+          apiCount: apisA.size,
+          apis: Array.from(apisA).sort()
+        },
+        domainB: {
+          url: dataB.location?.href || dataB.page?.current || '未知',
+          timestamp: dataB.timestamp || '未知',
+          apiCount: apisB.size,
+          apis: Array.from(apisB).sort()
+        },
+        comparison: {
+          same: same.sort(),
+          onlyInA: onlyInA.sort(),
+          onlyInB: onlyInB.sort(),
+          sameCount: same.length,
+          onlyInACount: onlyInA.length,
+          onlyInBCount: onlyInB.length
+        },
+        conclusion: {
+          hasSourceRestriction: onlyInA.length > 0 || onlyInB.length > 0,
+          isSystematic: same.length > 0 && onlyInA.length === 0 && onlyInB.length === 0,
+          analysis: (() => {
+            if (same.length > 0 && onlyInA.length === 0 && onlyInB.length === 0) {
+              return '✅ 两个域名的 API 完全相同 → 说明没有页面来源限制（系统性问题）';
+            } else if (onlyInA.length > 0 || onlyInB.length > 0) {
+              return '⚠️ 两个域名的 API 不同 → 说明有基于域名的限制（相对安全）';
+            } else {
+              return '❓ 无法确定（需要更多信息）';
+            }
+          })()
+        }
+      };
+
+      // 显示结果
+      const resultCard = document.getElementById('resultCard');
+      const resultEl = document.getElementById('result');
+      const summaryEl = document.getElementById('summary');
+      
+      resultCard.style.display = 'block';
+      resultEl.textContent = JSON.stringify(result, null, 2);
+      
+      // 生成摘要
+      let summary = '<div style="margin-bottom:15px;">';
+      summary += `<p><strong>域名 A</strong>：${result.domainA.url}</p>`;
+      summary += `<p><strong>域名 B</strong>：${result.domainB.url}</p>`;
+      summary += `<p><strong>共同 API</strong>：${result.comparison.sameCount} 个</p>`;
+      summary += `<p><strong>仅在 A 中</strong>：${result.comparison.onlyInACount} 个</p>`;
+      summary += `<p><strong>仅在 B 中</strong>：${result.comparison.onlyInBCount} 个</p>`;
+      summary += `<p class="${result.conclusion.isSystematic ? 'success' : 'warning'}" style="font-size:16px;margin-top:10px;">${result.conclusion.analysis}</p>`;
+      summary += '</div>';
+      
+      summaryEl.innerHTML = summary;
+      
+      // 保存结果到全局变量
+      window.comparisonResult = result;
+    }
+
+    function copyResult() {
+      if (!window.comparisonResult) {
+        alert('请先进行对比');
+        return;
+      }
+      const text = JSON.stringify(window.comparisonResult, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('✅ 已复制到剪贴板！');
+        }).catch(() => {
+          // 降级方案
+          const resultEl = document.getElementById('result');
+          resultEl.select();
+          document.execCommand('copy');
+          alert('✅ 已复制到剪贴板（降级方案）！');
+        });
+      } else {
+        const resultEl = document.getElementById('result');
+        resultEl.select();
+        document.execCommand('copy');
+        alert('✅ 已复制到剪贴板！');
+      }
+    }
+  </script>
+</body>
+</html>
+
