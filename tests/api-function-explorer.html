@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API 功能探索工具</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px}
+    button:hover{background:#005a9e}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:400px;font-size:12px}
+    .api-item{border:1px solid #ddd;border-radius:6px;padding:10px;margin:8px 0}
+    .api-item h4{margin:0 0 8px 0;color:#0a66c2}
+    .result{background:#f8f9fa;padding:8px;border-radius:4px;margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap}
+    .success{background:#d4edda;border-left:4px solid #28a745}
+    .error{background:#f8d7da;border-left:4px solid #dc3545}
+    .warning{background:#fff3cd;border-left:4px solid #ffc107}
+  </style>
+</head>
+<body>
+  <h1>API 功能探索工具</h1>
+  <p>直接调用这些 API，观察它们的行为和返回值，了解它们的作用。</p>
+
+  <div class="card">
+    <h3>1. TXWebKitNativeFetch - 网络请求</h3>
+    <div class="api-item">
+      <h4>测试网络请求功能</h4>
+      <button onclick="testTXFetch()">测试 TXWebKitNativeFetch</button>
+      <div id="result1" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>2. TXWebKitSchemeHandler - 协议处理器</h3>
+    <div class="api-item">
+      <h4>测试协议处理功能</h4>
+      <button onclick="testSchemeHandler()">测试 TXWebKitSchemeHandler</button>
+      <div id="result2" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>3. __qbGetBaseURL - URL 处理</h3>
+    <div class="api-item">
+      <h4>测试 URL 处理功能</h4>
+      <button onclick="testQbGetBaseURL()">测试 __qbGetBaseURL</button>
+      <div id="result3" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>4. __qbSHCeekieIsExist - Cookie 检查</h3>
+    <div class="api-item">
+      <h4>测试 Cookie 检查功能</h4>
+      <button onclick="testQbSHCeekieIsExist()">测试 __qbSHCeekieIsExist</button>
+      <div id="result4" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>5. __mqqStartLoadTime - 加载时间</h3>
+    <div class="api-item">
+      <h4>测试加载时间功能</h4>
+      <button onclick="testMqqStartLoadTime()">测试 __mqqStartLoadTime</button>
+      <div id="result5" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>6. injectBlurListener - 事件注入</h3>
+    <div class="api-item">
+      <h4>测试事件注入功能</h4>
+      <input type="text" id="testInput" placeholder="测试输入框" style="width:100%;padding:8px;margin:8px 0;">
+      <button onclick="testInjectBlurListener()">测试 injectBlurListener</button>
+      <div id="result6" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>7. TencentOfficeSaveBodyMessageHandler - 腾讯 Office</h3>
+    <div class="api-item">
+      <h4>测试腾讯 Office 功能</h4>
+      <button onclick="testTencentOffice()">测试 TencentOfficeSaveBodyMessageHandler</button>
+      <div id="result7" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>一键测试所有 API</h3>
+    <button onclick="testAll()" style="background:#28a745;padding:12px 20px;font-size:16px;">🚀 一键测试所有 API</button>
+    <pre id="allResults" style="display:none;"></pre>
+  </div>
+
+  <script>
+    function showResult(id, data, isSuccess = true) {
+      const el = document.getElementById(id);
+      el.style.display = 'block';
+      el.textContent = JSON.stringify(data, null, 2);
+      el.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
+    }
+
+    // 1. TXWebKitNativeFetch
+    async function testTXFetch() {
+      const result = {
+        api: 'TXWebKitNativeFetch',
+        exists: typeof window.TXWebKitNativeFetch !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        showResult('result1', result, false);
+        return;
+      }
+
+      // 测试 1: 基本调用
+      try {
+        const promise = window.TXWebKitNativeFetch('https://httpbin.org/get', { method: 'GET' });
+        if (promise && typeof promise.then === 'function') {
+          try {
+            const response = await Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]);
+            const data = await response.json().catch(() => ({ text: await response.text().catch(() => '无法解析') }));
+            result.tests.push({
+              test: '基本 GET 请求',
+              success: true,
+              status: response.status,
+              data: typeof data === 'object' ? Object.keys(data).slice(0, 10) : String(data).slice(0, 100),
+              conclusion: '✅ 能发起网络请求，返回 Promise'
+            });
+          } catch(e) {
+            result.tests.push({
+              test: '基本 GET 请求',
+              success: false,
+              error: e.message,
+              conclusion: '⚠️ 能调用但请求失败: ' + e.message
+            });
+          }
+        }
+      } catch(e) {
+        result.tests.push({ test: '基本调用', error: e.message });
+      }
+
+      // 测试 2: 检查函数签名
+      try {
+        const func = window.TXWebKitNativeFetch;
+        result.functionInfo = {
+          name: func.name,
+          length: func.length,
+          toString: func.toString().slice(0, 200)
+        };
+      } catch(e) {}
+
+      showResult('result1', result);
+    }
+
+    // 2. TXWebKitSchemeHandler
+    function testSchemeHandler() {
+      const result = {
+        api: 'TXWebKitSchemeHandler',
+        exists: typeof window.TXWebKitSchemeHandler !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        showResult('result2', result, false);
+        return;
+      }
+
+      // 测试 1: 查看类信息
+      try {
+        const cls = window.TXWebKitSchemeHandler;
+        result.classInfo = {
+          name: cls.name,
+          isClass: typeof cls === 'function',
+          methods: Object.getOwnPropertyNames(cls).slice(0, 10)
+        };
+      } catch(e) {
+        result.classInfo = { error: e.message };
+      }
+
+      // 测试 2: 尝试创建实例
+      try {
+        const instance = new window.TXWebKitSchemeHandler();
+        result.tests.push({
+          test: '创建实例',
+          success: true,
+          instanceType: typeof instance,
+          instanceKeys: Object.keys(instance).slice(0, 10),
+          conclusion: '✅ 能创建实例'
+        });
+      } catch(e) {
+        result.tests.push({
+          test: '创建实例',
+          success: false,
+          error: e.message,
+          conclusion: '❌ 无法创建实例: ' + e.message
+        });
+      }
+
+      // 测试 3: 查看类方法
+      try {
+        if (window.TXWebKitSchemeHandler.generateUUID) {
+          const uuid = window.TXWebKitSchemeHandler.generateUUID();
+          result.tests.push({
+            test: 'generateUUID()',
+            success: true,
+            result: uuid,
+            conclusion: '✅ 能生成 UUID'
+          });
+        }
+      } catch(e) {
+        result.tests.push({
+          test: 'generateUUID()',
+          success: false,
+          error: e.message
+        });
+      }
+
+      showResult('result2', result);
+    }
+
+    // 3. __qbGetBaseURL
+    function testQbGetBaseURL() {
+      const result = {
+        api: '__qbGetBaseURL',
+        exists: typeof window.__qbGetBaseURL !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        showResult('result3', result, false);
+        return;
+      }
+
+      const testUrls = [
+        'https://www.reddit.com/api/v1/me',
+        '/relative/path',
+        './relative',
+        '?query=string'
+      ];
+
+      testUrls.forEach(url => {
+        try {
+          const ret = window.__qbGetBaseURL(url);
+          result.tests.push({
+            input: url,
+            output: String(ret),
+            conclusion: '✅ 能处理 URL'
+          });
+        } catch(e) {
+          result.tests.push({
+            input: url,
+            error: e.message
+          });
+        }
+      });
+
+      result.conclusion = '这是一个 URL 处理工具函数，用于将相对路径转换为绝对路径';
+
+      showResult('result3', result);
+    }
+
+    // 4. __qbSHCeekieIsExist
+    function testQbSHCeekieIsExist() {
+      const result = {
+        api: '__qbSHCeekieIsExist',
+        exists: typeof window.__qbSHCeekieIsExist !== 'undefined',
+        value: window.__qbSHCeekieIsExist,
+        type: typeof window.__qbSHCeekieIsExist
+      };
+
+      if (result.exists) {
+        result.conclusion = `这是一个 boolean 值（${result.value}），表示 Cookie 是否存在`;
+      } else {
+        result.error = 'API 不存在';
+      }
+
+      showResult('result4', result, result.exists);
+    }
+
+    // 5. __mqqStartLoadTime
+    function testMqqStartLoadTime() {
+      const result = {
+        api: '__mqqStartLoadTime',
+        exists: typeof window.__mqqStartLoadTime !== 'undefined',
+        value: window.__mqqStartLoadTime,
+        type: typeof window.__mqqStartLoadTime
+      };
+
+      if (result.exists) {
+        const date = new Date(result.value);
+        result.humanReadable = date.toISOString();
+        result.conclusion = `这是一个时间戳（${result.value}），表示页面开始加载的时间：${result.humanReadable}`;
+      } else {
+        result.error = 'API 不存在';
+      }
+
+      showResult('result5', result, result.exists);
+    }
+
+    // 6. injectBlurListener
+    function testInjectBlurListener() {
+      const result = {
+        api: 'injectBlurListener',
+        exists: typeof window.injectBlurListener !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        showResult('result6', result, false);
+        return;
+      }
+
+      const beforeInputs = document.getElementsByTagName('input').length;
+      
+      try {
+        const ret = window.injectBlurListener();
+        const afterInputs = document.getElementsByTagName('input').length;
+        
+        result.tests.push({
+          test: '调用函数',
+          returnValue: ret,
+          beforeInputs,
+          afterInputs,
+          conclusion: '✅ 能调用，可能为 input 元素添加了 blur 事件监听器'
+        });
+
+        // 测试 input 是否有 blur 事件
+        const testInput = document.getElementById('testInput');
+        if (testInput) {
+          let blurFired = false;
+          testInput.addEventListener('blur', () => { blurFired = true; });
+          testInput.focus();
+          setTimeout(() => {
+            testInput.blur();
+            setTimeout(() => {
+              result.tests.push({
+                test: 'blur 事件',
+                blurFired,
+                conclusion: blurFired ? '✅ blur 事件正常' : '⚠️ blur 事件未触发'
+              });
+              showResult('result6', result);
+            }, 100);
+          }, 100);
+        } else {
+          showResult('result6', result);
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('result6', result, false);
+      }
+    }
+
+    // 7. TencentOfficeSaveBodyMessageHandler
+    function testTencentOffice() {
+      const result = {
+        api: 'TencentOfficeSaveBodyMessageHandler',
+        exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        showResult('result7', result, false);
+        return;
+      }
+
+      try {
+        const obj = window.TencentOfficeSaveBodyMessageHandler;
+        result.objectInfo = {
+          type: typeof obj,
+          keys: Object.keys(obj),
+          values: {}
+        };
+
+        Object.keys(obj).forEach(key => {
+          try {
+            result.objectInfo.values[key] = {
+              type: typeof obj[key],
+              value: typeof obj[key] === 'function' ? '[Function]' : String(obj[key]).slice(0, 50)
+            };
+          } catch(e) {
+            result.objectInfo.values[key] = { error: e.message };
+          }
+        });
+
+        result.conclusion = `这是一个对象，包含 ${Object.keys(obj).length} 个属性，可能是腾讯 Office 文件保存相关的回调管理器`;
+
+      } catch(e) {
+        result.error = e.message;
+      }
+
+      showResult('result7', result);
+    }
+
+    // 一键测试所有
+    async function testAll() {
+      const allResults = {
+        timestamp: new Date().toISOString(),
+        results: {}
+      };
+
+      await testTXFetch();
+      await new Promise(r => setTimeout(r, 500));
+      testSchemeHandler();
+      await new Promise(r => setTimeout(r, 500));
+      testQbGetBaseURL();
+      await new Promise(r => setTimeout(r, 500));
+      testQbSHCeekieIsExist();
+      await new Promise(r => setTimeout(r, 500));
+      testMqqStartLoadTime();
+      await new Promise(r => setTimeout(r, 500));
+      testInjectBlurListener();
+      await new Promise(r => setTimeout(r, 500));
+      testTencentOffice();
+
+      // 收集所有结果
+      setTimeout(() => {
+        ['result1', 'result2', 'result3', 'result4', 'result5', 'result6', 'result7'].forEach((id, idx) => {
+          const el = document.getElementById(id);
+          if (el && el.textContent) {
+            try {
+              allResults.results[`api${idx + 1}`] = JSON.parse(el.textContent);
+            } catch(e) {}
+          }
+        });
+
+        const allResultsEl = document.getElementById('allResults');
+        allResultsEl.style.display = 'block';
+        allResultsEl.textContent = JSON.stringify(allResults, null, 2);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>
+
