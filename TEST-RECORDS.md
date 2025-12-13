@@ -680,6 +680,60 @@
 
 - ⏳ 下一步：分析这些 API 的实际攻击能力
 
+**2025-12-13 轮 2 深入测试（Hook 功能测试 - 已完成）：**
+- ✅ **Hook 功能测试结果**（2025-12-13T04:27:07.809Z）
+- ✅ **测试结果汇总**：
+
+  1. **Hook 方法存在性检查** ✅
+     - ✅ `TXWebKitSchemeHandler` 类存在
+     - ✅ 发现所有 Hook 方法：
+       - `hook` - 通用 Hook 方法
+       - `hookFetch` - Hook fetch 请求
+       - `hookXMLHttpRequest` - Hook XMLHttpRequest 请求
+       - `hookFunction` - Hook 函数（新发现）
+       - `getterFactory` - Getter 工厂（新发现）
+       - `setterFactory` - Setter 工厂（新发现）
+
+  2. **Hook 方法可调用性** ✅
+     - ✅ `hook()` - 能调用，返回 `undefined`
+     - ✅ `hookFetch()` - 能调用，返回 `undefined`
+     - ✅ `hookXMLHttpRequest()` - 能调用，返回 `undefined`
+     - ✅ **关键发现**：所有 Hook 方法都能被网页调用（没有权限限制）
+
+  3. **Hook 功能实际效果测试** ⚠️
+     - ✅ `hookFetch()` 调用成功
+     - ✅ fetch 请求成功（`https://httpbin.org/get?test=hook`）
+     - ⚠️ **无法确定是否被拦截**：请求成功，但无法确定是否被 hookFetch 拦截或修改
+     - ✅ `hookXMLHttpRequest()` 调用成功
+     - ✅ XMLHttpRequest 请求成功（`https://httpbin.org/get?test=xhr`）
+     - ⚠️ **无法确定是否被拦截**：请求成功，但无法确定是否被 hookXMLHttpRequest 拦截或修改
+
+  4. **通用 Hook 方法测试** ✅
+     - ✅ `hook()` 无参数调用成功
+     - ✅ `hook('fetch')` 调用成功
+     - ✅ `hook('XMLHttpRequest')` 调用成功
+     - ✅ **所有参数组合都能调用**
+
+- ✅ **关键发现总结**：
+
+  1. **✅ 事实（100% 准确）**：
+     - Hook 方法存在且能被网页调用
+     - Hook 方法调用成功（返回 undefined）
+     - 网络请求成功（fetch 和 XMLHttpRequest 都能正常工作）
+
+  2. **⚠️ 推断（需要进一步验证）**：
+     - Hook 方法可能拦截了网络请求，但无法从测试结果中确定
+     - Hook 方法可能修改了请求或响应，但无法从测试结果中确定
+     - Hook 方法可能只是"注册"了 Hook，需要特定条件才会生效
+
+  3. **❓ 未知（需要进一步测试）**：
+     - Hook 方法是否真的拦截了网络请求？
+     - Hook 方法是否能修改请求和响应？
+     - Hook 方法是否有其他参数或配置？
+     - Hook 方法是否只在特定条件下生效？
+
+- ⏳ 下一步：创建更深入的测试来验证 Hook 功能是否真的拦截了网络请求
+
 **2025-12-13 轮 3 测试（iframe 边界测试 - 已完成）：**
 - ✅ **关键发现：iframe 边界测试结果**（2025-12-13T01:56:40.112Z）
   - 测试页面：bridge-audit-iframe-child.html（iframe 子页面）
