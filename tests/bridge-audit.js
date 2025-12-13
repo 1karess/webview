@@ -248,6 +248,49 @@ function downloadJSON() {
   URL.revokeObjectURL(url);
 }
 
+function copyJSON() {
+  const data = currentResult ?? scanVisibleAPIs();
+  const jsonText = JSON.stringify(data, null, 2);
+  
+  // 先显示在输出区域
+  const out = document.getElementById('out');
+  if (out) {
+    out.textContent = jsonText;
+    out.style.display = 'block';
+  }
+  
+  // 复制到剪贴板
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jsonText).then(() => {
+      alert('✅ 已复制到剪贴板！');
+    }).catch(err => {
+      // 降级方案：选中文本
+      if (out) {
+        out.focus();
+        out.select();
+        try {
+          document.execCommand('copy');
+          alert('✅ 已复制到剪贴板（降级方案）！');
+        } catch(e) {
+          alert('❌ 复制失败，请手动选择并复制上面的文本');
+        }
+      }
+    });
+  } else {
+    // 降级方案：选中文本
+    if (out) {
+      out.focus();
+      out.select();
+      try {
+        document.execCommand('copy');
+        alert('✅ 已复制到剪贴板！');
+      } catch(e) {
+        alert('❌ 复制失败，请手动选择并复制上面的文本');
+      }
+    }
+  }
+}
+
 function openIframePage() {
   const url = new URL('./bridge-audit-iframe.html', location.href).toString();
   window.location.href = url;
@@ -262,3 +305,5 @@ function openIframePage() {
   if (elB) elB.textContent = new URL('./bridge-audit-b.html', location.href).toString();
   if (elIframe) elIframe.textContent = new URL('./bridge-audit-iframe.html', location.href).toString();
 })();
+
+

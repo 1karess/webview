@@ -203,7 +203,7 @@
 
   <div class="card">
     <h3>测试结果汇总</h3>
-    <button onclick="exportResults()">导出完整测试结果 JSON</button>
+    <button onclick="copyResults()">复制完整测试结果 JSON</button>
     <button onclick="testAllAPIs()">一键测试所有 API（深度）</button>
     <div id="summary" class="result" style="display:none;"></div>
   </div>
@@ -231,7 +231,7 @@
     // ========== TXWebKitNativeFetch 深度测试 ==========
     
     window.testTXFetch_Domains = async function() {
-      updateStatus('status1', 'testing', '测试中...');
+      window.window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: '不同域名测试',
@@ -242,8 +242,8 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        updateStatus('status1', 'error', '不存在');
-        showResult('result1', result, false);
+        window.window.updateStatus('status1', 'error', '不存在');
+        window.window.showResult('result1', result, false);
         return;
       }
 
@@ -303,12 +303,12 @@
         }
       }
 
-      updateStatus('status1', 'success', '完成');
-      showResult('result1', result);
+      window.window.updateStatus('status1', 'success', '完成');
+      window.window.showResult('result1', result);
     }
 
     window.testTXFetch_Protocols = async function() {
-      updateStatus('status1', 'testing', '测试中...');
+      window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: '协议测试',
@@ -355,11 +355,11 @@
         }
       }
 
-      showResult('result1', result);
+      window.showResult('result1', result);
     }
 
     window.testTXFetch_Methods = async function() {
-      updateStatus('status1', 'testing', '测试中...');
+      window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: 'HTTP 方法测试',
@@ -401,11 +401,11 @@
         }
       }
 
-      showResult('result1', result);
+      window.showResult('result1', result);
     }
 
     window.testTXFetch_Cookies = async function() {
-      updateStatus('status1', 'testing', '测试中...');
+      window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: 'Cookie 测试',
@@ -450,11 +450,11 @@
         });
       }
 
-      showResult('result1', result);
+      window.showResult('result1', result);
     }
 
     window.testTXFetch_ErrorAnalysis = async function() {
-      updateStatus('status1', 'testing', '测试中...');
+      window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: '错误分析',
@@ -493,7 +493,7 @@
         };
       }
 
-      showResult('result1', result);
+      window.showResult('result1', result);
     }
 
     window.testTXFetch_All = async function() {
@@ -511,7 +511,7 @@
     // ========== TXWebKitSchemeHandler 深度测试 ==========
 
     window.testSchemeHandler_New = function() {
-      updateStatus('status2', 'testing', '测试中...');
+      window.updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
         test: '创建实例',
@@ -522,8 +522,8 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        updateStatus('status2', 'error', '不存在');
-        showResult('result2', result, false);
+        window.updateStatus('status2', 'error', '不存在');
+        window.showResult('result2', result, false);
         return;
       }
 
@@ -545,12 +545,12 @@
         });
       }
 
-      updateStatus('status2', 'success', '完成');
-      showResult('result2', result);
+      window.updateStatus('status2', 'success', '完成');
+      window.showResult('result2', result);
     }
 
     window.testSchemeHandler_Methods = function() {
-      updateStatus('status2', 'testing', '测试中...');
+      window.updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
         test: '查看方法',
@@ -589,11 +589,11 @@
         });
       }
 
-      showResult('result2', result);
+      window.showResult('result2', result);
     }
 
     window.testSchemeHandler_CallMethods = function() {
-      updateStatus('status2', 'testing', '测试中...');
+      window.updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
         test: '调用方法',
@@ -653,7 +653,7 @@
         });
       }
 
-      showResult('result2', result);
+      window.showResult('result2', result);
     }
 
     window.testSchemeHandler_All = async function() {
@@ -667,7 +667,7 @@
     // ========== __qbGetBaseURL 深度测试 ==========
 
     window.testQbGetBaseURL_All = function() {
-      updateStatus('status3', 'testing', '测试中...');
+      window.updateStatus('status3', 'testing', '测试中...');
       const result = {
         api: '__qbGetBaseURL',
         test: '所有 URL 格式',
@@ -678,8 +678,8 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        updateStatus('status3', 'error', '不存在');
-        showResult('result3', result, false);
+        window.updateStatus('status3', 'error', '不存在');
+        window.showResult('result3', result, false);
         return;
       }
 
@@ -714,14 +714,14 @@
         }
       });
 
-      updateStatus('status3', 'success', '完成');
-      showResult('result3', result);
+      window.updateStatus('status3', 'success', '完成');
+      window.showResult('result3', result);
     }
 
     // ========== injectBlurListener 深度测试 ==========
 
     window.testInjectBlurListener_Deep = function() {
-      updateStatus('status4', 'testing', '测试中...');
+      window.updateStatus('status4', 'testing', '测试中...');
       const result = {
         api: 'injectBlurListener',
         test: '深度测试',
@@ -732,8 +732,8 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        updateStatus('status4', 'error', '不存在');
-        showResult('result4', result, false);
+        window.updateStatus('status4', 'error', '不存在');
+        window.showResult('result4', result, false);
         return;
       }
 
@@ -776,24 +776,24 @@
                 blurEventFired: blurFired,
                 conclusion: blurFired ? '✅ blur 事件正常' : '⚠️ blur 事件未触发'
               });
-              showResult('result4', result);
+              window.showResult('result4', result);
             }, 100);
           }, 100);
         } else {
-          showResult('result4', result);
+          window.showResult('result4', result);
         }
       } catch(e) {
         result.error = e.message;
-        showResult('result4', result, false);
+        window.showResult('result4', result, false);
       }
 
-      updateStatus('status4', 'success', '完成');
+      window.updateStatus('status4', 'success', '完成');
     }
 
     // ========== TencentOfficeSaveBodyMessageHandler 深度测试 ==========
 
     window.testTencentOffice_Deep = function() {
-      updateStatus('status5', 'testing', '测试中...');
+      window.updateStatus('status5', 'testing', '测试中...');
       const result = {
         api: 'TencentOfficeSaveBodyMessageHandler',
         test: '深度分析',
@@ -804,8 +804,8 @@
 
       if (!result.exists) {
         result.error = 'API 不存在';
-        updateStatus('status5', 'error', '不存在');
-        showResult('result5', result, false);
+        window.updateStatus('status5', 'error', '不存在');
+        window.showResult('result5', result, false);
         return;
       }
 
@@ -864,14 +864,14 @@
         result.error = e.message;
       }
 
-      updateStatus('status5', 'success', '完成');
-      showResult('result5', result);
+      window.updateStatus('status5', 'success', '完成');
+      window.showResult('result5', result);
     }
 
     // ========== document.cookie 深度测试 ==========
 
     window.testDocumentCookie_Deep = function() {
-      updateStatus('status6', 'testing', '测试中...');
+      window.updateStatus('status6', 'testing', '测试中...');
       const result = {
         api: 'document.cookie',
         test: '深度测试',
@@ -945,33 +945,33 @@
         result.error = e.message;
       }
 
-      updateStatus('status6', 'success', '完成');
-      showResult('result6', result);
+      window.updateStatus('status6', 'success', '完成');
+      window.showResult('result6', result);
     }
 
     // ========== 一键测试所有 ==========
 
     window.testAllAPIs = async function() {
-      updateStatus('status1', 'testing', '测试中...');
-      updateStatus('status2', 'testing', '测试中...');
-      updateStatus('status3', 'testing', '测试中...');
-      updateStatus('status4', 'testing', '测试中...');
-      updateStatus('status5', 'testing', '测试中...');
-      updateStatus('status6', 'testing', '测试中...');
+      window.updateStatus('status1', 'testing', '测试中...');
+      window.updateStatus('status2', 'testing', '测试中...');
+      window.updateStatus('status3', 'testing', '测试中...');
+      window.updateStatus('status4', 'testing', '测试中...');
+      window.updateStatus('status5', 'testing', '测试中...');
+      window.updateStatus('status6', 'testing', '测试中...');
 
-      await testTXFetch_All();
+      await window.testTXFetch_All();
       await new Promise(r => setTimeout(r, 2000));
-      await testSchemeHandler_All();
+      await window.testSchemeHandler_All();
       await new Promise(r => setTimeout(r, 1000));
-      testQbGetBaseURL_All();
+      window.testQbGetBaseURL_All();
       await new Promise(r => setTimeout(r, 500));
-      testInjectBlurListener_Deep();
+      window.testInjectBlurListener_Deep();
       await new Promise(r => setTimeout(r, 1000));
-      testTencentOffice_Deep();
+      window.testTencentOffice_Deep();
       await new Promise(r => setTimeout(r, 500));
-      testDocumentCookie_Deep();
+      window.testDocumentCookie_Deep();
       await new Promise(r => setTimeout(r, 1000));
-      exportResults();
+      window.exportResults();
     }
 
     // ========== 导出结果 ==========
@@ -1004,6 +1004,50 @@
       a.download = `bridge-deep-function-test-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(url);
+    }
+
+    window.copyResults = function() {
+      const summary = {
+        timestamp: new Date().toISOString(),
+        testType: '轮 2：深度功能实验',
+        environment: {
+          userAgent: navigator.userAgent,
+          location: location.href
+        },
+        results: window.allResults,
+        summary: {
+          total: Object.keys(window.allResults).length,
+          callable: Object.values(window.allResults).filter(r => r.exists && !r.error).length,
+          notCallable: Object.values(window.allResults).filter(r => r.error || !r.exists).length
+        }
+      };
+
+      const summaryEl = document.getElementById('summary');
+      summaryEl.style.display = 'block';
+      const jsonText = JSON.stringify(summary, null, 2);
+      summaryEl.textContent = jsonText;
+
+      // 复制到剪贴板
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(jsonText).then(() => {
+          alert('✅ 已复制到剪贴板！');
+        }).catch(err => {
+          // 降级方案：选中文本
+          summaryEl.select();
+          document.execCommand('copy');
+          alert('✅ 已复制到剪贴板（降级方案）！');
+        });
+      } else {
+        // 降级方案：选中文本
+        summaryEl.focus();
+        summaryEl.select();
+        try {
+          document.execCommand('copy');
+          alert('✅ 已复制到剪贴板！');
+        } catch(e) {
+          alert('❌ 复制失败，请手动选择并复制上面的文本');
+        }
+      }
     }
   </script>
 </body>
