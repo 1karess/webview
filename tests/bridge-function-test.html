@@ -212,7 +212,11 @@
     // 确保所有函数都在全局作用域
     window.allResults = {};
 
+    // 添加调试日志
+    console.log('bridge-function-test.html: 脚本开始加载');
+
     window.updateStatus = function(id, status, text) {
+      console.log('updateStatus called:', id, status, text);
       const badge = document.getElementById(id);
       if (badge) {
         badge.className = 'status-badge status-' + status;
@@ -231,7 +235,8 @@
     // ========== TXWebKitNativeFetch 深度测试 ==========
     
     window.testTXFetch_Domains = async function() {
-      window.window.updateStatus('status1', 'testing', '测试中...');
+      console.log('testTXFetch_Domains called');
+      window.updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
         test: '不同域名测试',

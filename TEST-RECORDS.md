@@ -695,9 +695,32 @@
     - ✅ **部分保护**：某些 API（如 `injectBlurListener`、`TencentOfficeSaveBodyMessageHandler`）在 iframe 中不可用，说明有**部分隔离**
   - ⏳ 下一步：完成 A→B 页面测试，测试用户提示
 
+**2025-12-13 轮 3 测试（A→B 页面边界测试 - 已完成）：**
+- ✅ **关键发现：Page A 和 Page B 在同一个 QQ WebView 环境中，API 完全一致**
+  - **测试方法**：对比 `bridge-audit-a.html` 和 `bridge-audit-b.html` 的扫描结果
+  - **测试环境**：
+    - 同一个 QQ 9.2.35.617 版本
+    - 同一个 WKWebView 环境
+    - 同一个入口（聊天链接）
+  - **对比结果**：
+    - ✅ **核心环境完全相同**：
+      - User Agent 完全相同
+      - 原生注入 API 完全相同（`TXWebKitNativeFetch`、`TXWebKitSchemeHandler` 等）
+      - `webkit.messageHandlers` 完全相同（均为空对象 `{}`）
+      - 标准 Web API 完全相同
+      - 可疑名称完全相同（`SpeechRecognitionAlternative`、`TXWebKitNativeFetch` 等）
+    - ⚠️ **唯一区别**：Page B 多了测试工具函数（`compareWithPageA`、`loadPageAResults`、`testAllAPIs`、`testKeyAPIs`）
+      - 这些是测试框架的函数，不是 QQ WebView 环境本身的差异
+  - **安全意义**：
+    - ✅ **没有页面来源限制**：同一个 QQ WebView 环境中的不同页面，API 完全一致
+    - ✅ **全局暴露**：说明这些 API 是全局注入的，不依赖于特定页面
+    - ❌ **系统性风险**：这意味着任何在 QQ WebView 中打开的页面都能访问这些 API，没有基于页面来源的限制
+  - **结论**：
+    - Page A 和 Page B 在同一个 QQ WebView 环境中，API 完全一致
+    - 说明 QQ WebView **没有页面来源限制**，所有页面都能访问相同的 API
+    - 这是**系统性问题的证据**：缺乏基于页面来源的权限控制
+
 **待补充的测试结果：**
-- 轮 2 功能实验结果（测试每个 API 的实际功能）
-- 轮 3 A→B 页面测试结果
 - 轮 3 用户提示测试结果
 
 ---
@@ -724,6 +747,19 @@
      - ❌ **关键 API 未隔离**：最敏感的 API（网络请求、Scheme Handler）在 iframe 中**仍然可访问**
      - ❌ **严重安全风险**：第三方内容（广告/XSS/嵌入网页）也能调用这些敏感 API
      - **这是系统性问题的证据**：缺乏**完整的**系统级权限模型，导致部分敏感 API 在 iframe 中也能访问
+
+5. **🔴 严重发现：没有页面来源限制**（2025-12-13）
+   - **测试结果**：Page A 和 Page B 在同一个 QQ WebView 环境中，API 完全一致
+   - **核心发现**：
+     - ✅ 同一个 QQ 9.2.35.617 版本
+     - ✅ 同一个 WKWebView 环境
+     - ✅ 同一套原生能力注入
+     - ✅ 所有 API 在两个页面中完全相同
+   - **安全意义**：
+     - ❌ **没有页面来源限制**：同一个 QQ WebView 环境中的不同页面，API 完全一致
+     - ❌ **全局暴露**：说明这些 API 是全局注入的，不依赖于特定页面
+     - ❌ **系统性风险**：任何在 QQ WebView 中打开的页面都能访问这些 API，没有基于页面来源的限制
+   - **这是系统性问题的证据**：缺乏基于页面来源的权限控制，导致所有页面都能访问相同的敏感 API
 
 ---
 
