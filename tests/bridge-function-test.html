@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>轮 2：API 功能测试（返回值/行为）</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      padding: 20px;
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #f5f5f5;
+      line-height: 1.6;
+    }
+    h1 { color: #333; margin-bottom: 10px; }
+    .subtitle { color: #666; margin-bottom: 20px; font-size: 14px; }
+    .card {
+      background: white;
+      padding: 16px;
+      border-radius: 8px;
+      margin: 12px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card h3 { margin-top: 0; color: #007acc; }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 4px;
+    }
+    button:hover { background: #005a9e; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .result {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 400px;
+      overflow: auto;
+    }
+    .result.success { background: #d4edda; border-left: 4px solid #28a745; }
+    .result.error { background: #f8d7da; border-left: 4px solid #dc3545; }
+    .result.warning { background: #fff3cd; border-left: 4px solid #ffc107; }
+    .explain {
+      background: #e7f3ff;
+      padding: 12px;
+      border-radius: 4px;
+      margin: 12px 0;
+      border-left: 4px solid #007acc;
+    }
+    .explain strong { color: #007acc; }
+    .api-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 12px;
+      margin: 8px 0;
+    }
+    .api-item h4 { margin-top: 0; color: #007acc; }
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      margin-left: 8px;
+    }
+    .status-pending { background: #ffc107; color: #333; }
+    .status-success { background: #28a745; color: white; }
+    .status-error { background: #dc3545; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🔬 轮 2：API 功能测试（返回值/行为）</h1>
+  <div class="subtitle">
+    <strong>目的</strong>：测试这些 API 实际能做什么（返回值/行为），而不是只检测"是否存在"<br>
+    <strong>重要</strong>：只测试 3 类（信息类、动作类、状态类），不要全点，避免误触支付等功能
+  </div>
+
+  <div class="explain">
+    <strong>测试顺序说明：</strong><br>
+    1. ✅ <strong>轮 1：可见性实验</strong> - 已完成，发现了 9 个 QQ 新增的 API<br>
+    2. ⏳ <strong>轮 2：功能实验</strong> - <strong>你现在在这里</strong>：测试这些 API 实际能做什么<br>
+    3. ⏳ 轮 3：边界实验 - 测试换页面/iframe/用户提示（轮 2 完成后才做）<br>
+    4. ⏳ 轮 4：对比总结 - 汇总多个 App 的结果
+  </div>
+
+  <div class="card">
+    <h3>高优先级测试（信息类 - 先测试这些）</h3>
+    <p>这些 API 看起来是"读取信息"的，相对安全，先测试这些：</p>
+
+    <div class="api-item">
+      <h4>1. TXWebKitNativeFetch <span id="status1" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：网络能力/请求（类似 fetch）</p>
+      <p><strong>测试内容</strong>：尝试发起网络请求，看返回值、是否携带 Cookie</p>
+      <button onclick="testTXWebKitNativeFetch()">测试 TXWebKitNativeFetch</button>
+      <div id="result1" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="api-item">
+      <h4>2. __qbGetBaseURL <span id="status2" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：其他/未分类（处理 base URL）</p>
+      <p><strong>测试内容</strong>：传入 URL，看返回什么</p>
+      <button onclick="testQbGetBaseURL()">测试 __qbGetBaseURL</button>
+      <div id="result2" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="api-item">
+      <h4>3. __qbSHCeekieIsExist <span id="status3" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：存储/会话（Cookie 存在检查）</p>
+      <p><strong>已知值</strong>：true（已确认）</p>
+      <p><strong>测试内容</strong>：查看当前值，尝试理解它的作用</p>
+      <button onclick="testQbSHCeekieIsExist()">测试 __qbSHCeekieIsExist</button>
+      <div id="result3" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="api-item">
+      <h4>4. __mqqStartLoadTime <span id="status4" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：其他/未分类（页面加载时间戳）</p>
+      <p><strong>已知值</strong>：1765583724248（已确认）</p>
+      <p><strong>测试内容</strong>：查看当前值，理解它的含义</p>
+      <button onclick="testMqqStartLoadTime()">测试 __mqqStartLoadTime</button>
+      <div id="result4" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>中优先级测试（动作类 - 谨慎测试）</h3>
+    <p>这些 API 可能触发操作，谨慎测试：</p>
+
+    <div class="api-item">
+      <h4>5. TXWebKitSchemeHandler <span id="status5" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：疑似 Bridge/注入（自定义协议处理器）</p>
+      <p><strong>测试内容</strong>：查看对象类型、方法，尝试调用</p>
+      <button onclick="testTXWebKitSchemeHandler()">测试 TXWebKitSchemeHandler</button>
+      <div id="result5" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="api-item">
+      <h4>6. injectBlurListener <span id="status6" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：其他/未分类（注入监听器）</p>
+      <p><strong>测试内容</strong>：调用函数，观察页面是否有变化</p>
+      <button onclick="testInjectBlurListener()">测试 injectBlurListener</button>
+      <div id="result6" class="result" style="display:none;"></div>
+    </div>
+
+    <div class="api-item">
+      <h4>7. TencentOfficeSaveBodyMessageHandler <span id="status7" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：其他/未分类（腾讯 Office 相关）</p>
+      <p><strong>测试内容</strong>：查看对象内容、是否有可调用的方法</p>
+      <button onclick="testTencentOffice()">测试 TencentOfficeSaveBodyMessageHandler</button>
+      <div id="result7" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>低优先级测试（状态类）</h3>
+
+    <div class="api-item">
+      <h4>8. document.cookie <span id="status8" class="status-badge status-pending">待测试</span></h4>
+      <p><strong>初步判断</strong>：存储/会话（Cookie 访问）</p>
+      <p><strong>测试内容</strong>：测试读取和写入 Cookie</p>
+      <button onclick="testDocumentCookie()">测试 document.cookie</button>
+      <div id="result8" class="result" style="display:none;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>测试结果汇总</h3>
+    <button onclick="exportResults()">导出测试结果 JSON</button>
+    <button onclick="testAll()">一键测试所有（按顺序）</button>
+    <div id="summary" class="result" style="display:none;"></div>
+  </div>
+
+  <script>
+    let allResults = {};
+
+    function updateStatus(id, status, text) {
+      const badge = document.getElementById(id);
+      badge.className = 'status-badge status-' + status;
+      badge.textContent = text;
+    }
+
+    function showResult(id, data, isSuccess = true) {
+      const resultEl = document.getElementById(id);
+      resultEl.style.display = 'block';
+      resultEl.textContent = JSON.stringify(data, null, 2);
+      resultEl.className = 'result ' + (isSuccess ? 'success' : 'error');
+      allResults[data.api] = data;
+    }
+
+    // 测试 1: TXWebKitNativeFetch
+    function testTXWebKitNativeFetch() {
+      updateStatus('status1', 'pending', '测试中...');
+      const result = {
+        api: 'TXWebKitNativeFetch',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.TXWebKitNativeFetch !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status1', 'error', '不存在');
+        showResult('result1', result, false);
+        return;
+      }
+
+      // 测试 1.1: 基本调用
+      try {
+        const test1 = window.TXWebKitNativeFetch('https://httpbin.org/get', {
+          method: 'GET'
+        });
+        result.tests.push({
+          name: '基本调用（httpbin.org/get）',
+          callable: true,
+          returnsPromise: test1 && typeof test1.then === 'function',
+          result: '等待响应...'
+        });
+
+        if (test1 && typeof test1.then === 'function') {
+          test1
+            .then(async response => {
+              const data = await response.json();
+              result.tests[result.tests.length - 1].result = {
+                status: response.status,
+                ok: response.ok,
+                data: data
+              };
+              result.tests[result.tests.length - 1].conclusion = '✅ 能发起网络请求，返回 Promise';
+              updateStatus('status1', 'success', '可调用');
+              showResult('result1', result);
+            })
+            .catch(err => {
+              result.tests[result.tests.length - 1].result = { error: err.message };
+              result.tests[result.tests.length - 1].conclusion = '⚠️ 能调用但请求失败';
+              updateStatus('status1', 'warning', '调用失败');
+              showResult('result1', result, false);
+            });
+        } else {
+          result.tests[result.tests.length - 1].result = String(test1);
+          result.tests[result.tests.length - 1].conclusion = '⚠️ 能调用但返回的不是 Promise';
+          updateStatus('status1', 'warning', '异常返回');
+          showResult('result1', result, false);
+        }
+      } catch(e) {
+        result.tests.push({
+          name: '基本调用',
+          callable: false,
+          error: e.message
+        });
+        updateStatus('status1', 'error', '调用失败');
+        showResult('result1', result, false);
+      }
+
+      // 测试 1.2: 检查是否携带 Cookie（用 httpbin.org/cookies）
+      setTimeout(() => {
+        try {
+          const test2 = window.TXWebKitNativeFetch('https://httpbin.org/cookies', {
+            method: 'GET'
+          });
+          if (test2 && typeof test2.then === 'function') {
+            test2
+              .then(async response => {
+                const data = await response.json();
+                result.tests.push({
+                  name: 'Cookie 检查（httpbin.org/cookies）',
+                  callable: true,
+                  result: data,
+                  conclusion: data.cookies && Object.keys(data.cookies).length > 0 
+                    ? '✅ 携带了 Cookie' 
+                    : '❌ 没有携带 Cookie'
+                });
+                showResult('result1', result);
+              })
+              .catch(() => {});
+          }
+        } catch(e) {}
+      }, 2000);
+    }
+
+    // 测试 2: __qbGetBaseURL
+    function testQbGetBaseURL() {
+      updateStatus('status2', 'pending', '测试中...');
+      const result = {
+        api: '__qbGetBaseURL',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.__qbGetBaseURL !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status2', 'error', '不存在');
+        showResult('result2', result, false);
+        return;
+      }
+
+      try {
+        const testUrls = [
+          'https://www.reddit.com/api/v1/me',
+          'https://example.com/test',
+          '/relative/path'
+        ];
+
+        testUrls.forEach(url => {
+          try {
+            const ret = window.__qbGetBaseURL(url);
+            result.tests.push({
+              input: url,
+              output: String(ret),
+              conclusion: '✅ 能调用，返回：' + String(ret)
+            });
+          } catch(e) {
+            result.tests.push({
+              input: url,
+              error: e.message
+            });
+          }
+        });
+
+        updateStatus('status2', 'success', '可调用');
+        showResult('result2', result);
+      } catch(e) {
+        result.error = e.message;
+        updateStatus('status2', 'error', '调用失败');
+        showResult('result2', result, false);
+      }
+    }
+
+    // 测试 3: __qbSHCeekieIsExist
+    function testQbSHCeekieIsExist() {
+      updateStatus('status3', 'success', '已确认');
+      const result = {
+        api: '__qbSHCeekieIsExist',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.__qbSHCeekieIsExist !== 'undefined',
+        value: window.__qbSHCeekieIsExist,
+        type: typeof window.__qbSHCeekieIsExist,
+        conclusion: '✅ 这是一个 boolean 值，表示 Cookie 是否存在'
+      };
+      showResult('result3', result);
+    }
+
+    // 测试 4: __mqqStartLoadTime
+    function testMqqStartLoadTime() {
+      updateStatus('status4', 'success', '已确认');
+      const result = {
+        api: '__mqqStartLoadTime',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.__mqqStartLoadTime !== 'undefined',
+        value: window.__mqqStartLoadTime,
+        type: typeof window.__mqqStartLoadTime,
+        humanReadable: new Date(window.__mqqStartLoadTime).toISOString(),
+        conclusion: '✅ 这是一个时间戳（毫秒），表示页面开始加载的时间'
+      };
+      showResult('result4', result);
+    }
+
+    // 测试 5: TXWebKitSchemeHandler
+    function testTXWebKitSchemeHandler() {
+      updateStatus('status5', 'pending', '测试中...');
+      const result = {
+        api: 'TXWebKitSchemeHandler',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.TXWebKitSchemeHandler !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status5', 'error', '不存在');
+        showResult('result5', result, false);
+        return;
+      }
+
+      try {
+        const apiType = typeof window.TXWebKitSchemeHandler;
+        result.apiType = apiType;
+
+        if (apiType === 'function') {
+          try {
+            const ret = window.TXWebKitSchemeHandler();
+            result.tests.push({
+              name: '作为函数调用',
+              callable: true,
+              result: String(ret),
+              conclusion: '✅ 能作为函数调用'
+            });
+          } catch(e) {
+            result.tests.push({
+              name: '作为函数调用',
+              error: e.message
+            });
+          }
+        } else if (apiType === 'object') {
+          const keys = Object.keys(window.TXWebKitSchemeHandler);
+          result.tests.push({
+            name: '对象属性',
+            keys: keys,
+            conclusion: '✅ 这是一个对象，包含 ' + keys.length + ' 个属性'
+          });
+
+          // 尝试调用常见方法
+          if (window.TXWebKitSchemeHandler.generateUUID) {
+            try {
+              const uuid = window.TXWebKitSchemeHandler.generateUUID();
+              result.tests.push({
+                name: 'generateUUID 方法',
+                callable: true,
+                result: uuid
+              });
+            } catch(e) {}
+          }
+        }
+
+        updateStatus('status5', 'success', '可调用');
+        showResult('result5', result);
+      } catch(e) {
+        result.error = e.message;
+        updateStatus('status5', 'error', '调用失败');
+        showResult('result5', result, false);
+      }
+    }
+
+    // 测试 6: injectBlurListener
+    function testInjectBlurListener() {
+      updateStatus('status6', 'pending', '测试中...');
+      const result = {
+        api: 'injectBlurListener',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.injectBlurListener !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status6', 'error', '不存在');
+        showResult('result6', result, false);
+        return;
+      }
+
+      try {
+        const beforeInputs = document.getElementsByTagName('input').length;
+        const ret = window.injectBlurListener();
+        const afterInputs = document.getElementsByTagName('input').length;
+
+        result.tests.push({
+          name: '调用函数',
+          callable: true,
+          returnValue: ret,
+          beforeInputs: beforeInputs,
+          afterInputs: afterInputs,
+          conclusion: '✅ 能调用，可能添加了事件监听器到 input 元素'
+        });
+
+        updateStatus('status6', 'success', '可调用');
+        showResult('result6', result);
+      } catch(e) {
+        result.error = e.message;
+        updateStatus('status6', 'error', '调用失败');
+        showResult('result6', result, false);
+      }
+    }
+
+    // 测试 7: TencentOfficeSaveBodyMessageHandler
+    function testTencentOffice() {
+      updateStatus('status7', 'pending', '测试中...');
+      const result = {
+        api: 'TencentOfficeSaveBodyMessageHandler',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined',
+        tests: []
+      };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status7', 'error', '不存在');
+        showResult('result7', result, false);
+        return;
+      }
+
+      try {
+        const obj = window.TencentOfficeSaveBodyMessageHandler;
+        const keys = Object.keys(obj);
+        result.tests.push({
+          name: '对象内容',
+          keys: keys,
+          values: keys.reduce((acc, key) => {
+            try {
+              acc[key] = String(obj[key]);
+            } catch(e) {
+              acc[key] = '[无法访问]';
+            }
+            return acc;
+          }, {}),
+          conclusion: '✅ 这是一个对象，包含 ' + keys.length + ' 个属性'
+        });
+
+        updateStatus('status7', 'success', '可访问');
+        showResult('result7', result);
+      } catch(e) {
+        result.error = e.message;
+        updateStatus('status7', 'error', '访问失败');
+        showResult('result7', result, false);
+      }
+    }
+
+    // 测试 8: document.cookie
+    function testDocumentCookie() {
+      updateStatus('status8', 'pending', '测试中...');
+      const result = {
+        api: 'document.cookie',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      try {
+        // 测试读取
+        const readValue = document.cookie;
+        result.tests.push({
+          name: '读取 Cookie',
+          success: true,
+          value: readValue || '(空)',
+          conclusion: readValue ? '✅ 能读取 Cookie' : '⚠️ Cookie 为空'
+        });
+
+        // 测试写入
+        try {
+          document.cookie = 'test_cookie=test_value; path=/';
+          const afterWrite = document.cookie;
+          result.tests.push({
+            name: '写入 Cookie',
+            success: afterWrite.includes('test_cookie'),
+            conclusion: afterWrite.includes('test_cookie') 
+              ? '✅ 能写入 Cookie' 
+              : '❌ 无法写入 Cookie（可能被限制）'
+          });
+        } catch(e) {
+          result.tests.push({
+            name: '写入 Cookie',
+            error: e.message
+          });
+        }
+
+        updateStatus('status8', 'success', '可访问');
+        showResult('result8', result);
+      } catch(e) {
+        result.error = e.message;
+        updateStatus('status8', 'error', '访问失败');
+        showResult('result8', result, false);
+      }
+    }
+
+    // 一键测试所有
+    function testAll() {
+      testTXWebKitNativeFetch();
+      setTimeout(() => testQbGetBaseURL(), 1000);
+      setTimeout(() => testQbSHCeekieIsExist(), 2000);
+      setTimeout(() => testMqqStartLoadTime(), 2500);
+      setTimeout(() => testTXWebKitSchemeHandler(), 3000);
+      setTimeout(() => testInjectBlurListener(), 4000);
+      setTimeout(() => testTencentOffice(), 5000);
+      setTimeout(() => testDocumentCookie(), 6000);
+      setTimeout(() => exportResults(), 8000);
+    }
+
+    // 导出结果
+    function exportResults() {
+      const summary = {
+        timestamp: new Date().toISOString(),
+        testType: '轮 2：功能实验',
+        environment: {
+          userAgent: navigator.userAgent,
+          location: location.href
+        },
+        results: allResults,
+        summary: {
+          total: Object.keys(allResults).length,
+          callable: Object.values(allResults).filter(r => r.exists && !r.error).length,
+          notCallable: Object.values(allResults).filter(r => r.error || !r.exists).length
+        }
+      };
+
+      const summaryEl = document.getElementById('summary');
+      summaryEl.style.display = 'block';
+      summaryEl.textContent = JSON.stringify(summary, null, 2);
+
+      // 下载 JSON
+      const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bridge-function-test-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
+
