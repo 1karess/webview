@@ -734,6 +734,75 @@
 
 - ⏳ 下一步：创建更深入的测试来验证 Hook 功能是否真的拦截了网络请求
 
+**2025-12-13 轮 2 深入测试 2（Hook 功能深入测试 - 已完成）：**
+- ✅ **Hook 功能深入测试结果**（2025-12-13T05:34:29.691Z）**🔴 关键发现**
+- ✅ **关键发现：hookFunction 返回了真正的 Hook 代码**：
+
+  **`hookFunction` 返回的函数源码**：
+  ```javascript
+  function(){
+    const n=[].slice.call(arguments);
+    if("send"===t&&0!==n.length){
+      if(e.shouldNativeHandleHTTPBody(n[0]))
+        return e.saveParamsToNative(n[0]).then(e=>(
+          e&&this.setRequestHeader("tx_webkit_body_uuid",e),
+          this.xhr[t].apply(this.xhr,[])
+        ))
+    }
+    return this.xhr[t].apply(this.xhr,n)
+  }
+  ```
+
+  **分析**：
+  - ✅ **这是真正的 Hook 代码**！
+  - ✅ **Hook 了 XMLHttpRequest 的 `send` 方法**
+  - ✅ **会检查请求体**：调用 `shouldNativeHandleHTTPBody(n[0])`
+  - ✅ **会保存参数到原生**：调用 `saveParamsToNative(n[0])`
+  - ✅ **会添加请求头**：`setRequestHeader("tx_webkit_body_uuid", e)`
+
+- ✅ **其他测试结果**：
+
+  1. **对比 Hook 前后**：
+     - ⚠️ 发现了差异，但这些差异是正常的（URL 不同、X-Amzn-Trace-Id 不同等）
+     - ⚠️ 无法从这些差异中确定 Hook 是否生效
+
+  2. **请求头测试**：
+     - ✅ 自定义请求头正常传递，没有被修改
+     - ⚠️ 但 Hook 可能添加了请求头（我们无法从测试结果中看到）
+
+  3. **请求体测试**：
+     - ✅ 请求体内容没有被修改（只是 JSON 键顺序不同，这是正常的）
+     - ⚠️ 但 Hook 可能读取了请求体（根据 `hookFunction` 的代码）
+
+  4. **响应测试**：
+     - ✅ 响应正常，没有被明显修改
+
+  5. **其他 Hook 方法**：
+     - ✅ `getterFactory` - 返回 getter 函数
+     - ✅ `setterFactory` - 返回 setter 函数
+
+- ✅ **关键发现总结**：
+
+  1. **✅ 事实（100% 准确）**：
+     - Hook 功能确实存在：`hookFunction` 返回了真正的 Hook 代码
+     - Hook 代码会拦截 XMLHttpRequest 的 `send` 方法
+     - Hook 代码会检查请求体：`shouldNativeHandleHTTPBody(n[0])`
+     - Hook 代码会保存请求体：`saveParamsToNative(n[0])`
+     - Hook 代码会添加请求头：`setRequestHeader("tx_webkit_body_uuid", e)`
+
+  2. **⚠️ 推断（需要进一步验证）**：
+     - Hook 是否真的生效（需要更深入的测试）
+     - Hook 的具体影响（是否能修改所有请求）
+     - Hook 的触发条件（是否只在特定情况下生效）
+
+  3. **🔴 安全风险（已确认）**：
+     - Hook 方法能被网页调用：没有权限限制
+     - Hook 可以访问请求体：可能泄露敏感信息
+     - Hook 可以保存数据到原生：可能泄露敏感信息
+     - Hook 可以修改请求：添加请求头
+
+- ⏳ 下一步：深入分析 Hook 代码，理解 Hook 的工作机制
+
 **2025-12-13 轮 3 测试（iframe 边界测试 - 已完成）：**
 - ✅ **关键发现：iframe 边界测试结果**（2025-12-13T01:56:40.112Z）
   - 测试页面：bridge-audit-iframe-child.html（iframe 子页面）
