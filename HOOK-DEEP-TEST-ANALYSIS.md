@@ -4,37 +4,42 @@
 
 2025-12-13T05:34:29.691Z
 
-## 关键发现：hookFunction 返回了 Hook 代码！
+## 关键发现：hookFunction 返回了函数代码
 
 ### 测试 7 的关键发现
 
 **`hookFunction` 返回的函数源码**：
 ```javascript
-function(){
-  const n=[].slice.call(arguments);
-  if("send"===t&&0!==n.length){
-    if(e.shouldNativeHandleHTTPBody(n[0]))
-      return e.saveParamsToNative(n[0]).then(e=>(
-        e&&this.setRequestHeader("tx_webkit_body_uuid",e),
-        this.xhr[t].apply(this.xhr,[])
-      ))
-  }
-  return this.xhr[t].apply(this.xhr,n)
-}
+function(){const n=[].slice.call(arguments);if("send"===t&&0!==n.length){if(e.shouldNativeHandleHTTPBody(n[0]))return e.saveParamsToNative(n[0]).then(e=>(e&&this.setRequestHeader("tx_webkit_body_uuid",e),this.xhr[t].apply(this.xhr,[])))}return this.xhr[t].apply(this.xhr,n)}
 ```
 
-**分析**：
-- ✅ **这是真正的 Hook 代码**！
-- ✅ **Hook 了 XMLHttpRequest 的 `send` 方法**
-- ✅ **会检查请求体**：调用 `shouldNativeHandleHTTPBody(n[0])`
-- ✅ **会保存参数到原生**：调用 `saveParamsToNative(n[0])`
-- ✅ **会添加请求头**：`setRequestHeader("tx_webkit_body_uuid", e)`
+**✅ 事实（100% 准确）**：
+- ✅ `hookFunction` 方法存在且能被调用
+- ✅ `hookFunction` 返回了一个函数对象
+- ✅ 函数代码包含字符串 `"send"`
+- ✅ 函数代码包含 `shouldNativeHandleHTTPBody`
+- ✅ 函数代码包含 `saveParamsToNative`
+- ✅ 函数代码包含 `setRequestHeader("tx_webkit_body_uuid"`
 
-**安全意义**：
-- 🔴 **严重安全风险**：Hook 功能确实存在，可以拦截和修改 XMLHttpRequest 请求
-- 🔴 **可以访问请求体**：Hook 可以读取所有请求体内容
-- 🔴 **可以修改请求**：Hook 可以添加请求头（`tx_webkit_body_uuid`）
-- 🔴 **可以保存数据到原生**：`saveParamsToNative` 可能将数据保存到 App 原生层
+**⚠️ 推断（需要验证）**：
+- ⚠️ **推断**：函数代码包含 `"send"`，所以可能 Hook 了 XMLHttpRequest 的 `send` 方法
+  - **事实**：函数代码存在，但无法从测试结果中确定是否真的拦截了请求
+- ⚠️ **推断**：函数代码包含 `shouldNativeHandleHTTPBody`，所以可能检查了请求体
+  - **事实**：函数代码包含这个字符串，但无法确定是否真的检查了请求体
+- ⚠️ **推断**：函数代码包含 `saveParamsToNative`，所以可能保存了数据到原生
+  - **事实**：函数代码包含这个字符串，但无法确定是否真的保存了数据
+- ⚠️ **推断**：函数代码包含 `setRequestHeader("tx_webkit_body_uuid"`，所以可能添加了请求头
+  - **事实**：函数代码包含这个字符串，但测试结果中没有看到这个请求头
+
+**安全意义（基于推断，需要验证）**：
+- ⚠️ **推断**：Hook 功能可能可以拦截和修改 XMLHttpRequest 请求
+  - **需要验证**：实际测试是否真的拦截了请求
+- ⚠️ **推断**：Hook 可能可以访问请求体
+  - **需要验证**：实际测试是否真的访问了请求体
+- ⚠️ **推断**：Hook 可能可以修改请求
+  - **需要验证**：实际测试是否真的修改了请求
+- ⚠️ **推断**：Hook 可能可以保存数据到原生
+  - **需要验证**：实际测试是否真的保存了数据
 
 ---
 
@@ -98,22 +103,45 @@ function(){
 
 ## 关键发现总结
 
-### ✅ 100% 确认的事实
+### ✅ 100% 确认的事实（基于测试结果）
 
-1. **Hook 功能确实存在**：
-   - `hookFunction` 返回了真正的 Hook 代码
-   - Hook 代码会拦截 XMLHttpRequest 的 `send` 方法
+1. **Hook 方法存在**：
+   - ✅ `hookFunction` 方法存在且能被调用
+   - ✅ `hookFunction` 返回了一个函数对象
+   - ✅ `getterFactory` 和 `setterFactory` 方法也存在且返回函数
 
-2. **Hook 可以访问请求体**：
-   - Hook 代码会检查请求体：`shouldNativeHandleHTTPBody(n[0])`
-   - Hook 代码会保存请求体：`saveParamsToNative(n[0])`
+2. **Hook 代码的内容**：
+   - ✅ 函数代码包含字符串 `"send"`
+   - ✅ 函数代码包含 `shouldNativeHandleHTTPBody`
+   - ✅ 函数代码包含 `saveParamsToNative`
+   - ✅ 函数代码包含 `setRequestHeader("tx_webkit_body_uuid"`
 
-3. **Hook 可以修改请求**：
-   - Hook 代码会添加请求头：`setRequestHeader("tx_webkit_body_uuid", e)`
+3. **对比测试的结果**：
+   - ✅ Hook 前后的 URL 不同
+   - ✅ Hook 前后的请求头不同（主要是 `X-Amzn-Trace-Id` 不同）
+   - ✅ Hook 前后的参数不同
 
-4. **Hook 的其他方法**：
-   - `getterFactory` - 返回 getter 函数
-   - `setterFactory` - 返回 setter 函数
+4. **请求头和请求体测试**：
+   - ✅ 自定义请求头正常传递
+   - ✅ 请求体内容没有被修改
+
+### ⚠️ 推断（不是事实，需要验证）
+
+1. **Hook 是否真的拦截了请求**：
+   - ⚠️ **推断**：Hook 代码包含 `"send"`，所以可能 Hook 了 XMLHttpRequest 的 `send` 方法
+   - **事实**：Hook 代码存在，但无法确定是否真的拦截了请求
+
+2. **Hook 是否检查了请求体**：
+   - ⚠️ **推断**：Hook 代码包含 `shouldNativeHandleHTTPBody`，所以可能检查了请求体
+   - **事实**：Hook 代码包含这个字符串，但无法确定是否真的检查了请求体
+
+3. **Hook 是否保存了数据到原生**：
+   - ⚠️ **推断**：Hook 代码包含 `saveParamsToNative`，所以可能保存了数据到原生
+   - **事实**：Hook 代码包含这个字符串，但无法确定是否真的保存了数据
+
+4. **Hook 是否添加了请求头**：
+   - ⚠️ **推断**：Hook 代码包含 `setRequestHeader("tx_webkit_body_uuid"`，所以可能添加了请求头
+   - **事实**：Hook 代码包含这个字符串，但测试结果中没有看到这个请求头
 
 ### ⚠️ 需要进一步验证的推断
 
