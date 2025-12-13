@@ -803,71 +803,66 @@
 
 - ⏳ 下一步：深入分析 Hook 代码，理解 Hook 的工作机制
 
-**2025-12-13 轮 2 验证测试（Hook 功能验证 - 已完成）：**
-- ✅ **Hook 功能验证结果**（2025-12-13T05:50:14.951Z）**🔴 关键发现**
-- ✅ **验证结果：Hook 确实生效了！**
+**2025-12-13 轮 2 深入测试 3（Hook 功能验证测试 - 已完成）：**
+- ✅ **Hook 功能验证测试结果**（2025-12-13T06:13:05.046Z）**🔴 关键发现**
+- ✅ **验证结果汇总**：
 
-  **验证 1：Hook 是否拦截了 XMLHttpRequest 的 send 方法** ✅ **已确认**
-  - ✅ **send 方法被修改了**：`sendChanged: true`
-  - ✅ **send 方法包含 Hook 代码**：
-    - 包含 `shouldNativeHandleHTTPBody`
-    - 包含 `saveParamsToNative`
-    - 包含 `tx_webkit_body_uuid`
-  - ✅ **结论**：Hook 确实拦截了 XMLHttpRequest 的 send 方法（这是事实，不是推断）
+  1. **验证 1：Hook 是否拦截了 XMLHttpRequest 的 send 方法** ✅ **已确认**
+     - ✅ `sendChanged: true` - send 方法被修改了
+     - ✅ `containsShouldNativeHandleHTTPBody: true` - send 方法包含 Hook 代码
+     - ✅ `containsSaveParamsToNative: true` - send 方法包含 Hook 代码
+     - ✅ `containsTxWebkitBodyUuid: true` - send 方法包含 Hook 代码
+     - ✅ **结论**：Hook 确实生效了，send 方法被 Hook 代码替换
 
-  **验证 3：Hook 是否检查了请求体（shouldNativeHandleHTTPBody）** ✅ **已确认**
-  - ✅ `shouldNativeHandleHTTPBody` 方法存在且能被调用
-  - ✅ **判断逻辑**：
-    - 对于 **Blob 类型**返回 `true`
-    - 对于其他类型（string, JSON string, FormData, null, undefined）返回 `false`
-  - ✅ **结论**：Hook 确实检查了请求体，只在请求体是 Blob 类型时才处理
+  2. **验证 2：Hook 是否添加了请求头（tx_webkit_body_uuid）** ⚠️
+     - ✅ `hasTxWebkitBodyUuid: false` - 请求头中不包含 `tx_webkit_body_uuid`
+     - ⚠️ **推断**：Hook 可能只在特定条件下添加请求头（需要进一步验证）
 
-  **验证 4：Hook 是否保存了数据到原生（saveParamsToNative）** ✅ **已确认**
-  - ✅ `saveParamsToNative` 方法存在且能被调用
-  - ✅ **返回 Promise**，resolve 值为 **UUID 字符串**
-  - ✅ **测试结果**：
-    - `saveParamsToNative("string")` → `"1039e478-ffd3-40e2-a6d3-4120476c2de2"`
-    - `saveParamsToNative("JSON string")` → `"fedd8370-100f-45c0-8237-106854a3d5a0"`
-    - `saveParamsToNative("sensitive JSON")` → `"2e5bd9d2-7006-46ab-8ca5-d3b0b257a1f9"`
-  - ✅ **结论**：Hook 确实保存了数据到原生，保存后返回 UUID（可能是用于后续检索的标识符）
+  3. **验证 3：Hook 是否检查了请求体（shouldNativeHandleHTTPBody）** ✅ **已确认**
+     - ✅ `shouldNativeHandleHTTPBody` 方法存在且能被调用
+     - ✅ **判断逻辑**：
+       - 字符串、JSON 字符串、FormData、null、undefined → 返回 `false`
+       - Blob → 返回 `true`
+     - ✅ **这解释了验证 2 的结果**：我们发送的是 JSON 字符串，`shouldNativeHandleHTTPBody` 返回 `false`，所以没有添加请求头
 
-  **验证 5：实际测试 Hook 代码是否被执行** ✅ **已确认**
-  - ✅ send 方法的源码包含 Hook 代码
-  - ✅ **可以看到完整的 Hook 逻辑**：
-    ```javascript
-    function(data){
-      const n=[].slice.call(arguments);
-      if(e.shouldNativeHandleHTTPBody(n[0])){
-        e.saveParamsToNative(n[0]).then((i)=>{
-          if(i){
-            this.setRequestHeader("tx_webkit_body_uuid",i);
-            originalSend.call(this
-    ```
-  - ✅ **结论**：Hook 代码确实被执行了（这是事实，不是推断）
+  4. **验证 4：Hook 是否保存了数据到原生（saveParamsToNative）** ✅ **已确认**
+     - ✅ `saveParamsToNative` 方法存在且能被调用
+     - ✅ 返回 Promise
+     - ✅ Promise resolve 值是 UUID 字符串（例如：`a416a479-bc65-4fc0-9a6a-987265594455`）
+     - ✅ **结论**：`saveParamsToNative` 确实保存了数据并返回 UUID
 
-  **验证 2 和 6：Hook 是否添加了请求头** ⚠️
-  - ⚠️ 请求失败，无法验证是否添加了请求头
-  - 可能是网络问题或 CORS 问题
+  5. **验证 5：实际测试 Hook 代码是否被执行** ✅ **已确认**
+     - ✅ `isHooked: true` - send 方法被 Hook
+     - ✅ send 方法包含完整的 Hook 代码
+     - ✅ send 代码预览显示了 Hook 逻辑：
+       - 检查 `shouldNativeHandleHTTPBody(n[0])`
+       - 如果为 true，调用 `saveParamsToNative(n[0])`
+       - 如果返回 UUID，添加请求头 `tx_webkit_body_uuid`
+
+  6. **验证 6：测试 Hook 的完整流程** ⚠️
+     - ✅ 请求头中没有 `tx_webkit_body_uuid`（因为 `shouldNativeHandleHTTPBody` 返回 `false`）
+     - ✅ 请求体没有被修改（只是 JSON 键顺序不同，这是正常的）
 
 - ✅ **关键发现总结**：
 
-  1. **✅ 事实（100% 准确，不再是推断）**：
-     - ✅ **Hook 确实拦截了 XMLHttpRequest 的 send 方法**
-     - ✅ **Hook 确实检查了请求体**（`shouldNativeHandleHTTPBody`）
-     - ✅ **Hook 确实保存了数据到原生**（`saveParamsToNative` 返回 UUID）
-     - ✅ **Hook 代码确实被执行了**（send 方法的源码就是 Hook 代码）
+  1. **✅ 事实（100% 准确）**：
+     - Hook 确实生效了：send 方法被 Hook 代码替换
+     - Hook 代码会检查请求体类型：`shouldNativeHandleHTTPBody`
+     - Hook 代码会保存请求体数据：`saveParamsToNative` 返回 UUID
+     - Hook 代码可以添加请求头：`setRequestHeader("tx_webkit_body_uuid", i)`
+     - `shouldNativeHandleHTTPBody` 的判断逻辑：只有 Blob 类型返回 `true`
 
-  2. **⚠️ 需要进一步验证**：
-     - Hook 是否添加了请求头（验证测试中请求失败，需要重新测试）
+  2. **⚠️ 推断（基于事实的合理推断）**：
+     - Hook 只在特定条件下添加请求头：只有当 `shouldNativeHandleHTTPBody` 返回 `true` 时，才会添加请求头
+     - Hook 的工作流程：检查请求体类型 → 如果是 Blob，保存到原生并返回 UUID → 添加请求头
 
   3. **🔴 安全风险（已确认）**：
-     - Hook 方法能被网页调用：没有权限限制
-     - Hook 可以拦截所有 XMLHttpRequest 请求
-     - Hook 可以访问请求体（特别是 Blob 类型）
-     - Hook 可以保存数据到原生：可能泄露敏感信息
-     - Hook 保存数据后返回 UUID，可能用于后续检索
+     - Hook 确实生效了：所有 XMLHttpRequest 请求都会被 Hook 拦截
+     - Hook 可以访问请求体：Hook 代码会检查请求体类型
+     - Hook 可以保存请求体数据：`saveParamsToNative` 会保存数据并返回 UUID
+     - Hook 可以修改请求：Hook 代码可以添加请求头（虽然只在特定条件下）
 
-- ⏳ 下一步：重新测试验证 2 和 6，确认 Hook 是否添加了请求头
+- ⏳ 下一步：测试 Blob 类型的请求体，验证 Hook 的完整流程
 
 **2025-12-13 轮 3 测试（iframe 边界测试 - 已完成）：**
 - ✅ **关键发现：iframe 边界测试结果**（2025-12-13T01:56:40.112Z）
