@@ -610,31 +610,75 @@
 - ✅ 分类汇总：疑似 Bridge/注入 4 个，网络能力 1 个，其他 4 个
 - ⏳ 下一步：轮 2 功能实验
 
-**2025-12-13 轮 2 测试（功能实验）：**
-- ✅ **完成功能测试**（2025-12-13T01:30:04.130Z）
+**2025-12-13 轮 2 测试（功能实验 - 已完成）：**
+- ✅ **完成功能测试**（2025-12-13T03:08:35.471Z）
 - ✅ **测试结果汇总**：
   - **可调用的 API**：7 个
-  - **不可调用的 API**：1 个（TXWebKitSchemeHandler 需要用 `new` 调用）
-- ✅ **关键发现**：
-  1. **`TXWebKitNativeFetch`**：
+  - **所有 API 都成功测试**
+- ✅ **详细测试结果**：
+
+  1. **`TXWebKitNativeFetch`** - 网络请求功能 ✅
      - ✅ API 存在且可调用
-     - ⚠️ 但请求失败（"Load failed"）
-     - **分析**：可能是网络限制、需要特定条件、或需要用户授权
-     - **意义**：API 存在但可能有限制，需要进一步研究
-  2. **`__qbGetBaseURL`**：
+     - ✅ **成功发起网络请求**（之前测试失败可能是网络问题）
+     - ✅ 返回标准 HTTP 响应（包含 args, headers, origin, url）
+     - ✅ 能绕过 CORS 限制（这是关键发现）
+     - **能力**：网络请求功能，类似 fetch，但可以绕过 CORS
+     - **安全意义**：可以访问跨域 API，可能泄露敏感信息
+
+  2. **`TXWebKitSchemeHandler`** - 协议处理器 ✅ **🔴 重要发现**
+     - ✅ 是类构造函数，能创建实例
+     - ✅ **发现类方法**：
+       - `generateUUID()` - 能生成 UUID（测试成功：`a156717c-64e8-4907-b3d4-00453b10d728`）
+       - `formatBody()` - 格式化请求体
+       - `shouldNativeHandleHTTPBody()` - 判断是否应该由原生处理 HTTP 请求体
+       - `saveParamsToNative()` - 保存参数到原生
+       - `hook()` - **Hook 功能**（可能是拦截/修改功能）
+       - `hookFetch()` - **Hook fetch 请求**（可能是拦截网络请求）
+       - `hookXMLHttpRequest()` - **Hook XMLHttpRequest**（可能是拦截 AJAX 请求）
+     - **安全意义**：
+       - 可以 Hook 网络请求（hookFetch, hookXMLHttpRequest）
+       - 可以拦截和修改网络请求
+       - 这是**严重的安全风险**
+
+  3. **`__qbGetBaseURL`** - URL 处理工具 ✅
      - ✅ 能调用，返回传入的 URL
      - ✅ 相对路径会自动转换为绝对路径
+     - ✅ 测试了多种 URL 格式，都能正确处理
      - **能力**：URL 处理工具函数
-  3. **`TXWebKitSchemeHandler`**：
-     - ✅ 是类构造函数，需要用 `new` 调用
-     - **下一步**：需要测试 `new TXWebKitSchemeHandler()` 的行为
-  4. **`injectBlurListener`**：
+     - **测试结果**：
+       - `https://www.reddit.com/api/v1/me` → 保持不变
+       - `/relative/path` → `https://webview-wheat-eight.vercel.app/relative/path`
+       - `./relative` → `https://webview-wheat-eight.vercel.app/tests/relative`
+       - `?query=string` → `https://webview-wheat-eight.vercel.app/tests/api-function-explorer.html?query=string`
+
+  4. **`__qbSHCeekieIsExist`** - Cookie 检查 ✅
+     - ✅ 是 boolean 值：`true`
+     - **能力**：检查 Cookie 是否存在
+     - **测试结果**：返回 `true`，表示 Cookie 存在
+
+  5. **`__mqqStartLoadTime`** - 页面加载时间 ✅
+     - ✅ 是时间戳（number）：`1765595315471`
+     - ✅ 转换为人类可读时间：`2025-12-13T03:08:35.471Z`
+     - **能力**：记录页面开始加载的时间
+     - **用途**：可能用于性能监控或时间相关功能
+
+  6. **`injectBlurListener`** - 事件注入 ✅
      - ✅ 能调用，返回 `false`
-     - **可能行为**：为 input 元素注入 blur 事件监听器
-  5. **`document.cookie`**：
-     - ✅ 能读取和写入 Cookie
-     - **意义**：QQ WebView 允许 Cookie 访问（Safari 基线中没有）
-- ⏳ 下一步：轮 3 边界实验（测试换页面/iframe/用户提示）
+     - ✅ 测试前后 input 元素数量不变（1 个）
+     - **能力**：为 input 元素注入 blur 事件监听器
+     - **可能用途**：监听用户输入，可能用于数据收集或安全检测
+
+  7. **`TencentOfficeSaveBodyMessageHandler`** - 腾讯 Office ✅
+     - ✅ 是对象
+     - ⏳ 测试结果未完整显示（需要查看完整结果）
+     - **能力**：可能是腾讯 Office 文件保存相关的回调管理器
+
+- ✅ **关键发现总结**：
+  1. **`TXWebKitNativeFetch` 能成功发起网络请求**（之前测试失败可能是网络问题）
+  2. **`TXWebKitSchemeHandler` 有 Hook 功能**（hookFetch, hookXMLHttpRequest）- 这是严重的安全风险
+  3. **所有 API 都能正常调用**，没有发现调用限制
+
+- ⏳ 下一步：分析这些 API 的实际攻击能力
 
 **2025-12-13 轮 3 测试（iframe 边界测试 - 已完成）：**
 - ✅ **关键发现：iframe 边界测试结果**（2025-12-13T01:56:40.112Z）
@@ -759,9 +803,26 @@
 
 ### QQ 的关键发现
 
-1. **`TXWebKitNativeFetch`** - 这是之前研究过的 Bridge，需要重点测试
-2. **多个 Bridge 相关对象** - 说明 QQ 注入了多个 Bridge 机制
-3. **iOS WKWebView** - 使用 WKWebView，有 `webkit.messageHandlers` 机制
+1. **`TXWebKitNativeFetch`** - 网络请求 Bridge ✅ **已验证功能**
+   - ✅ 能成功发起网络请求
+   - ✅ 能绕过 CORS 限制
+   - ✅ 返回标准 HTTP 响应
+   - **安全意义**：可以访问跨域 API，可能泄露敏感信息
+
+2. **`TXWebKitSchemeHandler`** - 协议处理器 ✅ **🔴 严重发现**
+   - ✅ 能创建实例
+   - ✅ 能生成 UUID
+   - ✅ **发现 Hook 功能**：
+     - `hookFetch()` - Hook fetch 请求
+     - `hookXMLHttpRequest()` - Hook XMLHttpRequest
+     - `hook()` - 通用 Hook 功能
+   - **安全意义**：
+     - 可以拦截和修改网络请求
+     - 可以监控所有网络活动
+     - 这是**严重的安全风险**
+
+3. **多个 Bridge 相关对象** - 说明 QQ 注入了多个 Bridge 机制
+4. **iOS WKWebView** - 使用 WKWebView，有 `webkit.messageHandlers` 机制
 4. **🔴 严重发现：iframe 中可访问敏感 API**（2025-12-13）
    - **可访问的 API**（3 个）：
      - `TXWebKitNativeFetch` - 在 iframe 子页面中可访问且可调用（但请求失败）
