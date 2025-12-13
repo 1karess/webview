@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>轮 2：API 功能测试（返回值/行为）</title>
+  <title>轮 2：API 深度功能测试</title>
   <style>
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
       padding: 20px;
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
       background: #f5f5f5;
       line-height: 1.6;
@@ -35,6 +35,8 @@
     }
     button:hover { background: #005a9e; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button.secondary { background: #6c757d; }
+    button.secondary:hover { background: #5a6268; }
     .result {
       background: #f8f9fa;
       padding: 12px;
@@ -44,7 +46,7 @@
       font-size: 12px;
       white-space: pre-wrap;
       word-break: break-word;
-      max-height: 400px;
+      max-height: 500px;
       overflow: auto;
     }
     .result.success { background: #d4edda; border-left: 4px solid #28a745; }
@@ -75,107 +77,134 @@
     .status-pending { background: #ffc107; color: #333; }
     .status-success { background: #28a745; color: white; }
     .status-error { background: #dc3545; color: white; }
+    .status-testing { background: #17a2b8; color: white; }
+    .test-group {
+      margin: 8px 0;
+      padding: 8px;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+    .test-group h5 { margin: 0 0 8px 0; color: #495057; }
   </style>
 </head>
 <body>
-  <h1>🔬 轮 2：API 功能测试（返回值/行为）</h1>
+  <h1>🔬 轮 2：API 深度功能测试</h1>
   <div class="subtitle">
-    <strong>目的</strong>：测试这些 API 实际能做什么（返回值/行为），而不是只检测"是否存在"<br>
-    <strong>重要</strong>：只测试 3 类（信息类、动作类、状态类），不要全点，避免误触支付等功能
+    <strong>目的</strong>：深度测试每个 API 的实际功能、限制、返回值<br>
+    <strong>改进</strong>：增加多场景测试、错误分析、边界情况测试
   </div>
 
   <div class="explain">
-    <strong>测试顺序说明：</strong><br>
-    1. ✅ <strong>轮 1：可见性实验</strong> - 已完成，发现了 9 个 QQ 新增的 API<br>
-    2. ⏳ <strong>轮 2：功能实验</strong> - <strong>你现在在这里</strong>：测试这些 API 实际能做什么<br>
-    3. ⏳ 轮 3：边界实验 - 测试换页面/iframe/用户提示（轮 2 完成后才做）<br>
-    4. ⏳ 轮 4：对比总结 - 汇总多个 App 的结果
+    <strong>深度测试策略：</strong><br>
+    1. 多场景测试：尝试不同的参数、不同的调用方式<br>
+    2. 错误分析：详细记录错误信息，分析失败原因<br>
+    3. 边界测试：测试极端情况、异常输入<br>
+    4. 行为观察：观察是否有副作用（DOM 变化、网络请求等）
   </div>
 
   <div class="card">
-    <h3>高优先级测试（信息类 - 先测试这些）</h3>
-    <p>这些 API 看起来是"读取信息"的，相对安全，先测试这些：</p>
-
+    <h3>1. TXWebKitNativeFetch - 深度测试</h3>
     <div class="api-item">
-      <h4>1. TXWebKitNativeFetch <span id="status1" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：网络能力/请求（类似 fetch）</p>
-      <p><strong>测试内容</strong>：尝试发起网络请求，看返回值、是否携带 Cookie</p>
-      <button onclick="testTXWebKitNativeFetch()">测试 TXWebKitNativeFetch</button>
+      <h4>TXWebKitNativeFetch <span id="status1" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景 1：不同域名</h5>
+        <button onclick="testTXFetch_Domains()">测试多个域名</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 2：不同协议</h5>
+        <button onclick="testTXFetch_Protocols()">测试 HTTP/HTTPS</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 3：不同方法</h5>
+        <button onclick="testTXFetch_Methods()">测试 GET/POST/PUT</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 4：携带 Cookie</h5>
+        <button onclick="testTXFetch_Cookies()">测试 Cookie 携带</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 5：错误分析</h5>
+        <button onclick="testTXFetch_ErrorAnalysis()">详细错误分析</button>
+      </div>
+      <button onclick="testTXFetch_All()" class="secondary">一键测试所有场景</button>
       <div id="result1" class="result" style="display:none;"></div>
     </div>
+  </div>
 
+  <div class="card">
+    <h3>2. TXWebKitSchemeHandler - 深度测试</h3>
     <div class="api-item">
-      <h4>2. __qbGetBaseURL <span id="status2" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：其他/未分类（处理 base URL）</p>
-      <p><strong>测试内容</strong>：传入 URL，看返回什么</p>
-      <button onclick="testQbGetBaseURL()">测试 __qbGetBaseURL</button>
+      <h4>TXWebKitSchemeHandler <span id="status2" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景 1：创建实例</h5>
+        <button onclick="testSchemeHandler_New()">测试 new TXWebKitSchemeHandler()</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 2：查看方法</h5>
+        <button onclick="testSchemeHandler_Methods()">查看所有方法</button>
+      </div>
+      <div class="test-group">
+        <h5>测试场景 3：调用方法</h5>
+        <button onclick="testSchemeHandler_CallMethods()">尝试调用方法</button>
+      </div>
+      <button onclick="testSchemeHandler_All()" class="secondary">一键测试所有</button>
       <div id="result2" class="result" style="display:none;"></div>
     </div>
+  </div>
 
+  <div class="card">
+    <h3>3. __qbGetBaseURL - 深度测试</h3>
     <div class="api-item">
-      <h4>3. __qbSHCeekieIsExist <span id="status3" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：存储/会话（Cookie 存在检查）</p>
-      <p><strong>已知值</strong>：true（已确认）</p>
-      <p><strong>测试内容</strong>：查看当前值，尝试理解它的作用</p>
-      <button onclick="testQbSHCeekieIsExist()">测试 __qbSHCeekieIsExist</button>
+      <h4>__qbGetBaseURL <span id="status3" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景：各种 URL 格式</h5>
+        <button onclick="testQbGetBaseURL_All()">测试所有 URL 格式</button>
+      </div>
       <div id="result3" class="result" style="display:none;"></div>
     </div>
+  </div>
 
+  <div class="card">
+    <h3>4. injectBlurListener - 深度测试</h3>
     <div class="api-item">
-      <h4>4. __mqqStartLoadTime <span id="status4" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：其他/未分类（页面加载时间戳）</p>
-      <p><strong>已知值</strong>：1765583724248（已确认）</p>
-      <p><strong>测试内容</strong>：查看当前值，理解它的含义</p>
-      <button onclick="testMqqStartLoadTime()">测试 __mqqStartLoadTime</button>
+      <h4>injectBlurListener <span id="status4" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景：观察 DOM 变化</h5>
+        <input type="text" id="testInput" placeholder="测试输入框" style="width:100%; padding:8px; margin:8px 0;">
+        <button onclick="testInjectBlurListener_Deep()">测试并观察变化</button>
+      </div>
       <div id="result4" class="result" style="display:none;"></div>
     </div>
   </div>
 
   <div class="card">
-    <h3>中优先级测试（动作类 - 谨慎测试）</h3>
-    <p>这些 API 可能触发操作，谨慎测试：</p>
-
+    <h3>5. TencentOfficeSaveBodyMessageHandler - 深度测试</h3>
     <div class="api-item">
-      <h4>5. TXWebKitSchemeHandler <span id="status5" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：疑似 Bridge/注入（自定义协议处理器）</p>
-      <p><strong>测试内容</strong>：查看对象类型、方法，尝试调用</p>
-      <button onclick="testTXWebKitSchemeHandler()">测试 TXWebKitSchemeHandler</button>
+      <h4>TencentOfficeSaveBodyMessageHandler <span id="status5" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景：查看和操作对象</h5>
+        <button onclick="testTencentOffice_Deep()">深度分析对象</button>
+      </div>
       <div id="result5" class="result" style="display:none;"></div>
-    </div>
-
-    <div class="api-item">
-      <h4>6. injectBlurListener <span id="status6" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：其他/未分类（注入监听器）</p>
-      <p><strong>测试内容</strong>：调用函数，观察页面是否有变化</p>
-      <button onclick="testInjectBlurListener()">测试 injectBlurListener</button>
-      <div id="result6" class="result" style="display:none;"></div>
-    </div>
-
-    <div class="api-item">
-      <h4>7. TencentOfficeSaveBodyMessageHandler <span id="status7" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：其他/未分类（腾讯 Office 相关）</p>
-      <p><strong>测试内容</strong>：查看对象内容、是否有可调用的方法</p>
-      <button onclick="testTencentOffice()">测试 TencentOfficeSaveBodyMessageHandler</button>
-      <div id="result7" class="result" style="display:none;"></div>
     </div>
   </div>
 
   <div class="card">
-    <h3>低优先级测试（状态类）</h3>
-
+    <h3>6. document.cookie - 深度测试</h3>
     <div class="api-item">
-      <h4>8. document.cookie <span id="status8" class="status-badge status-pending">待测试</span></h4>
-      <p><strong>初步判断</strong>：存储/会话（Cookie 访问）</p>
-      <p><strong>测试内容</strong>：测试读取和写入 Cookie</p>
-      <button onclick="testDocumentCookie()">测试 document.cookie</button>
-      <div id="result8" class="result" style="display:none;"></div>
+      <h4>document.cookie <span id="status6" class="status-badge status-pending">待测试</span></h4>
+      <div class="test-group">
+        <h5>测试场景：Cookie 操作和限制</h5>
+        <button onclick="testDocumentCookie_Deep()">深度测试 Cookie</button>
+      </div>
+      <div id="result6" class="result" style="display:none;"></div>
     </div>
   </div>
 
   <div class="card">
     <h3>测试结果汇总</h3>
-    <button onclick="exportResults()">导出测试结果 JSON</button>
-    <button onclick="testAll()">一键测试所有（按顺序）</button>
+    <button onclick="exportResults()">导出完整测试结果 JSON</button>
+    <button onclick="testAllAPIs()">一键测试所有 API（深度）</button>
     <div id="summary" class="result" style="display:none;"></div>
   </div>
 
@@ -184,23 +213,27 @@
 
     function updateStatus(id, status, text) {
       const badge = document.getElementById(id);
-      badge.className = 'status-badge status-' + status;
-      badge.textContent = text;
+      if (badge) {
+        badge.className = 'status-badge status-' + status;
+        badge.textContent = text;
+      }
     }
 
     function showResult(id, data, isSuccess = true) {
       const resultEl = document.getElementById(id);
       resultEl.style.display = 'block';
       resultEl.textContent = JSON.stringify(data, null, 2);
-      resultEl.className = 'result ' + (isSuccess ? 'success' : 'error');
+      resultEl.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
       allResults[data.api] = data;
     }
 
-    // 测试 1: TXWebKitNativeFetch
-    function testTXWebKitNativeFetch() {
-      updateStatus('status1', 'pending', '测试中...');
+    // ========== TXWebKitNativeFetch 深度测试 ==========
+    
+    async function testTXFetch_Domains() {
+      updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
+        test: '不同域名测试',
         timestamp: new Date().toISOString(),
         exists: typeof window.TXWebKitNativeFetch !== 'undefined',
         tests: []
@@ -213,86 +246,276 @@
         return;
       }
 
-      // 测试 1.1: 基本调用
-      try {
-        const test1 = window.TXWebKitNativeFetch('https://httpbin.org/get', {
-          method: 'GET'
-        });
-        result.tests.push({
-          name: '基本调用（httpbin.org/get）',
-          callable: true,
-          returnsPromise: test1 && typeof test1.then === 'function',
-          result: '等待响应...'
-        });
+      const domains = [
+        'https://httpbin.org/get',
+        'https://www.reddit.com/api/v1/me',
+        'https://graph.facebook.com/me',
+        'https://api.github.com',
+        'https://www.google.com',
+        'http://httpbin.org/get' // HTTP
+      ];
 
-        if (test1 && typeof test1.then === 'function') {
-          test1
-            .then(async response => {
-              const data = await response.json();
-              result.tests[result.tests.length - 1].result = {
+      for (const url of domains) {
+        try {
+          const startTime = Date.now();
+          const promise = window.TXWebKitNativeFetch(url, { method: 'GET' });
+          
+          if (promise && typeof promise.then === 'function') {
+            try {
+              const response = await Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout after 5s')), 5000))
+              ]);
+              
+              const data = await response.json().catch(() => ({ text: await response.text().catch(() => '无法解析') }));
+              const duration = Date.now() - startTime;
+              
+              result.tests.push({
+                url,
+                success: true,
                 status: response.status,
                 ok: response.ok,
-                data: data
-              };
-              result.tests[result.tests.length - 1].conclusion = '✅ 能发起网络请求，返回 Promise';
-              updateStatus('status1', 'success', '可调用');
-              showResult('result1', result);
-            })
-            .catch(err => {
-              result.tests[result.tests.length - 1].result = { error: err.message };
-              result.tests[result.tests.length - 1].conclusion = '⚠️ 能调用但请求失败';
-              updateStatus('status1', 'warning', '调用失败');
-              showResult('result1', result, false);
+                duration: duration + 'ms',
+                data: typeof data === 'object' ? Object.keys(data).slice(0, 5) : String(data).slice(0, 100)
+              });
+            } catch(err) {
+              result.tests.push({
+                url,
+                success: false,
+                error: err.message,
+                errorType: err.constructor.name
+              });
+            }
+          } else {
+            result.tests.push({
+              url,
+              success: false,
+              error: '返回的不是 Promise'
             });
-        } else {
-          result.tests[result.tests.length - 1].result = String(test1);
-          result.tests[result.tests.length - 1].conclusion = '⚠️ 能调用但返回的不是 Promise';
-          updateStatus('status1', 'warning', '异常返回');
-          showResult('result1', result, false);
+          }
+        } catch(e) {
+          result.tests.push({
+            url,
+            success: false,
+            error: e.message
+          });
+        }
+      }
+
+      updateStatus('status1', 'success', '完成');
+      showResult('result1', result);
+    }
+
+    async function testTXFetch_Protocols() {
+      updateStatus('status1', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitNativeFetch',
+        test: '协议测试',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      const protocols = [
+        { url: 'http://httpbin.org/get', protocol: 'HTTP' },
+        { url: 'https://httpbin.org/get', protocol: 'HTTPS' }
+      ];
+
+      for (const {url, protocol} of protocols) {
+        try {
+          const promise = window.TXWebKitNativeFetch(url, { method: 'GET' });
+          if (promise && typeof promise.then === 'function') {
+            try {
+              const response = await Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+              ]);
+              result.tests.push({
+                protocol,
+                url,
+                success: true,
+                status: response.status
+              });
+            } catch(err) {
+              result.tests.push({
+                protocol,
+                url,
+                success: false,
+                error: err.message
+              });
+            }
+          }
+        } catch(e) {
+          result.tests.push({
+            protocol,
+            url,
+            success: false,
+            error: e.message
+          });
+        }
+      }
+
+      showResult('result1', result);
+    }
+
+    async function testTXFetch_Methods() {
+      updateStatus('status1', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitNativeFetch',
+        test: 'HTTP 方法测试',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      const methods = ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'];
+      const testUrl = 'https://httpbin.org/anything';
+
+      for (const method of methods) {
+        try {
+          const promise = window.TXWebKitNativeFetch(testUrl, { method });
+          if (promise && typeof promise.then === 'function') {
+            try {
+              const response = await Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+              ]);
+              result.tests.push({
+                method,
+                success: true,
+                status: response.status
+              });
+            } catch(err) {
+              result.tests.push({
+                method,
+                success: false,
+                error: err.message
+              });
+            }
+          }
+        } catch(e) {
+          result.tests.push({
+            method,
+            success: false,
+            error: e.message
+          });
+        }
+      }
+
+      showResult('result1', result);
+    }
+
+    async function testTXFetch_Cookies() {
+      updateStatus('status1', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitNativeFetch',
+        test: 'Cookie 测试',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      // 先设置一个测试 Cookie
+      document.cookie = 'test_cookie_from_page=test_value; path=/';
+      
+      try {
+        const promise = window.TXWebKitNativeFetch('https://httpbin.org/cookies', { method: 'GET' });
+        if (promise && typeof promise.then === 'function') {
+          try {
+            const response = await Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]);
+            const data = await response.json();
+            result.tests.push({
+              test: '检查是否携带 Cookie',
+              success: true,
+              cookies: data.cookies,
+              hasCookies: Object.keys(data.cookies || {}).length > 0,
+              conclusion: Object.keys(data.cookies || {}).length > 0 
+                ? '✅ 携带了 Cookie' 
+                : '❌ 没有携带 Cookie'
+            });
+          } catch(err) {
+            result.tests.push({
+              test: '检查是否携带 Cookie',
+              success: false,
+              error: err.message
+            });
+          }
         }
       } catch(e) {
         result.tests.push({
-          name: '基本调用',
-          callable: false,
+          test: '检查是否携带 Cookie',
+          success: false,
           error: e.message
         });
-        updateStatus('status1', 'error', '调用失败');
-        showResult('result1', result, false);
       }
 
-      // 测试 1.2: 检查是否携带 Cookie（用 httpbin.org/cookies）
-      setTimeout(() => {
-        try {
-          const test2 = window.TXWebKitNativeFetch('https://httpbin.org/cookies', {
-            method: 'GET'
-          });
-          if (test2 && typeof test2.then === 'function') {
-            test2
-              .then(async response => {
-                const data = await response.json();
-                result.tests.push({
-                  name: 'Cookie 检查（httpbin.org/cookies）',
-                  callable: true,
-                  result: data,
-                  conclusion: data.cookies && Object.keys(data.cookies).length > 0 
-                    ? '✅ 携带了 Cookie' 
-                    : '❌ 没有携带 Cookie'
-                });
-                showResult('result1', result);
-              })
-              .catch(() => {});
-          }
-        } catch(e) {}
-      }, 2000);
+      showResult('result1', result);
     }
 
-    // 测试 2: __qbGetBaseURL
-    function testQbGetBaseURL() {
-      updateStatus('status2', 'pending', '测试中...');
+    async function testTXFetch_ErrorAnalysis() {
+      updateStatus('status1', 'testing', '测试中...');
       const result = {
-        api: '__qbGetBaseURL',
+        api: 'TXWebKitNativeFetch',
+        test: '错误分析',
         timestamp: new Date().toISOString(),
-        exists: typeof window.__qbGetBaseURL !== 'undefined',
+        errorAnalysis: {}
+      };
+
+      try {
+        const promise = window.TXWebKitNativeFetch('https://httpbin.org/get', { method: 'GET' });
+        if (promise && typeof promise.then === 'function') {
+          try {
+            await Promise.race([
+              promise,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+            ]);
+          } catch(err) {
+            result.errorAnalysis = {
+              errorMessage: err.message,
+              errorName: err.name,
+              errorStack: err.stack ? err.stack.split('\n').slice(0, 5) : null,
+              errorType: err.constructor.name,
+              possibleReasons: [
+                '网络限制（需要特定域名白名单）',
+                '需要用户授权',
+                '需要特定上下文',
+                'CORS 限制',
+                'WebView 配置限制'
+              ]
+            };
+          }
+        }
+      } catch(e) {
+        result.errorAnalysis = {
+          errorMessage: e.message,
+          errorName: e.name
+        };
+      }
+
+      showResult('result1', result);
+    }
+
+    async function testTXFetch_All() {
+      await testTXFetch_Domains();
+      await new Promise(r => setTimeout(r, 1000));
+      await testTXFetch_Protocols();
+      await new Promise(r => setTimeout(r, 1000));
+      await testTXFetch_Methods();
+      await new Promise(r => setTimeout(r, 1000));
+      await testTXFetch_Cookies();
+      await new Promise(r => setTimeout(r, 1000));
+      await testTXFetch_ErrorAnalysis();
+    }
+
+    // ========== TXWebKitSchemeHandler 深度测试 ==========
+
+    function testSchemeHandler_New() {
+      updateStatus('status2', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitSchemeHandler',
+        test: '创建实例',
+        timestamp: new Date().toISOString(),
+        exists: typeof window.TXWebKitSchemeHandler !== 'undefined',
         tests: []
       };
 
@@ -304,74 +527,278 @@
       }
 
       try {
-        const testUrls = [
-          'https://www.reddit.com/api/v1/me',
-          'https://example.com/test',
-          '/relative/path'
-        ];
+        const instance = new window.TXWebKitSchemeHandler();
+        result.tests.push({
+          test: 'new TXWebKitSchemeHandler()',
+          success: true,
+          instanceType: typeof instance,
+          instanceKeys: Object.keys(instance).slice(0, 10),
+          conclusion: '✅ 能创建实例'
+        });
+      } catch(e) {
+        result.tests.push({
+          test: 'new TXWebKitSchemeHandler()',
+          success: false,
+          error: e.message,
+          errorStack: e.stack ? e.stack.split('\n').slice(0, 3) : null
+        });
+      }
 
-        testUrls.forEach(url => {
+      updateStatus('status2', 'success', '完成');
+      showResult('result2', result);
+    }
+
+    function testSchemeHandler_Methods() {
+      updateStatus('status2', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitSchemeHandler',
+        test: '查看方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      try {
+        // 查看类本身的方法
+        const classMethods = Object.getOwnPropertyNames(window.TXWebKitSchemeHandler);
+        result.tests.push({
+          test: '类方法',
+          methods: classMethods,
+          conclusion: `找到 ${classMethods.length} 个类方法/属性`
+        });
+
+        // 尝试创建实例查看实例方法
+        try {
+          const instance = new window.TXWebKitSchemeHandler();
+          const instanceMethods = Object.getOwnPropertyNames(instance);
+          result.tests.push({
+            test: '实例方法',
+            methods: instanceMethods,
+            conclusion: `找到 ${instanceMethods.length} 个实例方法/属性`
+          });
+        } catch(e) {
+          result.tests.push({
+            test: '实例方法',
+            error: '无法创建实例: ' + e.message
+          });
+        }
+      } catch(e) {
+        result.tests.push({
+          test: '查看方法',
+          error: e.message
+        });
+      }
+
+      showResult('result2', result);
+    }
+
+    function testSchemeHandler_CallMethods() {
+      updateStatus('status2', 'testing', '测试中...');
+      const result = {
+        api: 'TXWebKitSchemeHandler',
+        test: '调用方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      try {
+        // 测试类方法
+        if (window.TXWebKitSchemeHandler.generateUUID) {
           try {
-            const ret = window.__qbGetBaseURL(url);
+            const uuid = window.TXWebKitSchemeHandler.generateUUID();
             result.tests.push({
-              input: url,
-              output: String(ret),
-              conclusion: '✅ 能调用，返回：' + String(ret)
+              test: 'generateUUID()',
+              success: true,
+              result: uuid
             });
           } catch(e) {
             result.tests.push({
-              input: url,
+              test: 'generateUUID()',
+              success: false,
               error: e.message
             });
           }
-        });
+        }
 
-        updateStatus('status2', 'success', '可调用');
-        showResult('result2', result);
+        // 测试实例方法
+        try {
+          const instance = new window.TXWebKitSchemeHandler();
+          const methods = Object.getOwnPropertyNames(instance).filter(k => typeof instance[k] === 'function');
+          for (const method of methods.slice(0, 5)) {
+            try {
+              const ret = instance[method]();
+              result.tests.push({
+                test: `instance.${method}()`,
+                success: true,
+                result: String(ret).slice(0, 100)
+              });
+            } catch(e) {
+              result.tests.push({
+                test: `instance.${method}()`,
+                success: false,
+                error: e.message
+              });
+            }
+          }
+        } catch(e) {
+          result.tests.push({
+            test: '实例方法调用',
+            error: '无法创建实例: ' + e.message
+          });
+        }
       } catch(e) {
-        result.error = e.message;
-        updateStatus('status2', 'error', '调用失败');
-        showResult('result2', result, false);
+        result.tests.push({
+          test: '调用方法',
+          error: e.message
+        });
       }
+
+      showResult('result2', result);
     }
 
-    // 测试 3: __qbSHCeekieIsExist
-    function testQbSHCeekieIsExist() {
-      updateStatus('status3', 'success', '已确认');
+    async function testSchemeHandler_All() {
+      testSchemeHandler_New();
+      await new Promise(r => setTimeout(r, 500));
+      testSchemeHandler_Methods();
+      await new Promise(r => setTimeout(r, 500));
+      testSchemeHandler_CallMethods();
+    }
+
+    // ========== __qbGetBaseURL 深度测试 ==========
+
+    function testQbGetBaseURL_All() {
+      updateStatus('status3', 'testing', '测试中...');
       const result = {
-        api: '__qbSHCeekieIsExist',
+        api: '__qbGetBaseURL',
+        test: '所有 URL 格式',
         timestamp: new Date().toISOString(),
-        exists: typeof window.__qbSHCeekieIsExist !== 'undefined',
-        value: window.__qbSHCeekieIsExist,
-        type: typeof window.__qbSHCeekieIsExist,
-        conclusion: '✅ 这是一个 boolean 值，表示 Cookie 是否存在'
+        exists: typeof window.__qbGetBaseURL !== 'undefined',
+        tests: []
       };
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status3', 'error', '不存在');
+        showResult('result3', result, false);
+        return;
+      }
+
+      const testUrls = [
+        'https://www.reddit.com/api/v1/me',
+        'http://example.com/test',
+        '/relative/path',
+        './relative',
+        '../parent',
+        '//protocol-relative.com',
+        '?query=string',
+        '#hash',
+        'javascript:alert(1)',
+        'data:text/plain,test',
+        ''
+      ];
+
+      testUrls.forEach(url => {
+        try {
+          const ret = window.__qbGetBaseURL(url);
+          result.tests.push({
+            input: url,
+            output: String(ret),
+            type: typeof ret,
+            conclusion: '✅ 能处理'
+          });
+        } catch(e) {
+          result.tests.push({
+            input: url,
+            error: e.message
+          });
+        }
+      });
+
+      updateStatus('status3', 'success', '完成');
       showResult('result3', result);
     }
 
-    // 测试 4: __mqqStartLoadTime
-    function testMqqStartLoadTime() {
-      updateStatus('status4', 'success', '已确认');
+    // ========== injectBlurListener 深度测试 ==========
+
+    function testInjectBlurListener_Deep() {
+      updateStatus('status4', 'testing', '测试中...');
       const result = {
-        api: '__mqqStartLoadTime',
+        api: 'injectBlurListener',
+        test: '深度测试',
         timestamp: new Date().toISOString(),
-        exists: typeof window.__mqqStartLoadTime !== 'undefined',
-        value: window.__mqqStartLoadTime,
-        type: typeof window.__mqqStartLoadTime,
-        humanReadable: new Date(window.__mqqStartLoadTime).toISOString(),
-        conclusion: '✅ 这是一个时间戳（毫秒），表示页面开始加载的时间'
+        exists: typeof window.injectBlurListener !== 'undefined',
+        tests: []
       };
-      showResult('result4', result);
+
+      if (!result.exists) {
+        result.error = 'API 不存在';
+        updateStatus('status4', 'error', '不存在');
+        showResult('result4', result, false);
+        return;
+      }
+
+      // 记录调用前的状态
+      const beforeInputs = document.getElementsByTagName('input');
+      const beforeInputCount = beforeInputs.length;
+      const beforeListeners = [];
+      for (let i = 0; i < beforeInputs.length; i++) {
+        // 尝试获取事件监听器（可能无法获取）
+        beforeListeners.push(i);
+      }
+
+      try {
+        const ret = window.injectBlurListener();
+        
+        // 记录调用后的状态
+        const afterInputs = document.getElementsByTagName('input');
+        const afterInputCount = afterInputs.length;
+
+        result.tests.push({
+          test: '基本调用',
+          returnValue: ret,
+          returnType: typeof ret,
+          beforeInputCount,
+          afterInputCount,
+          inputCountChanged: afterInputCount !== beforeInputCount
+        });
+
+        // 测试是否有副作用
+        const testInput = document.getElementById('testInput');
+        if (testInput) {
+          let blurFired = false;
+          testInput.addEventListener('blur', () => { blurFired = true; });
+          testInput.focus();
+          setTimeout(() => {
+            testInput.blur();
+            setTimeout(() => {
+              result.tests.push({
+                test: 'blur 事件测试',
+                blurEventFired: blurFired,
+                conclusion: blurFired ? '✅ blur 事件正常' : '⚠️ blur 事件未触发'
+              });
+              showResult('result4', result);
+            }, 100);
+          }, 100);
+        } else {
+          showResult('result4', result);
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('result4', result, false);
+      }
+
+      updateStatus('status4', 'success', '完成');
     }
 
-    // 测试 5: TXWebKitSchemeHandler
-    function testTXWebKitSchemeHandler() {
-      updateStatus('status5', 'pending', '测试中...');
+    // ========== TencentOfficeSaveBodyMessageHandler 深度测试 ==========
+
+    function testTencentOffice_Deep() {
+      updateStatus('status5', 'testing', '测试中...');
       const result = {
-        api: 'TXWebKitSchemeHandler',
+        api: 'TencentOfficeSaveBodyMessageHandler',
+        test: '深度分析',
         timestamp: new Date().toISOString(),
-        exists: typeof window.TXWebKitSchemeHandler !== 'undefined',
-        tests: []
+        exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined',
+        analysis: {}
       };
 
       if (!result.exists) {
@@ -382,201 +809,176 @@
       }
 
       try {
-        const apiType = typeof window.TXWebKitSchemeHandler;
-        result.apiType = apiType;
+        const obj = window.TencentOfficeSaveBodyMessageHandler;
+        result.analysis = {
+          type: typeof obj,
+          keys: Object.keys(obj),
+          values: {},
+          methods: [],
+          properties: []
+        };
 
-        if (apiType === 'function') {
+        // 分析每个属性
+        Object.keys(obj).forEach(key => {
           try {
-            const ret = window.TXWebKitSchemeHandler();
-            result.tests.push({
-              name: '作为函数调用',
-              callable: true,
-              result: String(ret),
-              conclusion: '✅ 能作为函数调用'
+            const value = obj[key];
+            result.analysis.values[key] = {
+              type: typeof value,
+              value: typeof value === 'function' ? '[Function]' : String(value).slice(0, 100),
+              isFunction: typeof value === 'function',
+              isObject: typeof value === 'object' && value !== null
+            };
+
+            if (typeof value === 'function') {
+              result.analysis.methods.push(key);
+            } else {
+              result.analysis.properties.push(key);
+            }
+          } catch(e) {
+            result.analysis.values[key] = { error: e.message };
+          }
+        });
+
+        // 尝试调用方法
+        result.analysis.methodCalls = [];
+        result.analysis.methods.forEach(method => {
+          try {
+            const ret = obj[method]();
+            result.analysis.methodCalls.push({
+              method,
+              success: true,
+              result: String(ret).slice(0, 50)
             });
           } catch(e) {
-            result.tests.push({
-              name: '作为函数调用',
+            result.analysis.methodCalls.push({
+              method,
+              success: false,
               error: e.message
             });
           }
-        } else if (apiType === 'object') {
-          const keys = Object.keys(window.TXWebKitSchemeHandler);
-          result.tests.push({
-            name: '对象属性',
-            keys: keys,
-            conclusion: '✅ 这是一个对象，包含 ' + keys.length + ' 个属性'
-          });
-
-          // 尝试调用常见方法
-          if (window.TXWebKitSchemeHandler.generateUUID) {
-            try {
-              const uuid = window.TXWebKitSchemeHandler.generateUUID();
-              result.tests.push({
-                name: 'generateUUID 方法',
-                callable: true,
-                result: uuid
-              });
-            } catch(e) {}
-          }
-        }
-
-        updateStatus('status5', 'success', '可调用');
-        showResult('result5', result);
-      } catch(e) {
-        result.error = e.message;
-        updateStatus('status5', 'error', '调用失败');
-        showResult('result5', result, false);
-      }
-    }
-
-    // 测试 6: injectBlurListener
-    function testInjectBlurListener() {
-      updateStatus('status6', 'pending', '测试中...');
-      const result = {
-        api: 'injectBlurListener',
-        timestamp: new Date().toISOString(),
-        exists: typeof window.injectBlurListener !== 'undefined',
-        tests: []
-      };
-
-      if (!result.exists) {
-        result.error = 'API 不存在';
-        updateStatus('status6', 'error', '不存在');
-        showResult('result6', result, false);
-        return;
-      }
-
-      try {
-        const beforeInputs = document.getElementsByTagName('input').length;
-        const ret = window.injectBlurListener();
-        const afterInputs = document.getElementsByTagName('input').length;
-
-        result.tests.push({
-          name: '调用函数',
-          callable: true,
-          returnValue: ret,
-          beforeInputs: beforeInputs,
-          afterInputs: afterInputs,
-          conclusion: '✅ 能调用，可能添加了事件监听器到 input 元素'
         });
 
-        updateStatus('status6', 'success', '可调用');
-        showResult('result6', result);
+        result.conclusion = `对象包含 ${result.analysis.keys.length} 个属性，${result.analysis.methods.length} 个方法`;
       } catch(e) {
         result.error = e.message;
-        updateStatus('status6', 'error', '调用失败');
-        showResult('result6', result, false);
       }
+
+      updateStatus('status5', 'success', '完成');
+      showResult('result5', result);
     }
 
-    // 测试 7: TencentOfficeSaveBodyMessageHandler
-    function testTencentOffice() {
-      updateStatus('status7', 'pending', '测试中...');
-      const result = {
-        api: 'TencentOfficeSaveBodyMessageHandler',
-        timestamp: new Date().toISOString(),
-        exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined',
-        tests: []
-      };
+    // ========== document.cookie 深度测试 ==========
 
-      if (!result.exists) {
-        result.error = 'API 不存在';
-        updateStatus('status7', 'error', '不存在');
-        showResult('result7', result, false);
-        return;
-      }
-
-      try {
-        const obj = window.TencentOfficeSaveBodyMessageHandler;
-        const keys = Object.keys(obj);
-        result.tests.push({
-          name: '对象内容',
-          keys: keys,
-          values: keys.reduce((acc, key) => {
-            try {
-              acc[key] = String(obj[key]);
-            } catch(e) {
-              acc[key] = '[无法访问]';
-            }
-            return acc;
-          }, {}),
-          conclusion: '✅ 这是一个对象，包含 ' + keys.length + ' 个属性'
-        });
-
-        updateStatus('status7', 'success', '可访问');
-        showResult('result7', result);
-      } catch(e) {
-        result.error = e.message;
-        updateStatus('status7', 'error', '访问失败');
-        showResult('result7', result, false);
-      }
-    }
-
-    // 测试 8: document.cookie
-    function testDocumentCookie() {
-      updateStatus('status8', 'pending', '测试中...');
+    function testDocumentCookie_Deep() {
+      updateStatus('status6', 'testing', '测试中...');
       const result = {
         api: 'document.cookie',
+        test: '深度测试',
         timestamp: new Date().toISOString(),
         tests: []
       };
 
       try {
-        // 测试读取
-        const readValue = document.cookie;
+        // 测试 1: 读取现有 Cookie
+        const currentCookies = document.cookie;
         result.tests.push({
-          name: '读取 Cookie',
+          test: '读取 Cookie',
           success: true,
-          value: readValue || '(空)',
-          conclusion: readValue ? '✅ 能读取 Cookie' : '⚠️ Cookie 为空'
+          value: currentCookies || '(空)',
+          cookieCount: currentCookies ? currentCookies.split(';').length : 0
         });
 
-        // 测试写入
+        // 测试 2: 写入 Cookie（各种属性）
+        const cookieTests = [
+          { name: 'test1', value: 'value1', attrs: '' },
+          { name: 'test2', value: 'value2', attrs: '; path=/' },
+          { name: 'test3', value: 'value3', attrs: '; path=/; max-age=3600' },
+          { name: 'test4', value: 'value4', attrs: '; path=/; domain=' + location.hostname }
+        ];
+
+        cookieTests.forEach(({name, value, attrs}) => {
+          try {
+            document.cookie = `${name}=${value}${attrs}`;
+            const afterWrite = document.cookie;
+            const success = afterWrite.includes(name + '=');
+            result.tests.push({
+              test: `写入 Cookie: ${name}`,
+              success,
+              cookie: `${name}=${value}${attrs}`,
+              found: success
+            });
+          } catch(e) {
+            result.tests.push({
+              test: `写入 Cookie: ${name}`,
+              success: false,
+              error: e.message
+            });
+          }
+        });
+
+        // 测试 3: 读取所有 Cookie
+        const allCookies = document.cookie;
+        result.tests.push({
+          test: '所有 Cookie',
+          cookies: allCookies.split(';').map(c => c.trim()),
+          conclusion: `共 ${allCookies.split(';').filter(c => c.trim()).length} 个 Cookie`
+        });
+
+        // 测试 4: 尝试删除 Cookie
         try {
-          document.cookie = 'test_cookie=test_value; path=/';
-          const afterWrite = document.cookie;
+          document.cookie = 'test1=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+          const afterDelete = document.cookie;
           result.tests.push({
-            name: '写入 Cookie',
-            success: afterWrite.includes('test_cookie'),
-            conclusion: afterWrite.includes('test_cookie') 
-              ? '✅ 能写入 Cookie' 
-              : '❌ 无法写入 Cookie（可能被限制）'
+            test: '删除 Cookie',
+            success: !afterDelete.includes('test1='),
+            conclusion: !afterDelete.includes('test1=') ? '✅ 能删除' : '❌ 无法删除'
           });
         } catch(e) {
           result.tests.push({
-            name: '写入 Cookie',
+            test: '删除 Cookie',
+            success: false,
             error: e.message
           });
         }
-
-        updateStatus('status8', 'success', '可访问');
-        showResult('result8', result);
       } catch(e) {
         result.error = e.message;
-        updateStatus('status8', 'error', '访问失败');
-        showResult('result8', result, false);
       }
+
+      updateStatus('status6', 'success', '完成');
+      showResult('result6', result);
     }
 
-    // 一键测试所有
-    function testAll() {
-      testTXWebKitNativeFetch();
-      setTimeout(() => testQbGetBaseURL(), 1000);
-      setTimeout(() => testQbSHCeekieIsExist(), 2000);
-      setTimeout(() => testMqqStartLoadTime(), 2500);
-      setTimeout(() => testTXWebKitSchemeHandler(), 3000);
-      setTimeout(() => testInjectBlurListener(), 4000);
-      setTimeout(() => testTencentOffice(), 5000);
-      setTimeout(() => testDocumentCookie(), 6000);
-      setTimeout(() => exportResults(), 8000);
+    // ========== 一键测试所有 ==========
+
+    async function testAllAPIs() {
+      updateStatus('status1', 'testing', '测试中...');
+      updateStatus('status2', 'testing', '测试中...');
+      updateStatus('status3', 'testing', '测试中...');
+      updateStatus('status4', 'testing', '测试中...');
+      updateStatus('status5', 'testing', '测试中...');
+      updateStatus('status6', 'testing', '测试中...');
+
+      await testTXFetch_All();
+      await new Promise(r => setTimeout(r, 2000));
+      await testSchemeHandler_All();
+      await new Promise(r => setTimeout(r, 1000));
+      testQbGetBaseURL_All();
+      await new Promise(r => setTimeout(r, 500));
+      testInjectBlurListener_Deep();
+      await new Promise(r => setTimeout(r, 1000));
+      testTencentOffice_Deep();
+      await new Promise(r => setTimeout(r, 500));
+      testDocumentCookie_Deep();
+      await new Promise(r => setTimeout(r, 1000));
+      exportResults();
     }
 
-    // 导出结果
+    // ========== 导出结果 ==========
+
     function exportResults() {
       const summary = {
         timestamp: new Date().toISOString(),
-        testType: '轮 2：功能实验',
+        testType: '轮 2：深度功能实验',
         environment: {
           userAgent: navigator.userAgent,
           location: location.href
@@ -598,7 +1000,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bridge-function-test-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.download = `bridge-deep-function-test-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
       a.click();
       URL.revokeObjectURL(url);
     }

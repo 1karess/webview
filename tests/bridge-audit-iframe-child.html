@@ -3,15 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>iframe child</title>
+  <title>iframe child - API 测试</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:14px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:14px;margin:0}
     .hint{color:#666;font-size:13px;margin:0 0 10px}
-    pre{background:#0b1020;color:#d7e2ff;padding:10px;border-radius:10px;overflow:auto;max-height:360px}
+    pre{background:#0b1020;color:#d7e2ff;padding:10px;border-radius:10px;overflow:auto;max-height:360px;font-size:11px}
+    button{border:0;border-radius:8px;padding:8px 12px;background:#28a745;color:#fff;cursor:pointer;margin:4px}
+    button:hover{background:#218838}
+    .status{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px}
+    .status-testing{background:#17a2b8;color:white}
+    .status-success{background:#28a745;color:white}
+    .status-error{background:#dc3545;color:white}
   </style>
 </head>
 <body>
-  <div class="hint">我是 iframe 子页面：我会扫描我自己能看到的 API，并回传给父页面。</div>
+  <div class="hint">我是 iframe 子页面：我会扫描并测试 API，然后把结果回传给父页面。</div>
+  <button onclick="runFullTest()">运行完整测试（扫描 + 功能测试）</button>
+  <div id="status" class="status status-testing" style="display:none;">测试中...</div>
   <pre id="out">(waiting)</pre>
 
   <script>
@@ -32,12 +40,13 @@
     }
 
     function suspiciousWindowNames(){
-      const pats=[/^mqq$/i,/^qq$/i,/^qz/i,/^tx/i,/^tbs/i,/^x5/i,/^webkit$/i,/bridge/i,/native/i,/jsbridge/i,/^__qq/i];
+      const pats=[/^mqq$/i,/^qq$/i,/^qz/i,/^tx/i,/^tbs/i,/^x5/i,/^webkit$/i,/bridge/i,/native/i,/jsbridge/i,/^__qb/i];
       const names=listOwnNames(window);
       return names.filter(n=>pats.some(re=>re.test(n))).slice(0,300);
     }
 
-    function scan(){
+    // 扫描 API
+    function scan() {
       const payload={
         timestamp:new Date().toISOString(),
         userAgent:navigator.userAgent,
@@ -50,19 +59,157 @@
           mqq: { exists: 'mqq' in window, preview: safeStringify(window.mqq) },
           qq: { exists: 'qq' in window, preview: safeStringify(window.qq) },
           webkit: { exists: 'webkit' in window, preview: (()=>{try{return safeStringify(window.webkit)}catch(e){return String(e)}})() },
-          messageHandlers: { exists: (()=>{try{return !!(window.webkit && window.webkit.messageHandlers)}catch{return false}})() }
+          messageHandlers: { exists: (()=>{try{return !!(window.webkit && window.webkit.messageHandlers)}catch{return false}})() },
+          TXWebKitNativeFetch: { exists: typeof window.TXWebKitNativeFetch !== 'undefined' },
+          TXWebKitSchemeHandler: { exists: typeof window.TXWebKitSchemeHandler !== 'undefined' },
+          __qbGetBaseURL: { exists: typeof window.__qbGetBaseURL !== 'undefined' },
+          injectBlurListener: { exists: typeof window.injectBlurListener !== 'undefined' },
+          TencentOfficeSaveBodyMessageHandler: { exists: typeof window.TencentOfficeSaveBodyMessageHandler !== 'undefined' }
         }
       };
-      document.getElementById('out').textContent = JSON.stringify(payload, null, 2);
-      parent.postMessage({ type:'bridge-audit-iframe-result', payload }, '*');
+      return payload;
     }
 
+    // 测试 API 功能
+    async function testAPIs() {
+      const results = {
+        timestamp: new Date().toISOString(),
+        location: 'iframe 子页面',
+        apis: {}
+      };
+
+      const apis = [
+        'TXWebKitNativeFetch',
+        'TXWebKitSchemeHandler',
+        '__qbGetBaseURL',
+        'injectBlurListener',
+        'TencentOfficeSaveBodyMessageHandler',
+        'document.cookie'
+      ];
+
+      for (const apiName of apis) {
+        const apiResult = {
+          exists: typeof window[apiName] !== 'undefined',
+          callable: false,
+          error: null,
+          result: null
+        };
+
+        if (apiResult.exists) {
+          try {
+            if (apiName === 'TXWebKitNativeFetch') {
+              const promise = window[apiName]('https://httpbin.org/get', { method: 'GET' });
+              if (promise && typeof promise.then === 'function') {
+                try {
+                  await Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                  ]);
+                  apiResult.callable = true;
+                  apiResult.result = '能调用，请求成功';
+                } catch(e) {
+                  apiResult.callable = true;
+                  apiResult.error = e.message;
+                  apiResult.result = '能调用，但请求失败: ' + e.message;
+                }
+              }
+            } else if (apiName === 'TXWebKitSchemeHandler') {
+              try {
+                const instance = new window[apiName]();
+                apiResult.callable = true;
+                apiResult.result = '能创建实例';
+              } catch(e) {
+                apiResult.error = e.message;
+                apiResult.result = '无法创建实例: ' + e.message;
+              }
+            } else if (apiName === '__qbGetBaseURL') {
+              const ret = window[apiName]('https://example.com/test');
+              apiResult.callable = true;
+              apiResult.result = '能调用，返回: ' + String(ret);
+            } else if (apiName === 'injectBlurListener') {
+              const ret = window[apiName]();
+              apiResult.callable = true;
+              apiResult.result = '能调用，返回: ' + String(ret);
+            } else if (apiName === 'TencentOfficeSaveBodyMessageHandler') {
+              const obj = window[apiName];
+              apiResult.callable = true;
+              apiResult.result = '对象存在，包含 ' + Object.keys(obj).length + ' 个属性';
+            } else if (apiName === 'document.cookie') {
+              const cookies = document.cookie;
+              apiResult.callable = true;
+              apiResult.result = '能访问，当前有 ' + (cookies ? cookies.split(';').length : 0) + ' 个 Cookie';
+            }
+          } catch(e) {
+            apiResult.error = e.message;
+            apiResult.result = '调用失败: ' + e.message;
+          }
+        }
+
+        results.apis[apiName] = apiResult;
+      }
+
+      results.summary = {
+        total: apis.length,
+        exists: Object.values(results.apis).filter(r => r.exists).length,
+        callable: Object.values(results.apis).filter(r => r.callable).length
+      };
+
+      return results;
+    }
+
+    // 完整测试
+    async function runFullTest() {
+      const statusEl = document.getElementById('status');
+      const outEl = document.getElementById('out');
+      
+      statusEl.style.display = 'inline-block';
+      statusEl.textContent = '测试中...';
+      outEl.textContent = '正在测试...';
+
+      try {
+        // 1. 扫描
+        const scanResult = scan();
+        
+        // 2. 测试 API
+        const apiTestResult = await testAPIs();
+
+        // 3. 合并结果
+        const fullResult = {
+          ...scanResult,
+          apiTests: apiTestResult,
+          conclusion: {
+            scanSummary: `发现 ${scanResult.suspiciousWindowNames.length} 个可疑 API`,
+            apiTestSummary: `${apiTestResult.summary.exists}/${apiTestResult.summary.total} 个 API 存在，${apiTestResult.summary.callable}/${apiTestResult.summary.total} 个可调用`,
+            iframeAccessible: apiTestResult.summary.exists > 0 ? '⚠️ iframe 中可以访问这些 API（没有隔离）' : '✅ iframe 中无法访问这些 API（有隔离）'
+          }
+        };
+
+        outEl.textContent = JSON.stringify(fullResult, null, 2);
+        statusEl.textContent = '完成';
+        statusEl.className = 'status status-success';
+
+        // 发送给父页面
+        parent.postMessage({ 
+          type:'bridge-audit-iframe-result', 
+          payload: fullResult 
+        }, '*');
+      } catch(e) {
+        outEl.textContent = '错误: ' + e.message;
+        statusEl.textContent = '失败';
+        statusEl.className = 'status status-error';
+      }
+    }
+
+    // 监听父页面消息
     window.addEventListener('message', (e)=>{
-      if(e.data && e.data.type==='bridge-audit-iframe-run') scan();
+      if(e.data && e.data.type==='bridge-audit-iframe-run') {
+        runFullTest();
+      }
     });
 
-    // 自动扫一次，方便你不点按钮也能看到
-    scan();
+    // 自动运行一次
+    setTimeout(() => runFullTest(), 1000);
   </script>
 </body>
 </html>
+

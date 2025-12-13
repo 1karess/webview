@@ -3,57 +3,330 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bridge Audit - 测试页 B</title>
+  <title>Bridge Audit - 测试页 B（轮 3：边界测试）</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
     h1{margin:8px 0 6px}
     .sub{color:#666;margin:0 0 14px}
     .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
-    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer}
-    input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:14px}
+    button{border:0;border-radius:8px;padding:10px 12px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px}
+    button:hover{background:#005a9e}
+    button:disabled{opacity:0.6;cursor:not-allowed}
+    input,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd;font-size:14px;box-sizing:border-box}
     textarea{min-height:90px}
     code{background:#f6f8fa;padding:2px 6px;border-radius:6px}
     .row{display:flex;gap:10px;flex-wrap:wrap}
     .row > div{flex:1;min-width:240px}
     .hint{color:#666;font-size:13px;margin-top:6px}
-    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:360px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:500px;font-size:12px}
     a{color:#0a66c2;text-decoration:none}
     a:hover{text-decoration:underline}
     .pill{display:inline-block;background:#fff3cd;color:#7a5b00;border:1px solid #ffe08a;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
+    .explain{background:#e7f3ff;padding:12px;border-radius:8px;margin:12px 0;border-left:4px solid #0a66c2}
+    .explain strong{color:#0a66c2}
+    .status-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:8px}
+    .status-pending{background:#ffc107;color:#333}
+    .status-success{background:#28a745;color:white}
+    .status-error{background:#dc3545;color:white}
   </style>
 </head>
 <body>
   <a href="../index.html">← 返回 WebView Tests</a>
-  <h1>Bridge Audit（系统性记录）- 测试页 B <span class="pill">B</span></h1>
-  <p class="sub">说明：B 页内容与 A 页相同，用来测试“换页面/换来源后 API 是否仍可见/可用”。</p>
+  <h1>Bridge Audit - 测试页 B <span class="pill">轮 3：边界测试</span></h1>
+  <p class="sub">
+    <strong>目的</strong>：测试"换页面/换来源后，API 是否仍然可见/可用"<br>
+    <strong>操作</strong>：在同一个 App 的同一个入口打开本页，扫描并对比测试页 A 的结果
+  </p>
+
+  <div class="explain">
+    <strong>轮 3 边界测试说明：</strong><br>
+    1. ✅ <strong>轮 1</strong>：已完成，发现了 9 个 QQ 新增的 API<br>
+    2. ✅ <strong>轮 2</strong>：已完成，测试了这些 API 的实际功能<br>
+    3. ⏳ <strong>轮 3</strong>：<strong>你现在在这里</strong> - 测试边界情况（换页面/iframe/用户提示）<br>
+    4. ⏳ <strong>轮 4</strong>：对比总结（所有测试完成后）
+  </div>
 
   <div class="card">
     <div class="row">
       <div>
-        <label>App 名称（你手动填）</label>
-        <input id="appName" placeholder="例如：QQ / 微信 / 支付宝 …" />
+        <label>App 名称（手动填写）</label>
+        <input id="appName" placeholder="例如：QQ" value="QQ" />
       </div>
       <div>
-        <label>打开入口（你手动填）</label>
-        <input id="entry" placeholder="例如：聊天链接 / 内置浏览器 / 活动页 / 小程序 …" />
+        <label>打开入口（手动填写）</label>
+        <input id="entry" placeholder="例如：聊天链接" value="聊天链接" />
       </div>
     </div>
   </div>
 
   <div class="card">
-    <strong>轮 1：可见性（自动）</strong>
+    <strong>步骤 1：扫描 API（轮 1 可见性）</strong>
     <div class="row" style="margin-top:10px;">
-      <button onclick="runScan()">扫描“按钮/API”</button>
+      <button onclick="runScan()">扫描"按钮/API"</button>
       <button onclick="downloadJSON()">下载本页结果 JSON</button>
     </div>
-    <div class="hint">把本页结果和 A 页结果做对比，就是“换页面/来源”的边界证据。</div>
+    <div class="hint">扫描结果会显示在下面，下载后与测试页 A 的结果对比。</div>
   </div>
 
   <div class="card">
-    <strong>扫描结果</strong>
+    <strong>步骤 2：测试 API 功能（轮 2 功能实验）</strong>
+    <div class="hint">测试关键 API 是否能调用，与测试页 A 的结果对比。</div>
+    <div class="row" style="margin-top:10px;">
+      <button onclick="testKeyAPIs()">测试关键 API</button>
+      <button onclick="testAllAPIs()">测试所有 API</button>
+    </div>
+    <div id="apiTestResults" style="display:none;">
+      <h4>API 测试结果：</h4>
+      <div id="apiTestStatus"></div>
+      <pre id="apiTestOutput"></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>步骤 3：对比测试页 A 的结果</strong>
+    <div class="hint">上传测试页 A 的 JSON 结果，自动对比差异。</div>
+    <div class="row" style="margin-top:10px;">
+      <input type="file" id="pageAFile" accept="application/json" />
+      <button onclick="loadPageAResults()">加载测试页 A 的结果</button>
+      <button onclick="compareWithPageA()">对比差异</button>
+    </div>
+    <div id="comparisonResults" style="display:none;">
+      <h4>对比结果：</h4>
+      <pre id="comparisonOutput"></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>扫描结果（步骤 1 输出）</strong>
     <pre id="out">(empty)</pre>
   </div>
 
   <script src="./bridge-audit.js"></script>
+  <script>
+    let pageAResults = null;
+    let currentScanResults = null;
+
+    // 测试关键 API
+    async function testKeyAPIs() {
+      const statusEl = document.getElementById('apiTestStatus');
+      const outputEl = document.getElementById('apiTestOutput');
+      const resultsEl = document.getElementById('apiTestResults');
+      
+      resultsEl.style.display = 'block';
+      statusEl.innerHTML = '<span class="status-badge status-pending">测试中...</span>';
+      outputEl.textContent = '正在测试...';
+
+      const apis = [
+        'TXWebKitNativeFetch',
+        'TXWebKitSchemeHandler',
+        '__qbGetBaseURL',
+        'injectBlurListener',
+        'TencentOfficeSaveBodyMessageHandler',
+        'document.cookie'
+      ];
+
+      const results = {
+        timestamp: new Date().toISOString(),
+        location: '测试页 B',
+        apis: {}
+      };
+
+      for (const apiName of apis) {
+        const apiResult = {
+          exists: typeof window[apiName] !== 'undefined',
+          callable: false,
+          error: null,
+          result: null
+        };
+
+        if (apiResult.exists) {
+          try {
+            if (apiName === 'TXWebKitNativeFetch') {
+              // 测试网络请求
+              const promise = window[apiName]('https://httpbin.org/get', { method: 'GET' });
+              if (promise && typeof promise.then === 'function') {
+                try {
+                  await Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                  ]);
+                  apiResult.callable = true;
+                  apiResult.result = '能调用，请求成功';
+                } catch(e) {
+                  apiResult.callable = true; // 能调用，只是失败了
+                  apiResult.error = e.message;
+                  apiResult.result = '能调用，但请求失败: ' + e.message;
+                }
+              }
+            } else if (apiName === 'TXWebKitSchemeHandler') {
+              // 测试类构造函数
+              try {
+                const instance = new window[apiName]();
+                apiResult.callable = true;
+                apiResult.result = '能创建实例';
+              } catch(e) {
+                apiResult.error = e.message;
+                apiResult.result = '无法创建实例: ' + e.message;
+              }
+            } else if (apiName === '__qbGetBaseURL') {
+              // 测试 URL 处理
+              const ret = window[apiName]('https://example.com/test');
+              apiResult.callable = true;
+              apiResult.result = '能调用，返回: ' + String(ret);
+            } else if (apiName === 'injectBlurListener') {
+              // 测试函数调用
+              const ret = window[apiName]();
+              apiResult.callable = true;
+              apiResult.result = '能调用，返回: ' + String(ret);
+            } else if (apiName === 'TencentOfficeSaveBodyMessageHandler') {
+              // 测试对象
+              const obj = window[apiName];
+              apiResult.callable = true;
+              apiResult.result = '对象存在，包含 ' + Object.keys(obj).length + ' 个属性';
+            } else if (apiName === 'document.cookie') {
+              // 测试 Cookie
+              const cookies = document.cookie;
+              apiResult.callable = true;
+              apiResult.result = '能访问，当前有 ' + (cookies ? cookies.split(';').length : 0) + ' 个 Cookie';
+            }
+          } catch(e) {
+            apiResult.error = e.message;
+            apiResult.result = '调用失败: ' + e.message;
+          }
+        }
+
+        results.apis[apiName] = apiResult;
+      }
+
+      // 统计
+      results.summary = {
+        total: apis.length,
+        exists: Object.values(results.apis).filter(r => r.exists).length,
+        callable: Object.values(results.apis).filter(r => r.callable).length
+      };
+
+      outputEl.textContent = JSON.stringify(results, null, 2);
+      statusEl.innerHTML = `<span class="status-badge status-success">完成</span> 存在: ${results.summary.exists}/${results.summary.total}, 可调用: ${results.summary.callable}/${results.summary.total}`;
+    }
+
+    // 测试所有 API
+    async function testAllAPIs() {
+      await testKeyAPIs();
+    }
+
+    // 加载测试页 A 的结果
+    function loadPageAResults() {
+      const fileInput = document.getElementById('pageAFile');
+      const file = fileInput.files[0];
+      if (!file) {
+        alert('请先选择测试页 A 的 JSON 文件');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          pageAResults = JSON.parse(e.target.result);
+          alert('已加载测试页 A 的结果');
+        } catch(err) {
+          alert('文件格式错误: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // 对比差异
+    function compareWithPageA() {
+      if (!pageAResults) {
+        alert('请先加载测试页 A 的结果');
+        return;
+      }
+
+      if (!currentScanResults) {
+        alert('请先运行扫描');
+        return;
+      }
+
+      const comparison = {
+        timestamp: new Date().toISOString(),
+        pageA: {
+          timestamp: pageAResults.timestamp,
+          location: pageAResults.location?.href || '测试页 A'
+        },
+        pageB: {
+          timestamp: currentScanResults.timestamp,
+          location: currentScanResults.location?.href || '测试页 B'
+        },
+        comparison: {
+          windowAPIs: {
+            pageA: pageAResults.suspiciousWindowNames || [],
+            pageB: currentScanResults.suspiciousWindowNames || [],
+            same: [],
+            onlyInA: [],
+            onlyInB: []
+          }
+        }
+      };
+
+      // 对比 window APIs
+      const pageAAPIs = new Set(comparison.comparison.windowAPIs.pageA);
+      const pageBAPIs = new Set(comparison.comparison.windowAPIs.pageB);
+
+      pageAAPIs.forEach(api => {
+        if (pageBAPIs.has(api)) {
+          comparison.comparison.windowAPIs.same.push(api);
+        } else {
+          comparison.comparison.windowAPIs.onlyInA.push(api);
+        }
+      });
+
+      pageBAPIs.forEach(api => {
+        if (!pageAAPIs.has(api)) {
+          comparison.comparison.windowAPIs.onlyInB.push(api);
+        }
+      });
+
+      // 结论
+      comparison.conclusion = {
+        sameCount: comparison.comparison.windowAPIs.same.length,
+        onlyInACount: comparison.comparison.windowAPIs.onlyInA.length,
+        onlyInBCount: comparison.comparison.windowAPIs.onlyInB.length,
+        analysis: (() => {
+          if (comparison.comparison.windowAPIs.onlyInA.length === 0 && 
+              comparison.comparison.windowAPIs.onlyInB.length === 0) {
+            return '✅ 测试页 A 和 B 的 API 完全相同（没有页面来源限制）';
+          } else if (comparison.comparison.windowAPIs.onlyInA.length > 0) {
+            return '⚠️ 测试页 A 有但 B 没有的 API（可能有来源限制）';
+          } else {
+            return '⚠️ 测试页 B 有但 A 没有的 API（可能延迟注入）';
+          }
+        })()
+      };
+
+      const outputEl = document.getElementById('comparisonOutput');
+      const resultsEl = document.getElementById('comparisonResults');
+      outputEl.textContent = JSON.stringify(comparison, null, 2);
+      resultsEl.style.display = 'block';
+    }
+
+    // 重写 runScan 函数，保存结果
+    const originalRunScan = window.runScan;
+    window.runScan = function() {
+      if (originalRunScan) originalRunScan();
+      // 等待扫描完成
+      setTimeout(() => {
+        try {
+          const outEl = document.getElementById('out');
+          const text = outEl.textContent;
+          if (text && text !== '(empty)') {
+            currentScanResults = JSON.parse(text);
+          }
+        } catch(e) {
+          console.error('无法解析扫描结果', e);
+        }
+      }, 2000);
+    };
+  </script>
 </body>
 </html>
+
