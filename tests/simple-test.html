@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>简单测试 - 验证按钮是否工作</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 8px;
+    }
+    button:hover { background: #005a9e; }
+    #result {
+      background: #f8f9fa;
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 10px;
+      font-family: monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔍 简单测试页面</h1>
+    <p>这个页面用来测试按钮是否工作。</p>
+    
+    <button id="test1">测试 1：直接 onclick</button>
+    <button id="test2">测试 2：addEventListener</button>
+    <button id="test3">测试 3：内联 onclick</button>
+    
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // 方法 1：直接 onclick
+    document.getElementById('test1').onclick = function() {
+      const result = document.getElementById('result');
+      result.style.display = 'block';
+      result.textContent = '✅ 测试 1 成功！直接 onclick 工作正常。';
+      console.log('测试 1 成功');
+    };
+
+    // 方法 2：addEventListener
+    document.getElementById('test2').addEventListener('click', function() {
+      const result = document.getElementById('result');
+      result.style.display = 'block';
+      result.textContent = '✅ 测试 2 成功！addEventListener 工作正常。';
+      console.log('测试 2 成功');
+    });
+
+    // 方法 3：内联 onclick（在 HTML 中）
+    window.test3 = function() {
+      const result = document.getElementById('result');
+      result.style.display = 'block';
+      result.textContent = '✅ 测试 3 成功！内联 onclick 工作正常。';
+      console.log('测试 3 成功');
+    };
+
+    // 页面加载完成后的日志
+    console.log('✅ 页面脚本已加载');
+    console.log('test1 按钮:', document.getElementById('test1'));
+    console.log('test2 按钮:', document.getElementById('test2'));
+    console.log('test3 按钮:', document.getElementById('test3'));
+  </script>
+  
+  <!-- 方法 3：内联 onclick -->
+  <script>
+    // 确保 test3 在全局作用域
+    if (typeof window.test3 === 'undefined') {
+      window.test3 = function() {
+        const result = document.getElementById('result');
+        result.style.display = 'block';
+        result.textContent = '✅ 测试 3 成功！内联 onclick 工作正常。';
+        console.log('测试 3 成功');
+      };
+    }
+  </script>
+  
+  <button onclick="test3()">测试 3：内联 onclick</button>
+</body>
+</html>
+

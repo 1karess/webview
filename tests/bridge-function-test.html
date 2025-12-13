@@ -1063,50 +1063,83 @@
       }
     }
     
-    // 使用事件监听器绑定按钮（更可靠）
+    // 使用多种方法绑定按钮（兼容性最好）
     function bindButtons() {
       console.log('开始绑定按钮...');
       const testBtn = document.getElementById('testBtn');
       const copyBtn = document.getElementById('copyBtn');
       const testAllBtn = document.getElementById('testAllBtn');
       
+      // 方法 1：直接 onclick（最兼容）
       if (testBtn) {
-        testBtn.addEventListener('click', function() {
-          console.log('testBtn clicked');
-          window.testButtonClick();
-        });
-        console.log('✅ testBtn 已绑定');
+        testBtn.onclick = function() {
+          console.log('testBtn clicked (onclick)');
+          try {
+            window.testButtonClick();
+          } catch(e) {
+            console.error('testButtonClick error:', e);
+            alert('错误: ' + e.message);
+          }
+        };
+        console.log('✅ testBtn 已绑定 (onclick)');
       } else {
         console.error('❌ testBtn 未找到');
       }
       
       if (copyBtn) {
-        copyBtn.addEventListener('click', function() {
-          console.log('copyBtn clicked');
-          window.copyResults();
-        });
-        console.log('✅ copyBtn 已绑定');
+        copyBtn.onclick = function() {
+          console.log('copyBtn clicked (onclick)');
+          try {
+            window.copyResults();
+          } catch(e) {
+            console.error('copyResults error:', e);
+            alert('错误: ' + e.message);
+          }
+        };
+        console.log('✅ copyBtn 已绑定 (onclick)');
       }
       
       if (testAllBtn) {
-        testAllBtn.addEventListener('click', function() {
-          console.log('testAllBtn clicked');
-          window.testAllAPIs();
-        });
-        console.log('✅ testAllBtn 已绑定');
+        testAllBtn.onclick = function() {
+          console.log('testAllBtn clicked (onclick)');
+          try {
+            window.testAllAPIs();
+          } catch(e) {
+            console.error('testAllAPIs error:', e);
+            alert('错误: ' + e.message);
+          }
+        };
+        console.log('✅ testAllBtn 已绑定 (onclick)');
+      }
+      
+      // 方法 2：也尝试 addEventListener（作为备用）
+      if (testBtn && testBtn.addEventListener) {
+        testBtn.addEventListener('click', function() {
+          console.log('testBtn clicked (addEventListener)');
+        }, { once: true });
       }
     }
     
-    // 页面加载完成后绑定按钮
+    // 立即尝试绑定
+    try {
+      bindButtons();
+    } catch(e) {
+      console.error('bindButtons error:', e);
+    }
+    
+    // 页面加载完成后也绑定一次
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', bindButtons);
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOMContentLoaded: 再次绑定按钮');
+        bindButtons();
+      });
     } else {
-      // 如果已经加载完成，立即绑定
       setTimeout(bindButtons, 100);
     }
     
-    // 也尝试立即绑定（防止某些情况下 DOMContentLoaded 不触发）
+    // 延迟绑定（防止某些情况下按钮还没创建）
     setTimeout(bindButtons, 500);
+    setTimeout(bindButtons, 1000);
   </script>
 </body>
 </html>
