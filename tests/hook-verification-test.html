@@ -539,6 +539,99 @@
         };
       }, 500);
     }
+
+    // 一键测试所有验证
+    function testAll() {
+      verify1();
+      setTimeout(function() { verify2(); }, 2000);
+      setTimeout(function() { verify3(); }, 4000);
+      setTimeout(function() { verify4(); }, 6000);
+      setTimeout(function() { verify5(); }, 8000);
+      setTimeout(function() { verify6(); }, 10000);
+      
+      var statusEl = document.getElementById('copyStatus');
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<div style="background:#fff3cd;color:#856404;padding:10px;border-radius:6px;border-left:4px solid #ffc107;">⏳ 正在依次执行所有验证测试，请等待所有测试完成后再复制结果...</div>';
+      }
+    }
+
+    // 一键复制所有 JSON 结果
+    function copyAllResults() {
+      var allResults = {
+        timestamp: new Date().toISOString(),
+        note: '所有验证测试结果汇总',
+        results: {}
+      };
+
+      // 收集所有验证结果
+      var verifyIds = ['verify1', 'verify2', 'verify3', 'verify4', 'verify5', 'verify6'];
+      verifyIds.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && el.textContent && el.style.display !== 'none') {
+          try {
+            var data = JSON.parse(el.textContent);
+            allResults.results[id] = data;
+          } catch(e) {
+            // 如果不是 JSON，保存为文本
+            allResults.results[id] = {
+              raw: el.textContent,
+              error: '不是有效的 JSON'
+            };
+          }
+        } else {
+          allResults.results[id] = {
+            status: '未测试',
+            note: '该验证尚未执行'
+          };
+        }
+      });
+
+      // 转换为 JSON 字符串
+      var jsonText = JSON.stringify(allResults, null, 2);
+
+      // 复制到剪贴板
+      var statusEl = document.getElementById('copyStatus');
+      if (!statusEl) return;
+      
+      statusEl.style.display = 'block';
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(jsonText).then(function() {
+          statusEl.innerHTML = '<div style="background:#d4edda;color:#155724;padding:10px;border-radius:6px;border-left:4px solid #28a745;">✅ 已成功复制所有 JSON 结果到剪贴板！</div>';
+        }).catch(function(e) {
+          // 降级方案
+          var textarea = document.createElement('textarea');
+          textarea.value = jsonText;
+          textarea.style.position = 'fixed';
+          textarea.style.opacity = '0';
+          document.body.appendChild(textarea);
+          textarea.select();
+          try {
+            document.execCommand('copy');
+            statusEl.innerHTML = '<div style="background:#d4edda;color:#155724;padding:10px;border-radius:6px;border-left:4px solid #28a745;">✅ 已成功复制所有 JSON 结果到剪贴板（降级方案）！</div>';
+          } catch(err) {
+            statusEl.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:10px;border-radius:6px;border-left:4px solid #dc3545;">❌ 复制失败: ' + err.message + '</div>';
+          }
+          document.body.removeChild(textarea);
+        });
+      } else {
+        // 降级方案
+        var textarea = document.createElement('textarea');
+        textarea.value = jsonText;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          statusEl.innerHTML = '<div style="background:#d4edda;color:#155724;padding:10px;border-radius:6px;border-left:4px solid #28a745;">✅ 已成功复制所有 JSON 结果到剪贴板！</div>';
+        } catch(err) {
+          statusEl.innerHTML = '<div style="background:#f8d7da;color:#721c24;padding:10px;border-radius:6px;border-left:4px solid #dc3545;">❌ 复制失败: ' + err.message + '</div>';
+        }
+        document.body.removeChild(textarea);
+      }
+    }
   </script>
 </body>
 </html>
