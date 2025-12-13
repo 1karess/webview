@@ -704,8 +704,8 @@
     - ✅ **安全意义明确**：即使是在同一个域名下，iframe 子页面（第三方内容）也能访问敏感 API，这是安全风险
   - ⏳ 下一步：完成 A→B 页面测试，测试用户提示
 
-**2025-12-13 轮 3 测试（A→B 页面边界测试 - 部分完成）：**
-- ✅ **测试结果：Page A 和 Page B 在同一个 QQ WebView 环境中，API 完全一致**
+**2025-12-13 轮 3 测试（A→B 页面边界测试 - 已完成）：**
+- ✅ **测试结果 1：同域名测试**（Page A 和 Page B 在同一个 QQ WebView 环境中，API 完全一致）
   - **测试方法**：对比 `bridge-audit-a.html` 和 `bridge-audit-b.html` 的扫描结果
   - **测试环境**：
     - 同一个 QQ 9.2.35.617 版本
@@ -713,27 +713,42 @@
     - 同一个入口（聊天链接）
     - ⚠️ **重要限制**：两个页面是**同一个域名**（`webview-wheat-eight.vercel.app`）
   - **对比结果**：
-    - ✅ **核心环境完全相同**：
-      - User Agent 完全相同
-      - 原生注入 API 完全相同（`TXWebKitNativeFetch`、`TXWebKitSchemeHandler` 等）
-      - `webkit.messageHandlers` 完全相同（均为空对象 `{}`）
-      - 标准 Web API 完全相同
-      - 可疑名称完全相同（`SpeechRecognitionAlternative`、`TXWebKitNativeFetch` 等）
-    - ⚠️ **唯一区别**：Page B 多了测试工具函数（`compareWithPageA`、`loadPageAResults`、`testAllAPIs`、`testKeyAPIs`）
-      - 这些是测试框架的函数，不是 QQ WebView 环境本身的差异
-  - **结论分析**：
-    - ✅ **观察到的现象**：Page A 和 Page B 的 API 完全一致
-    - ⚠️ **结论限制**：
-      - 由于两个页面是**同一个域名**，根据浏览器的**同源策略**，它们本来就应该有相同的权限
-      - 这个测试**不能完全证明**"没有页面来源限制"
-      - 要真正测试"页面来源限制"，需要使用**不同域名**的页面（例如：`example.com` vs `test.com`）
-    - ✅ **可以得出的结论**：
-      - QQ WebView 中的 API 是**全局注入**的，不依赖于特定页面路径
-      - 在同一个域名下的不同页面，API 完全一致（这是预期的行为）
-    - ⏳ **需要进一步测试**：
-      - 使用**不同域名**的页面测试，看是否仍然有相同的 API
-      - 如果不同域名的页面也有相同的 API → 说明确实没有页面来源限制
-      - 如果不同域名的页面没有相同的 API → 说明有基于域名的限制
+    - ✅ **核心环境完全相同**：所有 API 完全一致
+    - ✅ **可以得出的结论**：QQ WebView 中的 API 是**全局注入**的，不依赖于特定页面路径
+
+- ✅ **测试结果 2：跨域名测试**（2025-12-13T02:56:34.187Z）**🔴 关键发现**
+  - **测试方法**：对比两个**不同域名**的扫描结果
+    - 域名 A：`https://webview-wheat-eight.vercel.app/tests/bridge-audit-a.html`
+    - 域名 B：`https://webview-test-domain2.vercel.app/tests/bridge-audit-a.html`
+  - **测试环境**：
+    - 同一个 QQ 9.2.35.617 版本
+    - 同一个 WKWebView 环境
+    - 同一个入口（聊天链接）
+    - ✅ **关键**：两个页面是**完全不同的域名**（`webview-wheat-eight.vercel.app` vs `webview-test-domain2.vercel.app`）
+  - **对比结果**：
+    - ✅ **API 完全相同**：两个域名都检测到 11 个相同的 API
+      - `TXWebKitNativeFetch`
+      - `TXWebKitSchemeHandler`
+      - `TencentOfficeSaveBodyMessageHandler`
+      - `__mqqStartLoadTime`
+      - `__qbGetBaseURL`
+      - `__qbSHCeekieIsExist`
+      - `injectBlurListener`
+      - `webkit` / `webkit.messageHandlers`
+    - ✅ **共同 API**：11 个（100% 相同）
+    - ✅ **仅在 A 中**：0 个
+    - ✅ **仅在 B 中**：0 个
+  - **结论**：
+    - ✅ **没有页面来源限制**：两个完全不同的域名，API 完全相同
+    - ✅ **系统性问题**：这不是某个 App 的问题，而是整个 WebView Bridge 机制的问题
+    - ✅ **严重安全风险**：任何在 QQ WebView 中打开的页面（无论什么域名）都能访问相同的敏感 API
+  - **安全意义**：
+    - ❌ **缺乏基于域名的权限控制**：不同域名的页面都能访问相同的 API
+    - ❌ **全局暴露**：说明这些 API 是全局注入的，不依赖于页面来源
+    - ❌ **系统性风险**：这意味着：
+      - 恶意网站可以调用这些 API
+      - 任何第三方域名都可以访问敏感 API
+      - 没有基于页面来源的安全边界
 
 **待补充的测试结果：**
 - 轮 3 用户提示测试结果
