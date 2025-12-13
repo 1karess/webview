@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hook 功能测试工具</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:980px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    button{border:0;border-radius:8px;padding:12px 16px;background:#0a66c2;color:#fff;cursor:pointer;margin:4px;font-size:14px}
+    button:hover{background:#005a9e}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:400px;font-size:12px}
+    .result{background:#f8f9fa;padding:8px;border-radius:4px;margin-top:8px;font-family:monospace;font-size:12px;white-space:pre-wrap;display:none}
+    .success{background:#d4edda;border-left:4px solid #28a745}
+    .error{background:#f8d7da;border-left:4px solid #dc3545}
+    .warning{background:#fff3cd;border-left:4px solid #ffc107}
+    .info{background:#d1ecf1;border-left:4px solid #17a2b8;padding:12px;border-radius:6px;margin:10px 0}
+  </style>
+</head>
+<body>
+  <h1>Hook 功能测试工具</h1>
+  <p>测试 TXWebKitSchemeHandler 的 Hook 功能是否能真正拦截网络请求。</p>
+  
+  <div class="info">
+    <strong>测试目的</strong>：验证我的推断是否正确<br>
+    - 推断：`hookFetch()` 和 `hookXMLHttpRequest()` 可以拦截网络请求<br>
+    - 验证：实际测试是否能拦截网络请求
+  </div>
+
+  <div class="card">
+    <h3>步骤 1：检查 Hook 方法是否存在</h3>
+    <button onclick="checkHookMethods()">检查 Hook 方法</button>
+    <div id="result1" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>步骤 2：尝试调用 Hook 方法</h3>
+    <button onclick="testHookMethods()">测试调用 Hook 方法</button>
+    <div id="result2" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>步骤 3：测试是否能拦截 fetch 请求</h3>
+    <p>先调用 hookFetch()，然后发起一个 fetch 请求，看是否能被拦截。</p>
+    <button onclick="testHookFetch()">测试 hookFetch()</button>
+    <div id="result3" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>步骤 4：测试是否能拦截 XMLHttpRequest</h3>
+    <p>先调用 hookXMLHttpRequest()，然后发起一个 XMLHttpRequest 请求，看是否能被拦截。</p>
+    <button onclick="testHookXHR()">测试 hookXMLHttpRequest()</button>
+    <div id="result4" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>步骤 5：测试通用 Hook 方法</h3>
+    <button onclick="testHook()">测试 hook()</button>
+    <div id="result5" class="result"></div>
+  </div>
+
+  <div class="card">
+    <h3>一键测试所有</h3>
+    <button onclick="testAll()" style="background:#28a745;padding:12px 20px;font-size:16px;">🚀 一键测试所有</button>
+  </div>
+
+  <script>
+    function showResult(id, data, isSuccess) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.style.display = 'block';
+      el.textContent = JSON.stringify(data, null, 2);
+      el.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
+    }
+
+    // 步骤 1：检查 Hook 方法是否存在
+    function checkHookMethods() {
+      var result = {
+        step: '检查 Hook 方法是否存在',
+        timestamp: new Date().toISOString(),
+        checks: {}
+      };
+
+      // 检查 TXWebKitSchemeHandler 是否存在
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('result1', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+      result.checks.TXWebKitSchemeHandler = {
+        exists: true,
+        isClass: typeof cls === 'function',
+        methods: Object.getOwnPropertyNames(cls).filter(function(name) {
+          return name !== 'length' && name !== 'name' && name !== 'prototype';
+        })
+      };
+
+      // 检查 Hook 方法
+      var hookMethods = ['hook', 'hookFetch', 'hookXMLHttpRequest'];
+      hookMethods.forEach(function(methodName) {
+        result.checks[methodName] = {
+          exists: typeof cls[methodName] !== 'undefined',
+          type: typeof cls[methodName],
+          isFunction: typeof cls[methodName] === 'function'
+        };
+      });
+
+      result.conclusion = '✅ 所有检查完成，查看 checks 字段了解详细信息';
+      showResult('result1', result, true);
+    }
+
+    // 步骤 2：尝试调用 Hook 方法
+    function testHookMethods() {
+      var result = {
+        step: '尝试调用 Hook 方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('result2', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+      var hookMethods = ['hook', 'hookFetch', 'hookXMLHttpRequest'];
+
+      hookMethods.forEach(function(methodName) {
+        if (typeof cls[methodName] === 'function') {
+          try {
+            var ret = cls[methodName]();
+            result.tests.push({
+              method: methodName,
+              success: true,
+              returnValue: ret,
+              returnType: typeof ret,
+              conclusion: '✅ 能调用，返回: ' + String(ret)
+            });
+          } catch(e) {
+            result.tests.push({
+              method: methodName,
+              success: false,
+              error: e.message,
+              conclusion: '❌ 调用失败: ' + e.message
+            });
+          }
+        } else {
+          result.tests.push({
+            method: methodName,
+            success: false,
+            error: '方法不存在或不是函数',
+            conclusion: '❌ 方法不存在'
+          });
+        }
+      });
+
+      result.conclusion = '✅ 所有方法测试完成';
+      showResult('result2', result, true);
+    }
+
+    // 步骤 3：测试是否能拦截 fetch 请求
+    function testHookFetch() {
+      var result = {
+        step: '测试是否能拦截 fetch 请求',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('result3', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 测试 1：调用 hookFetch
+      try {
+        if (typeof cls.hookFetch === 'function') {
+          var hookResult = cls.hookFetch();
+          result.tests.push({
+            test: '调用 hookFetch()',
+            success: true,
+            returnValue: hookResult,
+            conclusion: '✅ hookFetch() 调用成功'
+          });
+
+          // 测试 2：发起 fetch 请求，看是否能被拦截
+          setTimeout(function() {
+            fetch('https://httpbin.org/get?test=hook')
+              .then(function(response) {
+                return response.json();
+              })
+              .then(function(data) {
+                result.tests.push({
+                  test: '发起 fetch 请求',
+                  success: true,
+                  requestUrl: data.url,
+                  conclusion: '✅ fetch 请求成功，但无法确定是否被拦截（需要进一步分析）'
+                });
+                result.conclusion = '⚠️ fetch 请求成功，但无法确定是否被 hookFetch 拦截（需要查看网络请求是否被修改）';
+                showResult('result3', result, true);
+              })
+              .catch(function(e) {
+                result.tests.push({
+                  test: '发起 fetch 请求',
+                  success: false,
+                  error: e.message,
+                  conclusion: '❌ fetch 请求失败: ' + e.message
+                });
+                result.conclusion = '⚠️ fetch 请求失败，可能是网络问题或 hookFetch 拦截了请求';
+                showResult('result3', result, false);
+              });
+          }, 500);
+        } else {
+          result.error = 'hookFetch 方法不存在';
+          showResult('result3', result, false);
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('result3', result, false);
+      }
+    }
+
+    // 步骤 4：测试是否能拦截 XMLHttpRequest
+    function testHookXHR() {
+      var result = {
+        step: '测试是否能拦截 XMLHttpRequest',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('result4', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      // 测试 1：调用 hookXMLHttpRequest
+      try {
+        if (typeof cls.hookXMLHttpRequest === 'function') {
+          var hookResult = cls.hookXMLHttpRequest();
+          result.tests.push({
+            test: '调用 hookXMLHttpRequest()',
+            success: true,
+            returnValue: hookResult,
+            conclusion: '✅ hookXMLHttpRequest() 调用成功'
+          });
+
+          // 测试 2：发起 XMLHttpRequest 请求，看是否能被拦截
+          setTimeout(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://httpbin.org/get?test=xhr');
+            xhr.onload = function() {
+              try {
+                var data = JSON.parse(xhr.responseText);
+                result.tests.push({
+                  test: '发起 XMLHttpRequest 请求',
+                  success: true,
+                  requestUrl: data.url,
+                  conclusion: '✅ XMLHttpRequest 请求成功，但无法确定是否被拦截（需要进一步分析）'
+                });
+                result.conclusion = '⚠️ XMLHttpRequest 请求成功，但无法确定是否被 hookXMLHttpRequest 拦截（需要查看网络请求是否被修改）';
+                showResult('result4', result, true);
+              } catch(e) {
+                result.tests.push({
+                  test: '解析响应',
+                  success: false,
+                  error: e.message
+                });
+                showResult('result4', result, false);
+              }
+            };
+            xhr.onerror = function() {
+              result.tests.push({
+                test: '发起 XMLHttpRequest 请求',
+                success: false,
+                error: '请求失败',
+                conclusion: '❌ XMLHttpRequest 请求失败，可能是网络问题或 hookXMLHttpRequest 拦截了请求'
+              });
+              result.conclusion = '⚠️ XMLHttpRequest 请求失败，可能是网络问题或 hookXMLHttpRequest 拦截了请求';
+              showResult('result4', result, false);
+            };
+            xhr.send();
+          }, 500);
+        } else {
+          result.error = 'hookXMLHttpRequest 方法不存在';
+          showResult('result4', result, false);
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('result4', result, false);
+      }
+    }
+
+    // 步骤 5：测试通用 Hook 方法
+    function testHook() {
+      var result = {
+        step: '测试通用 Hook 方法',
+        timestamp: new Date().toISOString(),
+        tests: []
+      };
+
+      if (typeof window.TXWebKitSchemeHandler === 'undefined') {
+        result.error = 'TXWebKitSchemeHandler 不存在';
+        showResult('result5', result, false);
+        return;
+      }
+
+      var cls = window.TXWebKitSchemeHandler;
+
+      try {
+        if (typeof cls.hook === 'function') {
+          // 尝试不同的参数
+          var testCases = [
+            { args: [], description: '无参数调用' },
+            { args: ['fetch'], description: '参数: fetch' },
+            { args: ['XMLHttpRequest'], description: '参数: XMLHttpRequest' }
+          ];
+
+          testCases.forEach(function(testCase) {
+            try {
+              var ret = cls.hook.apply(cls, testCase.args);
+              result.tests.push({
+                test: testCase.description,
+                success: true,
+                returnValue: ret,
+                returnType: typeof ret,
+                conclusion: '✅ 调用成功，返回: ' + String(ret)
+              });
+            } catch(e) {
+              result.tests.push({
+                test: testCase.description,
+                success: false,
+                error: e.message,
+                conclusion: '❌ 调用失败: ' + e.message
+              });
+            }
+          });
+        } else {
+          result.error = 'hook 方法不存在';
+          showResult('result5', result, false);
+          return;
+        }
+      } catch(e) {
+        result.error = e.message;
+        showResult('result5', result, false);
+        return;
+      }
+
+      result.conclusion = '✅ 所有测试完成';
+      showResult('result5', result, true);
+    }
+
+    // 一键测试所有
+    function testAll() {
+      checkHookMethods();
+      setTimeout(function() { testHookMethods(); }, 1000);
+      setTimeout(function() { testHookFetch(); }, 2000);
+      setTimeout(function() { testHookXHR(); }, 3000);
+      setTimeout(function() { testHook(); }, 4000);
+    }
+  </script>
+</body>
+</html>
+
