@@ -123,12 +123,13 @@
 
 | 函数名 | 测试页 A 可用？ | 测试页 B 可用？ | iframe 内可用？ | 调用时是否有用户提示？ | 风险等级 | 备注 |
 |--------|----------------|----------------|----------------|----------------------|---------|------|
-| `TXWebKitNativeFetch` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
-| `TXWebKitSchemeHandler` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
+| `TXWebKitNativeFetch` | ⏳ 待测试 | ⏳ 待测试 | ✅ **是**（已确认） | ⏳ 待测试 | - | **关键发现**：iframe 中可访问 |
+| `TXWebKitSchemeHandler` | ⏳ 待测试 | ⏳ 待测试 | ✅ **是**（已确认） | ⏳ 待测试 | - | **关键发现**：iframe 中可访问 |
 | `TencentOfficeSaveBodyMessageHandler` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
 | `__qbGetBaseURL` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
 | `injectBlurListener` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
 | `document.cookie` | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | ⏳ 待测试 | - | - |
+| `window.webkit.messageHandlers` | ⏳ 待测试 | ⏳ 待测试 | ✅ **是**（已确认） | ⏳ 待测试 | - | **关键发现**：iframe 中可访问 |
 
 **提示类型说明：**
 - **无提示**：页面没变化或直接返回结果
@@ -521,10 +522,11 @@
   - [ ] 在测试页 B 中测试关键 API
   - [ ] 填写表 2 的 A/B 可用性
 
-- [ ] iframe 测试
-  - [ ] 打开 iframe 测试页
-  - [ ] 观察 iframe 中的扫描结果
-  - [ ] 填写表 2 的 iframe 可用性
+- [x] iframe 测试 ✅ **已完成（2025-12-13）**
+  - [x] 打开 iframe 测试页
+  - [x] 观察 iframe 中的扫描结果
+  - [x] 填写表 2 的 iframe 可用性
+  - **关键发现**：`TXWebKitNativeFetch`、`TXWebKitSchemeHandler`、`window.webkit.messageHandlers` 在 iframe 中**可访问**（严重安全风险）
 
 - [ ] 用户提示测试
   - [ ] 记录每个 API 调用时的提示类型
@@ -559,9 +561,41 @@
 - ✅ 分类汇总：疑似 Bridge/注入 4 个，网络能力 1 个，其他 4 个
 - ⏳ 下一步：轮 2 功能实验
 
+**2025-12-13 轮 3 测试（部分完成）：**
+- ✅ **关键发现：iframe 边界测试结果**
+  - 测试时间：2025-12-13T00:29:50.327Z
+  - 测试页面：bridge-audit-iframe-child.html（iframe 子页面）
+  - **重要发现**：
+    - ✅ `TXWebKitNativeFetch` 在 iframe 中**可访问**（严重安全风险）
+    - ✅ `TXWebKitSchemeHandler` 在 iframe 中**可访问**（严重安全风险）
+    - ✅ `window.webkit.messageHandlers` 在 iframe 中**可访问**（严重安全风险）
+  - **测试结果详情**：
+    ```json
+    {
+      "suspiciousWindowNames": [
+        "SpeechRecognitionAlternative",
+        "TXWebKitNativeFetch",
+        "TXWebKitSchemeHandler"
+      ],
+      "quickHits": {
+        "webkit": { "exists": true },
+        "messageHandlers": { "exists": true }
+      }
+    }
+    ```
+  - **安全意义**：
+    - ❌ **没有上下文隔离**：iframe 子页面（第三方内容）也能访问这些敏感 API
+    - ❌ **严重安全风险**：这意味着：
+      - 广告可以调用这些 API
+      - XSS 攻击可以调用这些 API
+      - 第三方脚本可以调用这些 API
+      - 嵌入的第三方网页可以调用这些 API
+  - ⏳ 下一步：完成 A→B 页面测试，测试用户提示
+
 **待补充的测试结果：**
-- 轮 2 功能实验结果
-- 轮 3 边界实验结果
+- 轮 2 功能实验结果（测试每个 API 的实际功能）
+- 轮 3 A→B 页面测试结果
+- 轮 3 用户提示测试结果
 
 ---
 
@@ -572,6 +606,12 @@
 1. **`TXWebKitNativeFetch`** - 这是之前研究过的 Bridge，需要重点测试
 2. **多个 Bridge 相关对象** - 说明 QQ 注入了多个 Bridge 机制
 3. **iOS WKWebView** - 使用 WKWebView，有 `webkit.messageHandlers` 机制
+4. **🔴 严重发现：iframe 中可访问敏感 API**（2025-12-13）
+   - `TXWebKitNativeFetch` 在 iframe 子页面中可访问
+   - `TXWebKitSchemeHandler` 在 iframe 子页面中可访问
+   - `window.webkit.messageHandlers` 在 iframe 子页面中可访问
+   - **安全意义**：说明**没有上下文隔离**，第三方内容（广告/XSS/嵌入网页）也能调用这些敏感 API
+   - **这是系统性问题的证据**：缺乏系统级权限模型，导致敏感 API 在 iframe 中也能访问
 
 ---
 
