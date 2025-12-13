@@ -209,27 +209,28 @@
   </div>
 
   <script>
-    let allResults = {};
+    // 确保所有函数都在全局作用域
+    window.allResults = {};
 
-    function updateStatus(id, status, text) {
+    window.updateStatus = function(id, status, text) {
       const badge = document.getElementById(id);
       if (badge) {
         badge.className = 'status-badge status-' + status;
         badge.textContent = text;
       }
-    }
+    };
 
-    function showResult(id, data, isSuccess = true) {
+    window.showResult = function(id, data, isSuccess = true) {
       const resultEl = document.getElementById(id);
       resultEl.style.display = 'block';
       resultEl.textContent = JSON.stringify(data, null, 2);
       resultEl.className = 'result ' + (isSuccess ? 'success' : (data.error ? 'error' : 'warning'));
-      allResults[data.api] = data;
-    }
+      window.allResults[data.api] = data;
+    };
 
     // ========== TXWebKitNativeFetch 深度测试 ==========
     
-    async function testTXFetch_Domains() {
+    window.testTXFetch_Domains = async function() {
       updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
@@ -306,7 +307,7 @@
       showResult('result1', result);
     }
 
-    async function testTXFetch_Protocols() {
+    window.testTXFetch_Protocols = async function() {
       updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
@@ -357,7 +358,7 @@
       showResult('result1', result);
     }
 
-    async function testTXFetch_Methods() {
+    window.testTXFetch_Methods = async function() {
       updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
@@ -403,7 +404,7 @@
       showResult('result1', result);
     }
 
-    async function testTXFetch_Cookies() {
+    window.testTXFetch_Cookies = async function() {
       updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
@@ -452,7 +453,7 @@
       showResult('result1', result);
     }
 
-    async function testTXFetch_ErrorAnalysis() {
+    window.testTXFetch_ErrorAnalysis = async function() {
       updateStatus('status1', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitNativeFetch',
@@ -495,7 +496,7 @@
       showResult('result1', result);
     }
 
-    async function testTXFetch_All() {
+    window.testTXFetch_All = async function() {
       await testTXFetch_Domains();
       await new Promise(r => setTimeout(r, 1000));
       await testTXFetch_Protocols();
@@ -509,7 +510,7 @@
 
     // ========== TXWebKitSchemeHandler 深度测试 ==========
 
-    function testSchemeHandler_New() {
+    window.testSchemeHandler_New = function() {
       updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
@@ -548,7 +549,7 @@
       showResult('result2', result);
     }
 
-    function testSchemeHandler_Methods() {
+    window.testSchemeHandler_Methods = function() {
       updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
@@ -591,7 +592,7 @@
       showResult('result2', result);
     }
 
-    function testSchemeHandler_CallMethods() {
+    window.testSchemeHandler_CallMethods = function() {
       updateStatus('status2', 'testing', '测试中...');
       const result = {
         api: 'TXWebKitSchemeHandler',
@@ -655,7 +656,7 @@
       showResult('result2', result);
     }
 
-    async function testSchemeHandler_All() {
+    window.testSchemeHandler_All = async function() {
       testSchemeHandler_New();
       await new Promise(r => setTimeout(r, 500));
       testSchemeHandler_Methods();
@@ -665,7 +666,7 @@
 
     // ========== __qbGetBaseURL 深度测试 ==========
 
-    function testQbGetBaseURL_All() {
+    window.testQbGetBaseURL_All = function() {
       updateStatus('status3', 'testing', '测试中...');
       const result = {
         api: '__qbGetBaseURL',
@@ -719,7 +720,7 @@
 
     // ========== injectBlurListener 深度测试 ==========
 
-    function testInjectBlurListener_Deep() {
+    window.testInjectBlurListener_Deep = function() {
       updateStatus('status4', 'testing', '测试中...');
       const result = {
         api: 'injectBlurListener',
@@ -791,7 +792,7 @@
 
     // ========== TencentOfficeSaveBodyMessageHandler 深度测试 ==========
 
-    function testTencentOffice_Deep() {
+    window.testTencentOffice_Deep = function() {
       updateStatus('status5', 'testing', '测试中...');
       const result = {
         api: 'TencentOfficeSaveBodyMessageHandler',
@@ -869,7 +870,7 @@
 
     // ========== document.cookie 深度测试 ==========
 
-    function testDocumentCookie_Deep() {
+    window.testDocumentCookie_Deep = function() {
       updateStatus('status6', 'testing', '测试中...');
       const result = {
         api: 'document.cookie',
@@ -950,7 +951,7 @@
 
     // ========== 一键测试所有 ==========
 
-    async function testAllAPIs() {
+    window.testAllAPIs = async function() {
       updateStatus('status1', 'testing', '测试中...');
       updateStatus('status2', 'testing', '测试中...');
       updateStatus('status3', 'testing', '测试中...');
@@ -975,7 +976,7 @@
 
     // ========== 导出结果 ==========
 
-    function exportResults() {
+    window.exportResults = function() {
       const summary = {
         timestamp: new Date().toISOString(),
         testType: '轮 2：深度功能实验',
@@ -983,11 +984,11 @@
           userAgent: navigator.userAgent,
           location: location.href
         },
-        results: allResults,
+        results: window.allResults,
         summary: {
-          total: Object.keys(allResults).length,
-          callable: Object.values(allResults).filter(r => r.exists && !r.error).length,
-          notCallable: Object.values(allResults).filter(r => r.error || !r.exists).length
+          total: Object.keys(window.allResults).length,
+          callable: Object.values(window.allResults).filter(r => r.exists && !r.error).length,
+          notCallable: Object.values(window.allResults).filter(r => r.error || !r.exists).length
         }
       };
 
@@ -1007,4 +1008,5 @@
   </script>
 </body>
 </html>
+
 

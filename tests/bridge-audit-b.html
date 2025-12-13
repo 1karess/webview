@@ -35,7 +35,11 @@
   <h1>Bridge Audit - 测试页 B <span class="pill">轮 3：边界测试</span></h1>
   <p class="sub">
     <strong>目的</strong>：测试"换页面/换来源后，API 是否仍然可见/可用"<br>
-    <strong>操作</strong>：在同一个 App 的同一个入口打开本页，扫描并对比测试页 A 的结果
+    <strong>操作步骤</strong>：<br>
+    1️⃣ 先在 <a href="./bridge-audit-a.html" target="_blank">测试页 A</a> 扫描并下载 JSON<br>
+    2️⃣ 然后在同一个 App 的同一个入口打开本页（测试页 B）<br>
+    3️⃣ 在本页扫描并测试 API<br>
+    4️⃣ 上传测试页 A 的 JSON，点击"对比差异"
   </p>
 
   <div class="explain">
@@ -329,4 +333,5 @@
   </script>
 </body>
 </html>
+
 

@@ -636,35 +636,63 @@
      - **意义**：QQ WebView 允许 Cookie 访问（Safari 基线中没有）
 - ⏳ 下一步：轮 3 边界实验（测试换页面/iframe/用户提示）
 
-**2025-12-13 轮 3 测试（部分完成）：**
-- ✅ **关键发现：iframe 边界测试结果**
-  - 测试时间：2025-12-13T00:29:50.327Z
+**2025-12-13 轮 3 测试（iframe 边界测试 - 已完成）：**
+- ✅ **关键发现：iframe 边界测试结果**（2025-12-13T01:56:40.112Z）
   - 测试页面：bridge-audit-iframe-child.html（iframe 子页面）
-  - **重要发现**：
-    - ✅ `TXWebKitNativeFetch` 在 iframe 中**可访问**（严重安全风险）
-    - ✅ `TXWebKitSchemeHandler` 在 iframe 中**可访问**（严重安全风险）
-    - ✅ `window.webkit.messageHandlers` 在 iframe 中**可访问**（严重安全风险）
-  - **测试结果详情**：
+  - **测试结果汇总**：
+    - **在 iframe 中可访问的 API**：3 个
+      - ✅ `TXWebKitNativeFetch` - 存在且可调用（但请求失败："Load failed"）
+      - ✅ `TXWebKitSchemeHandler` - 存在且可调用（能创建实例）
+      - ✅ `__qbGetBaseURL` - 存在且可调用
+    - **在 iframe 中不可访问的 API**：3 个
+      - ❌ `injectBlurListener` - 不存在
+      - ❌ `TencentOfficeSaveBodyMessageHandler` - 不存在
+      - ❌ `document.cookie` - 不存在（但这是标准 API，可能是测试问题）
+    - **其他发现**：
+      - ✅ `window.webkit.messageHandlers` - 存在（iOS WKWebView 机制）
+      - ✅ `__qbSHCeekieIsExist` - 存在（在扫描结果中）
+  - **详细测试结果**：
     ```json
     {
-      "suspiciousWindowNames": [
-        "SpeechRecognitionAlternative",
-        "TXWebKitNativeFetch",
-        "TXWebKitSchemeHandler"
-      ],
-      "quickHits": {
-        "webkit": { "exists": true },
-        "messageHandlers": { "exists": true }
+      "apiTests": {
+        "summary": {
+          "total": 6,
+          "exists": 3,
+          "callable": 3
+        },
+        "apis": {
+          "TXWebKitNativeFetch": {
+            "exists": true,
+            "callable": true,
+            "error": "Load failed",
+            "result": "能调用，但请求失败: Load failed"
+          },
+          "TXWebKitSchemeHandler": {
+            "exists": true,
+            "callable": true,
+            "result": "能创建实例"
+          },
+          "__qbGetBaseURL": {
+            "exists": true,
+            "callable": true,
+            "result": "能调用，返回: https://example.com/test"
+          }
+        }
+      },
+      "conclusion": {
+        "iframeAccessible": "⚠️ iframe 中可以访问这些 API（没有隔离）"
       }
     }
     ```
-  - **安全意义**：
-    - ❌ **没有上下文隔离**：iframe 子页面（第三方内容）也能访问这些敏感 API
+  - **安全意义分析**：
+    - ⚠️ **部分隔离**：不是所有 API 都在 iframe 中可用，说明 QQ 有**部分隔离机制**
+    - ❌ **关键 API 未隔离**：最敏感的 API（`TXWebKitNativeFetch`、`TXWebKitSchemeHandler`）在 iframe 中**仍然可访问**
     - ❌ **严重安全风险**：这意味着：
-      - 广告可以调用这些 API
-      - XSS 攻击可以调用这些 API
-      - 第三方脚本可以调用这些 API
-      - 嵌入的第三方网页可以调用这些 API
+      - 广告可以调用网络请求 API
+      - XSS 攻击可以调用网络请求 API
+      - 第三方脚本可以调用网络请求 API
+      - 嵌入的第三方网页可以调用网络请求 API
+    - ✅ **部分保护**：某些 API（如 `injectBlurListener`、`TencentOfficeSaveBodyMessageHandler`）在 iframe 中不可用，说明有**部分隔离**
   - ⏳ 下一步：完成 A→B 页面测试，测试用户提示
 
 **待补充的测试结果：**
@@ -682,11 +710,20 @@
 2. **多个 Bridge 相关对象** - 说明 QQ 注入了多个 Bridge 机制
 3. **iOS WKWebView** - 使用 WKWebView，有 `webkit.messageHandlers` 机制
 4. **🔴 严重发现：iframe 中可访问敏感 API**（2025-12-13）
-   - `TXWebKitNativeFetch` 在 iframe 子页面中可访问
-   - `TXWebKitSchemeHandler` 在 iframe 子页面中可访问
-   - `window.webkit.messageHandlers` 在 iframe 子页面中可访问
-   - **安全意义**：说明**没有上下文隔离**，第三方内容（广告/XSS/嵌入网页）也能调用这些敏感 API
-   - **这是系统性问题的证据**：缺乏系统级权限模型，导致敏感 API 在 iframe 中也能访问
+   - **可访问的 API**（3 个）：
+     - `TXWebKitNativeFetch` - 在 iframe 子页面中可访问且可调用（但请求失败）
+     - `TXWebKitSchemeHandler` - 在 iframe 子页面中可访问且可调用（能创建实例）
+     - `__qbGetBaseURL` - 在 iframe 子页面中可访问且可调用
+     - `window.webkit.messageHandlers` - 在 iframe 子页面中可访问（iOS WKWebView 机制）
+   - **不可访问的 API**（3 个）：
+     - `injectBlurListener` - 在 iframe 中不存在（有隔离）
+     - `TencentOfficeSaveBodyMessageHandler` - 在 iframe 中不存在（有隔离）
+     - `document.cookie` - 在 iframe 中不存在（可能是测试问题）
+   - **安全意义**：
+     - ⚠️ **部分隔离**：不是所有 API 都在 iframe 中可用，说明 QQ 有**部分隔离机制**
+     - ❌ **关键 API 未隔离**：最敏感的 API（网络请求、Scheme Handler）在 iframe 中**仍然可访问**
+     - ❌ **严重安全风险**：第三方内容（广告/XSS/嵌入网页）也能调用这些敏感 API
+     - **这是系统性问题的证据**：缺乏**完整的**系统级权限模型，导致部分敏感 API 在 iframe 中也能访问
 
 ---
 
