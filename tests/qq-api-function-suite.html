@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QQ WebView API 功能测试套件（导出 JSON）</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:1100px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .sub{color:#555;margin:0 0 14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+    button{border:0;border-radius:10px;padding:12px 16px;background:#0a66c2;color:#fff;cursor:pointer;font-size:14px}
+    button:hover{background:#005a9e}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    .badge{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:520px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+    .ok{border-left:4px solid #28a745}
+    .warn{border-left:4px solid #f0ad4e}
+    .err{border-left:4px solid #dc3545}
+    .muted{color:#666;font-size:12px}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>QQ WebView API 功能测试套件 <span class="badge">安全模式</span></h1>
+  <p class="sub">
+    目标：把“QQ WebView 暴露给网页的 API”做<strong>可复现的黑盒功能测试</strong>，并导出 JSON（方便写报告/对比其他 App）。<br>
+    说明：本页只测试<strong>白名单</strong>里的 API/方法，不会自动调用潜在敏感功能（支付/相机/扫码等）。
+  </p>
+
+  <div class="card">
+    <div><strong>建议使用方式</strong></div>
+    <div class="muted" style="margin-top:6px;">
+      1) 先在手机浏览器打开一次（做对照，不一定要导出）<br>
+      2) 再从 QQ 聊天打开本页，点“一键测试（生成 JSON）”<br>
+      3) 复制/下载 JSON 保存为证据<br>
+      小技巧：给链接加 <code>?t=时间戳</code> 防缓存。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="btnRun" onclick="runAll()">🚀 一键测试（生成 JSON）</button>
+      <button id="btnCopy" onclick="copyJSON()" disabled>📋 复制 JSON</button>
+      <button id="btnDownload" onclick="downloadJSON()" disabled>⬇️ 下载 JSON</button>
+    </div>
+    <div id="status" class="muted">状态：就绪</div>
+  </div>
+
+  <div class="card">
+    <div><strong>环境信息</strong></div>
+    <pre id="env">(empty)</pre>
+  </div>
+
+  <div class="card">
+    <div><strong>测试结果（JSON）</strong></div>
+    <pre id="out">(empty)</pre>
+  </div>
+
+  <script>
+    function nowISO(){ return new Date().toISOString(); }
+
+    function setStatus(text){ document.getElementById('status').textContent = `状态：${text}`; }
+
+    function safeStringify(v, maxLen=280){
+      try{
+        if (typeof v === 'function'){
+          const s = Function.prototype.toString.call(v);
+          return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+        }
+        if (typeof v === 'string'){
+          return v.length > maxLen ? v.slice(0, maxLen) + '…' : v;
+        }
+        const s = JSON.stringify(v);
+        return s && s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+      } catch(e){
+        try { return String(v); } catch { return '[Unstringifiable]'; }
+      }
+    }
+
+    function descriptorSummary(obj, prop){
+      try{
+        let cur = obj;
+        for (let i=0;i<8;i++){
+          const d = Object.getOwnPropertyDescriptor(cur, prop);
+          if (d){
+            const isAccessor = !!(d.get || d.set);
+            return {
+              enumerable: !!d.enumerable,
+              configurable: !!d.configurable,
+              writable: isAccessor ? undefined : !!d.writable,
+              hasGetter: !!d.get,
+              hasSetter: !!d.set,
+            };
+          }
+          cur = Object.getPrototypeOf(cur);
+          if (!cur) break;
+        }
+        return null;
+      } catch(e){
+        return { error: String(e) };
+      }
+    }
+
+    function readValue(obj, prop){
+      try{
+        const v = obj[prop];
+        const t = typeof v;
+        const out = { ok: true, type: t };
+        if (t === 'function'){
+          out.function = { paramCount: v.length, sourcePreview: safeStringify(v, 220) };
+        } else {
+          out.valuePreview = safeStringify(v, 220);
+        }
+        return out;
+      } catch(e){
+        return { ok:false, error:String(e) };
+      }
+    }
+
+    async function tryFetchJSON(resp){
+      try { return await resp.json(); } catch {
+        try { const t = await resp.text(); return { text: t.slice(0, 1200) }; } catch(e){ return { error: String(e) }; }
+      }
+    }
+
+    async function testExistence(){
+      const keys = [
+        'TXWebKitNativeFetch',
+        'TXWebKitSchemeHandler',
+        'TencentOfficeSaveBodyMessageHandler',
+        '__Use_TBS_PXY__',
+        '__mqqStartLoadTime',
+        '__qbGetBaseURL',
+        '__qbSHCeekieIsExist',
+        'injectBlurListener',
+      ];
+
+      const out = { step: 'existence+descriptor', timestamp: nowISO(), items: {} };
+      for (const k of keys){
+        const exists = (typeof window[k] !== 'undefined');
+        out.items[k] = {
+          exists,
+          descriptor: descriptorSummary(window, k),
+          access: exists ? readValue(window, k) : { ok:false, error:'not found' },
+        };
+      }
+
+      // document.cookie（你已经观察到它经常变成 own accessor）
+      out.documentCookie = {
+        descriptor: descriptorSummary(document, 'cookie'),
+        access: readValue(document, 'cookie'),
+      };
+      return out;
+    }
+
+    async function testNativeFetch(){
+      const result = { step: 'TXWebKitNativeFetch', timestamp: nowISO(), exists: typeof window.TXWebKitNativeFetch !== 'undefined', tests: [] };
+      if (!result.exists) return result;
+
+      // 1) 基本 GET（httpbin 回显）
+      try{
+        const r = await window.TXWebKitNativeFetch('https://httpbin.org/get', { method:'GET' });
+        const data = await tryFetchJSON(r);
+        result.tests.push({
+          name: 'GET https://httpbin.org/get',
+          ok: true,
+          status: r.status,
+          dataKeys: (data && typeof data === 'object') ? Object.keys(data).slice(0, 16) : undefined,
+          echo: (data && typeof data === 'object') ? { origin: data.origin, url: data.url } : undefined,
+        });
+      } catch(e){
+        result.tests.push({ name:'GET https://httpbin.org/get', ok:false, error:String(e) });
+      }
+
+      // 2) “CORS 对照”：浏览器 fetch 可能被挡；NativeFetch 可能仍能拿到响应（即使 401/403）
+      const corsTarget = 'https://www.reddit.com/api/v1/me';
+      try{
+        await fetch(corsTarget, { method:'GET', credentials:'include' });
+        result.tests.push({ name:'control fetch() to reddit (expected CORS block)', ok:true, note:'Unexpected: fetch() succeeded (depends on reddit CORS)' });
+      } catch(e){
+        result.tests.push({ name:'control fetch() to reddit (expected CORS block)', ok:false, error:String(e) });
+      }
+      try{
+        const r2 = await window.TXWebKitNativeFetch(corsTarget, { method:'GET' });
+        const data2 = await tryFetchJSON(r2);
+        result.tests.push({
+          name:'TXWebKitNativeFetch() to reddit (CORS bypass check)',
+          ok:true,
+          status: r2.status,
+          bodyPreview: safeStringify(data2, 360),
+        });
+      } catch(e){
+        result.tests.push({ name:'TXWebKitNativeFetch() to reddit (CORS bypass check)', ok:false, error:String(e) });
+      }
+
+      return result;
+    }
+
+    async function testSchemeHandler(){
+      const result = { step:'TXWebKitSchemeHandler', timestamp: nowISO(), exists: typeof window.TXWebKitSchemeHandler !== 'undefined', tests: [] };
+      if (!result.exists) return result;
+      const cls = window.TXWebKitSchemeHandler;
+
+      // 列方法
+      try{
+        result.classInfo = { name: cls.name, ownProps: Object.getOwnPropertyNames(cls).sort() };
+      } catch(e){
+        result.classInfo = { error: String(e) };
+      }
+
+      // generateUUID
+      if (typeof cls.generateUUID === 'function'){
+        try{ result.tests.push({ name:'generateUUID()', ok:true, value: String(cls.generateUUID()) }); }
+        catch(e){ result.tests.push({ name:'generateUUID()', ok:false, error:String(e) }); }
+      }
+
+      // shouldNativeHandleHTTPBody：关键分支（你之前发现 Blob 才 true）
+      if (typeof cls.shouldNativeHandleHTTPBody === 'function'){
+        const cases = [
+          { label:'string', v:'{"a":1}' },
+          { label:'null', v:null },
+          { label:'undefined', v:undefined },
+          { label:'FormData', v:(() => { try { const f=new FormData(); f.append('a','1'); return f; } catch { return '[FormData unsupported]'; } })() },
+          { label:'Blob(json)', v:(() => { try { return new Blob([JSON.stringify({a:1})], {type:'application/json'}); } catch { return '[Blob unsupported]'; } })() },
+        ];
+        for (const c of cases){
+          try{
+            const out = cls.shouldNativeHandleHTTPBody(c.v);
+            result.tests.push({ name:`shouldNativeHandleHTTPBody(${c.label})`, ok:true, value: out });
+          } catch(e){
+            result.tests.push({ name:`shouldNativeHandleHTTPBody(${c.label})`, ok:false, error:String(e) });
+          }
+        }
+      }
+
+      // saveParamsToNative：是否返回 UUID
+      if (typeof cls.saveParamsToNative === 'function'){
+        try{
+          const uuid = await cls.saveParamsToNative('suite-test-' + nowISO());
+          result.tests.push({ name:'saveParamsToNative(string)', ok:true, value: String(uuid) });
+        } catch(e){
+          result.tests.push({ name:'saveParamsToNative(string)', ok:false, error:String(e) });
+        }
+      }
+
+      return result;
+    }
+
+    async function testHook(){
+      const result = { step:'Hook verification (XHR)', timestamp: nowISO(), exists: typeof window.TXWebKitSchemeHandler !== 'undefined', tests: [] };
+      if (!result.exists) return result;
+      const cls = window.TXWebKitSchemeHandler;
+
+      if (typeof cls.hookXMLHttpRequest !== 'function'){
+        result.tests.push({ name:'hookXMLHttpRequest exists', ok:false, error:'missing hookXMLHttpRequest' });
+        return result;
+      }
+
+      // 1) send 是否被替换
+      let originalSend = null;
+      try { originalSend = (new XMLHttpRequest()).send; } catch(e){ result.tests.push({ name:'read original XHR.send', ok:false, error:String(e) }); }
+      try{
+        cls.hookXMLHttpRequest();
+        result.tests.push({ name:'call hookXMLHttpRequest()', ok:true });
+      } catch(e){
+        result.tests.push({ name:'call hookXMLHttpRequest()', ok:false, error:String(e) });
+        return result;
+      }
+
+      let hookedSend = null;
+      try { hookedSend = (new XMLHttpRequest()).send; } catch(e){ result.tests.push({ name:'read hooked XHR.send', ok:false, error:String(e) }); }
+      result.tests.push({ name:'send changed', ok: true, value: !!(originalSend && hookedSend && originalSend !== hookedSend) });
+
+      // 2) send.toString() 命中关键字
+      try{
+        const code = Function.prototype.toString.call(hookedSend);
+        result.tests.push({
+          name:'send.toString keyword hits',
+          ok:true,
+          hits:{
+            shouldNativeHandleHTTPBody: code.includes('shouldNativeHandleHTTPBody'),
+            saveParamsToNative: code.includes('saveParamsToNative'),
+            tx_webkit_body_uuid: code.includes('tx_webkit_body_uuid'),
+          },
+          codePreview: code.slice(0, 420) + (code.length > 420 ? '…' : ''),
+        });
+      } catch(e){
+        result.tests.push({ name:'send.toString keyword hits', ok:false, error:String(e) });
+      }
+
+      // 3) 发请求看是否带头（httpbin 会回显 headers）
+      async function xhrPost(body, contentTypeLabel){
+        return await new Promise((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', 'https://httpbin.org/post');
+          try { xhr.setRequestHeader('X-Suite', 'qq-api-function-suite'); } catch {}
+          xhr.onreadystatechange = function(){
+            if (xhr.readyState !== 4) return;
+            try{
+              const j = JSON.parse(xhr.responseText);
+              resolve({ ok: true, status: xhr.status, headers: j.headers, json: j.json, data: typeof j.data === 'string' ? j.data.slice(0, 1200) : j.data });
+            } catch(e){
+              resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800) });
+            }
+          };
+          try{
+            if (contentTypeLabel === 'json-string') xhr.setRequestHeader('Content-Type', 'application/json');
+          } catch {}
+          try{
+            xhr.send(body);
+          } catch(e){
+            resolve({ ok:false, error:String(e) });
+          }
+        });
+      }
+
+      // JSON string body（通常不会触发 Blob 分支）
+      try{
+        const r1 = await xhrPost(JSON.stringify({ kind:'json-string', ts: nowISO() }), 'json-string');
+        result.tests.push({ name:'XHR POST (JSON string) -> header echo', ok:r1.ok, status:r1.status, tx_webkit_body_uuid: r1.headers ? (r1.headers['Tx-Webkit-Body-Uuid'] || r1.headers['tx_webkit_body_uuid']) : undefined, echoedHeaders: r1.headers });
+      } catch(e){
+        result.tests.push({ name:'XHR POST (JSON string) -> header echo', ok:false, error:String(e) });
+      }
+
+      // Blob body（更可能触发 shouldNativeHandleHTTPBody === true 分支）
+      try{
+        const blob = new Blob([JSON.stringify({ kind:'blob', ts: nowISO() })], { type:'application/json' });
+        const r2 = await xhrPost(blob, 'blob');
+        result.tests.push({ name:'XHR POST (Blob) -> header echo', ok:r2.ok, status:r2.status, tx_webkit_body_uuid: r2.headers ? (r2.headers['Tx-Webkit-Body-Uuid'] || r2.headers['tx_webkit_body_uuid']) : undefined, echoedHeaders: r2.headers });
+      } catch(e){
+        result.tests.push({ name:'XHR POST (Blob) -> header echo', ok:false, error:String(e) });
+      }
+
+      return result;
+    }
+
+    let latest = null;
+
+    async function runAll(){
+      document.getElementById('btnRun').disabled = true;
+      setStatus('运行中…');
+
+      const env = {
+        timestamp: nowISO(),
+        href: location.href,
+        origin: location.origin,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      };
+      document.getElementById('env').textContent = JSON.stringify(env, null, 2);
+
+      const out = {
+        tool: 'qq-api-function-suite',
+        version: 1,
+        generatedAt: nowISO(),
+        env,
+        results: [],
+      };
+
+      try { out.results.push(await testExistence()); } catch(e){ out.results.push({ step:'existence+descriptor', ok:false, error:String(e) }); }
+      try { out.results.push(await testNativeFetch()); } catch(e){ out.results.push({ step:'TXWebKitNativeFetch', ok:false, error:String(e) }); }
+      try { out.results.push(await testSchemeHandler()); } catch(e){ out.results.push({ step:'TXWebKitSchemeHandler', ok:false, error:String(e) }); }
+      try { out.results.push(await testHook()); } catch(e){ out.results.push({ step:'Hook verification (XHR)', ok:false, error:String(e) }); }
+
+      latest = out;
+      document.getElementById('out').textContent = JSON.stringify(out, null, 2);
+      document.getElementById('btnCopy').disabled = false;
+      document.getElementById('btnDownload').disabled = false;
+      document.getElementById('btnRun').disabled = false;
+      setStatus('完成：可以复制/下载 JSON');
+    }
+
+    async function copyJSON(){
+      try{
+        await navigator.clipboard.writeText(JSON.stringify(latest ?? {}, null, 2));
+        setStatus('已复制 JSON');
+      } catch(e){
+        setStatus('复制失败：可用“下载 JSON”');
+      }
+    }
+
+    function downloadJSON(){
+      const data = latest ?? {};
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qq-api-function-suite-${nowISO().replace(/[:.]/g,'-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('已触发下载');
+    }
+  </script>
+</body>
+</html>
