@@ -334,8 +334,14 @@
       let originalSend = null;
       try { originalSend = (new XMLHttpRequest()).send; } catch(e){ result.tests.push({ name:'read original XHR.send', ok:false, error:String(e) }); }
       try{
-        cls.hookXMLHttpRequest();
-        result.tests.push({ name:'call hookXMLHttpRequest()', ok:true });
+        // Avoid double-hooking across multiple runs in the same page (can cause multiple UUIDs / nested wrappers).
+        if (!window.__qq_suite_hooked_xhr) {
+          cls.hookXMLHttpRequest();
+          window.__qq_suite_hooked_xhr = true;
+          result.tests.push({ name:'call hookXMLHttpRequest() (first time)', ok:true });
+        } else {
+          result.tests.push({ name:'call hookXMLHttpRequest() (skipped: already hooked)', ok:true });
+        }
       } catch(e){
         result.tests.push({ name:'call hookXMLHttpRequest()', ok:false, error:String(e) });
         return result;
@@ -368,16 +374,17 @@
         return await new Promise((resolve) => {
           // record setRequestHeader calls for THIS request
           const headerCalls = [];
-          const orig = XMLHttpRequest.prototype.setRequestHeader;
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', echoUrl);
+          // Instrument only THIS XHR instance to avoid interference from other requests.
+          const origSet = xhr.setRequestHeader;
           try {
-            XMLHttpRequest.prototype.setRequestHeader = function(k, v) {
+            xhr.setRequestHeader = function(k, v) {
               try { headerCalls.push({ name: String(k), value: String(v) }); } catch {}
-              return orig.apply(this, arguments);
+              return origSet.apply(this, arguments);
             };
           } catch {}
 
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', echoUrl);
           try { xhr.setRequestHeader('X-Suite', 'qq-api-function-suite'); } catch {}
           xhr.onreadystatechange = function(){
             if (xhr.readyState !== 4) return;
@@ -387,8 +394,6 @@
             } catch(e){
               resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800), headerCalls });
             }
-            // restore prototype
-            try { XMLHttpRequest.prototype.setRequestHeader = orig; } catch {}
           };
           try{
             if (contentTypeLabel === 'json-string') xhr.setRequestHeader('Content-Type', 'application/json');
@@ -396,7 +401,6 @@
           try{
             xhr.send(body);
           } catch(e){
-            try { XMLHttpRequest.prototype.setRequestHeader = orig; } catch {}
             resolve({ ok:false, error:String(e), headerCalls });
           }
         });
@@ -609,3 +613,4 @@
   </script>
 </body>
 </html>
+
