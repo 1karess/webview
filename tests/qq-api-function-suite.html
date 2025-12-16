@@ -252,7 +252,7 @@
     }
 
     async function testHook(){
-      const result = { step:'Hook verification (XHR)', timestamp: nowISO(), exists: typeof window.TXWebKitSchemeHandler !== 'undefined', tests: [] };
+      const result = { step:'Hook verification (XHR/fetch)', timestamp: nowISO(), exists: typeof window.TXWebKitSchemeHandler !== 'undefined', tests: [] };
       if (!result.exists) return result;
       const cls = window.TXWebKitSchemeHandler;
 
@@ -336,7 +336,21 @@
 
       // Blob body（更可能触发 shouldNativeHandleHTTPBody === true 分支）
       try{
-        const blob = new Blob([JSON.stringify({ kind:'blob', ts: nowISO() })], { type:'application/json' });
+        // IMPORTANT:
+        // Use an octet-stream Blob so the browser won't try to "helpfully" treat it as JSON.
+        // Also record pre-checks so we can prove what type we actually passed into send().
+        const blobPayload = 'BLOB-PAYLOAD-' + nowISO() + '-' + Math.random().toString(16).slice(2);
+        const blob = new Blob([blobPayload], { type:'application/octet-stream' });
+        let preCheck = null;
+        try { preCheck = (typeof cls.shouldNativeHandleHTTPBody === 'function') ? cls.shouldNativeHandleHTTPBody(blob) : null; } catch(e) { preCheck = { error: String(e) }; }
+        result.tests.push({
+          name: 'precheck: blob instanceof Blob + shouldNativeHandleHTTPBody(blob)',
+          ok: true,
+          blobInstanceofBlob: (typeof Blob !== 'undefined') ? (blob instanceof Blob) : null,
+          blobType: blob && blob.type,
+          blobSize: blob && blob.size,
+          shouldNativeHandleHTTPBody: preCheck,
+        });
         const r2 = await xhrPost(blob, 'blob');
         result.tests.push({
           name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
@@ -347,6 +361,52 @@
         });
       } catch(e){
         result.tests.push({ name:'XHR POST (Blob) -> server echo headers', ok:false, error:String(e) });
+      }
+
+      // 4) Backup path: hookFetch + fetch(Blob) -> server echo headers
+      // Some WebViews behave differently for XHR vs fetch. This gives a second chance to observe tx_webkit_body_uuid on the server.
+      if (typeof cls.hookFetch === 'function') {
+        try {
+          cls.hookFetch();
+          result.tests.push({ name: 'call hookFetch()', ok: true });
+        } catch (e) {
+          result.tests.push({ name: 'call hookFetch()', ok: false, error: String(e) });
+        }
+      } else {
+        result.tests.push({ name: 'hookFetch exists', ok: false, error: 'missing hookFetch' });
+      }
+
+      try {
+        const blobPayload2 = 'FETCH-BLOB-' + nowISO() + '-' + Math.random().toString(16).slice(2);
+        const blob2 = new Blob([blobPayload2], { type: 'application/octet-stream' });
+        let preCheck2 = null;
+        try { preCheck2 = (typeof cls.shouldNativeHandleHTTPBody === 'function') ? cls.shouldNativeHandleHTTPBody(blob2) : null; } catch (e) { preCheck2 = { error: String(e) }; }
+        result.tests.push({
+          name: 'precheck: fetch blob instanceof Blob + shouldNativeHandleHTTPBody(blob)',
+          ok: true,
+          blobInstanceofBlob: (typeof Blob !== 'undefined') ? (blob2 instanceof Blob) : null,
+          blobType: blob2 && blob2.type,
+          blobSize: blob2 && blob2.size,
+          shouldNativeHandleHTTPBody: preCheck2,
+        });
+
+        const fetchEchoUrl = location.origin + '/api/echo?from=fetch&ts=' + encodeURIComponent(nowISO());
+        const resp = await fetch(fetchEchoUrl, {
+          method: 'POST',
+          body: blob2,
+          // Don't set Content-Type; let the browser set it from the Blob
+        });
+        const j = await resp.json().catch(async () => ({ text: (await resp.text()).slice(0, 1200) }));
+        const headers = j && j.headers;
+        result.tests.push({
+          name: 'fetch POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
+          ok: resp.ok,
+          status: resp.status,
+          serverSawTxUuid: headers ? (headers['tx_webkit_body_uuid'] || headers['tx-webkit-body-uuid']) : undefined,
+          echoedHeaders: headers,
+        });
+      } catch (e) {
+        result.tests.push({ name: 'fetch POST (Blob) -> server echo headers', ok: false, error: String(e) });
       }
 
       return result;
