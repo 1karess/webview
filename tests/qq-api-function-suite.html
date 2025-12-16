@@ -232,6 +232,7 @@
       // Prefer same-origin echo endpoint (more likely reachable inside in-app WebViews)
       const echoGet = location.origin + '/api/echo?from=nativefetch&ts=' + encodeURIComponent(nowISO());
       const echoPost = location.origin + '/api/echo?from=nativefetch-post&ts=' + encodeURIComponent(nowISO());
+      const echoPostBlob = location.origin + '/api/echo?from=nativefetch-blob&ts=' + encodeURIComponent(nowISO());
 
       // 1) 基本 GET（同域回显）
       try{
@@ -265,6 +266,29 @@
         });
       } catch(e){
         result.tests.push({ name:'POST /api/echo (same-origin)', ok:false, error:String(e) });
+      }
+
+      // 3) CONTROL: POST Blob + manual tx_webkit_body_uuid
+      // Purpose: prove whether "Blob + this header" can reach server at all (independent of XHR hook path).
+      try{
+        const val = 'manual-nf-blob-' + Math.random().toString(16).slice(2);
+        const blob = new Blob(['NF-BLOB-' + nowISO()], { type:'application/octet-stream' });
+        const r3 = await window.TXWebKitNativeFetch(echoPostBlob, {
+          method: 'POST',
+          headers: { 'tx_webkit_body_uuid': val },
+          body: blob
+        });
+        const data3 = await tryFetchJSON(r3);
+        result.tests.push({
+          name:'CONTROL: NativeFetch POST (Blob) + tx_webkit_body_uuid -> server saw it?',
+          ok: true,
+          status: r3.status,
+          sent: val,
+          serverSaw: data3 && data3.headers ? (data3.headers['tx_webkit_body_uuid'] || data3.headers['tx-webkit-body-uuid']) : undefined,
+          serverSawHeaderKeys: (data3 && data3.headers && typeof data3.headers === 'object') ? Object.keys(data3.headers).slice(0, 45) : undefined,
+        });
+      } catch(e){
+        result.tests.push({ name:'CONTROL: NativeFetch POST (Blob) + tx_webkit_body_uuid -> server saw it?', ok:false, error:String(e) });
       }
 
       return result;
@@ -317,6 +341,23 @@
         }
       }
 
+      // formatBody：看看它是否返回“回执/uuid/替代体”（仅观测，不假设语义）
+      if (typeof cls.formatBody === 'function'){
+        try{
+          const blob = new Blob(['FORMAT-BLOB-' + nowISO()], { type:'application/octet-stream' });
+          const out1 = await cls.formatBody(blob);
+          result.tests.push({ name:'formatBody(Blob)', ok:true, valuePreview: safeStringify(out1, 420) });
+        } catch(e){
+          result.tests.push({ name:'formatBody(Blob)', ok:false, error:String(e) });
+        }
+        try{
+          const out2 = await cls.formatBody('FORMAT-STRING-' + nowISO());
+          result.tests.push({ name:'formatBody(string)', ok:true, valuePreview: safeStringify(out2, 420) });
+        } catch(e){
+          result.tests.push({ name:'formatBody(string)', ok:false, error:String(e) });
+        }
+      }
+
       return result;
     }
 
@@ -330,43 +371,30 @@
         return result;
       }
 
-      // 1) send 是否被替换
-      let originalSend = null;
-      try { originalSend = (new XMLHttpRequest()).send; } catch(e){ result.tests.push({ name:'read original XHR.send', ok:false, error:String(e) }); }
-      try{
-        // Avoid double-hooking across multiple runs in the same page (can cause multiple UUIDs / nested wrappers).
-        if (!window.__qq_suite_hooked_xhr) {
-          cls.hookXMLHttpRequest();
-          window.__qq_suite_hooked_xhr = true;
-          result.tests.push({ name:'call hookXMLHttpRequest() (first time)', ok:true });
-        } else {
-          result.tests.push({ name:'call hookXMLHttpRequest() (skipped: already hooked)', ok:true });
+      function fnSnapshot(fn){
+        try{
+          const code = Function.prototype.toString.call(fn);
+          return {
+            ok: true,
+            isNativeCode: /\[native code\]/.test(code),
+            len: code.length,
+            hits: {
+              shouldNativeHandleHTTPBody: code.includes('shouldNativeHandleHTTPBody'),
+              saveParamsToNative: code.includes('saveParamsToNative'),
+              tx_webkit_body_uuid: code.includes('tx_webkit_body_uuid'),
+            },
+            codePreview: code.slice(0, 420) + (code.length > 420 ? '…' : ''),
+          };
+        } catch(e){
+          return { ok:false, error:String(e) };
         }
-      } catch(e){
-        result.tests.push({ name:'call hookXMLHttpRequest()', ok:false, error:String(e) });
-        return result;
       }
 
-      let hookedSend = null;
-      try { hookedSend = (new XMLHttpRequest()).send; } catch(e){ result.tests.push({ name:'read hooked XHR.send', ok:false, error:String(e) }); }
-      result.tests.push({ name:'send changed', ok: true, value: !!(originalSend && hookedSend && originalSend !== hookedSend) });
-
-      // 2) send.toString() 命中关键字
-      try{
-        const code = Function.prototype.toString.call(hookedSend);
-        result.tests.push({
-          name:'send.toString keyword hits',
-          ok:true,
-          hits:{
-            shouldNativeHandleHTTPBody: code.includes('shouldNativeHandleHTTPBody'),
-            saveParamsToNative: code.includes('saveParamsToNative'),
-            tx_webkit_body_uuid: code.includes('tx_webkit_body_uuid'),
-          },
-          codePreview: code.slice(0, 420) + (code.length > 420 ? '…' : ''),
-        });
-      } catch(e){
-        result.tests.push({ name:'send.toString keyword hits', ok:false, error:String(e) });
-      }
+      // Snapshot BEFORE we call suite hookXMLHttpRequest().
+      // Note: QQ may have already injected/modified prototypes before our page code runs.
+      let sendBefore = null;
+      try { sendBefore = XMLHttpRequest.prototype.send; } catch {}
+      result.tests.push({ name:'SNAPSHOT: XMLHttpRequest.prototype.send (before suite hook call)', ok:true, snapshot: fnSnapshot(sendBefore) });
 
       // 3) 发请求看是否带头（同域 /api/echo 会回显 headers）
       const echoBase = location.origin + '/api/echo';
@@ -416,6 +444,126 @@
           }
         });
       }
+
+      // EXPERIMENT: 不调用/调用 hookXMLHttpRequest 的对比（你提的 callCount 逻辑）
+      async function runBlobExperiment(label, { callSuiteHookTimes = 0 } = {}){
+        const exp = { label, callSuiteHookTimes, ts: nowISO(), suiteHookCalls: [], saveParamsToNativeCalls: null, headerCalls: null, serverSawTxUuid: null, rid: null, requestUrl: null, note: 'If you need a clean baseline, reload the page before running.' };
+        // Optionally call suite hook multiple times (to test whether it stacks).
+        for (let i=0;i<callSuiteHookTimes;i++){
+          try{
+            cls.hookXMLHttpRequest();
+            exp.suiteHookCalls.push({ idx: i+1, ok:true, ts: nowISO() });
+          } catch(e){
+            exp.suiteHookCalls.push({ idx: i+1, ok:false, ts: nowISO(), error:String(e) });
+          }
+        }
+
+        // Build a blob that should hit shouldNativeHandleHTTPBody === true
+        const blobPayload = 'BLOB-EXP-' + label + '-' + nowISO() + '-' + Math.random().toString(16).slice(2);
+        const blob = new Blob([blobPayload], { type:'application/octet-stream' });
+        try{
+          exp.precheck = {
+            blobInstanceofBlob: (typeof Blob !== 'undefined') ? (blob instanceof Blob) : null,
+            blobType: blob.type,
+            blobSize: blob.size,
+            shouldNativeHandleHTTPBody: (typeof cls.shouldNativeHandleHTTPBody === 'function') ? cls.shouldNativeHandleHTTPBody(blob) : null
+          };
+        } catch(e){
+          exp.precheck = { error:String(e) };
+        }
+
+        // Observe office handler callback map (if any) as an additional "receipt exists" signal.
+        try{
+          const office = window.TencentOfficeSaveBodyMessageHandler;
+          const cb = office && office.finishSaveCallbacks;
+          exp.office = {
+            exists: !!office,
+            hasFinishSaveCallbacks: !!cb,
+            beforeKeys: cb && typeof cb === 'object' ? Object.keys(cb).slice(0, 12) : null,
+            beforeCount: cb && typeof cb === 'object' ? Object.keys(cb).length : null,
+          };
+        } catch {}
+
+        // Wrap saveParamsToNative to count/collect uuids during THIS send.
+        const spCalls = [];
+        let origSP = null;
+        try {
+          if (typeof cls.saveParamsToNative === 'function') {
+            origSP = cls.saveParamsToNative;
+            cls.saveParamsToNative = function() {
+              const args = Array.prototype.slice.call(arguments);
+              const callId = Math.random().toString(16).slice(2);
+              const arg0 = args[0];
+              spCalls.push({ ts: nowISO(), callId, phase: 'called', arg0Type: (arg0 instanceof Blob) ? `Blob(${arg0.type || 'unknown'})` : (arg0 === null ? 'null' : typeof arg0) });
+              const p = origSP.apply(this, args);
+              return Promise.resolve(p).then((v) => {
+                spCalls.push({ ts: nowISO(), callId, phase: 'resolved', value: String(v) });
+                return v;
+              }, (e) => {
+                spCalls.push({ ts: nowISO(), callId, phase: 'rejected', error: String(e) });
+                throw e;
+              });
+            };
+          }
+        } catch (e) {
+          spCalls.push({ ts: nowISO(), phase: 'wrap_error', error: String(e) });
+        }
+
+        const r = await xhrPost(blob, { contentTypeLabel: 'blob', tag: 'blob-exp-' + label });
+
+        try { if (origSP) cls.saveParamsToNative = origSP; } catch {}
+        exp.saveParamsToNativeCalls = spCalls;
+        exp.headerCalls = r.headerCalls;
+        exp.rid = r.rid;
+        exp.requestUrl = r.url;
+        exp.serverSawTxUuid = r.headers ? (r.headers['tx_webkit_body_uuid'] || r.headers['tx-webkit-body-uuid']) : undefined;
+        exp.serverSawHeaderKeys = r.headers ? Object.keys(r.headers).slice(0, 45) : null;
+
+        // Update office callback map after send (if any).
+        try{
+          const office = window.TencentOfficeSaveBodyMessageHandler;
+          const cb = office && office.finishSaveCallbacks;
+          if (exp.office && cb && typeof cb === 'object') {
+            const keys = Object.keys(cb);
+            exp.office.afterCount = keys.length;
+            exp.office.afterKeys = keys.slice(0, 12);
+          }
+        } catch {}
+
+        // Quick summary for papers
+        exp.summary = {
+          saveParamsToNativeCallCount: spCalls.filter(x => x.phase === 'called').length,
+          resolvedUuids: spCalls.filter(x => x.phase === 'resolved').map(x => x.value),
+          txHeaderSetCount: (r.headerCalls || []).filter(h => String(h.name).toLowerCase() === 'tx_webkit_body_uuid').length,
+          txHeaderValues: (r.headerCalls || []).filter(h => String(h.name).toLowerCase() === 'tx_webkit_body_uuid').map(h => h.value),
+          requestSentOnce: !!r.rid,
+        };
+        return exp;
+      }
+
+      try{
+        const e0 = await runBlobExperiment('no-suite-hook', { callSuiteHookTimes: 0 });
+        result.tests.push({ name:'EXPERIMENT: XHR Blob without calling suite hookXMLHttpRequest()', ok:true, exp: e0 });
+      } catch(e){
+        result.tests.push({ name:'EXPERIMENT: XHR Blob without calling suite hookXMLHttpRequest()', ok:false, error:String(e) });
+      }
+      try{
+        const e1 = await runBlobExperiment('suite-hook-once', { callSuiteHookTimes: 1 });
+        result.tests.push({ name:'EXPERIMENT: XHR Blob after calling suite hookXMLHttpRequest() once', ok:true, exp: e1 });
+      } catch(e){
+        result.tests.push({ name:'EXPERIMENT: XHR Blob after calling suite hookXMLHttpRequest() once', ok:false, error:String(e) });
+      }
+      try{
+        const e2 = await runBlobExperiment('suite-hook-twice', { callSuiteHookTimes: 2 });
+        result.tests.push({ name:'EXPERIMENT: XHR Blob after calling suite hookXMLHttpRequest() twice', ok:true, exp: e2 });
+      } catch(e){
+        result.tests.push({ name:'EXPERIMENT: XHR Blob after calling suite hookXMLHttpRequest() twice', ok:false, error:String(e) });
+      }
+
+      // Snapshot AFTER the experiments (hook might have stacked)
+      let sendAfter = null;
+      try { sendAfter = XMLHttpRequest.prototype.send; } catch {}
+      result.tests.push({ name:'SNAPSHOT: XMLHttpRequest.prototype.send (after experiments)', ok:true, snapshot: fnSnapshot(sendAfter) });
 
       // JSON string body（通常不会触发 Blob 分支）
       try{
@@ -469,87 +617,29 @@
         result.tests.push({ name:'CONTROL: manual setRequestHeader(tx_webkit_body_uuid) -> server saw it?', ok:false, error:String(e) });
       }
 
-      // Blob body（更可能触发 shouldNativeHandleHTTPBody === true 分支）
-      try{
-        // IMPORTANT:
-        // Use an octet-stream Blob so the browser won't try to "helpfully" treat it as JSON.
-        // Also record pre-checks so we can prove what type we actually passed into send().
-        const blobPayload = 'BLOB-PAYLOAD-' + nowISO() + '-' + Math.random().toString(16).slice(2);
-        const blob = new Blob([blobPayload], { type:'application/octet-stream' });
-        let preCheck = null;
-        try { preCheck = (typeof cls.shouldNativeHandleHTTPBody === 'function') ? cls.shouldNativeHandleHTTPBody(blob) : null; } catch(e) { preCheck = { error: String(e) }; }
-        result.tests.push({
-          name: 'precheck: blob instanceof Blob + shouldNativeHandleHTTPBody(blob)',
-          ok: true,
-          blobInstanceofBlob: (typeof Blob !== 'undefined') ? (blob instanceof Blob) : null,
-          blobType: blob && blob.type,
-          blobSize: blob && blob.size,
-          shouldNativeHandleHTTPBody: preCheck,
-        });
-
-        // NEW: does saveParamsToNative(blob) itself return a UUID?
-        try {
-          if (typeof cls.saveParamsToNative === 'function') {
-            const uuidBlob = await cls.saveParamsToNative(blob);
-            result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: true, value: String(uuidBlob) });
-          } else {
-            result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: 'missing saveParamsToNative' });
-          }
-        } catch (e) {
-          result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: String(e) });
-        }
-
-        // DEBUG: wrap saveParamsToNative during the actual XHR send, to see if Hook calls it multiple times.
-        const spCalls = [];
-        let origSP = null;
-        try {
-          if (typeof cls.saveParamsToNative === 'function') {
-            origSP = cls.saveParamsToNative;
-            cls.saveParamsToNative = function() {
-              const args = Array.prototype.slice.call(arguments);
-              const callId = Math.random().toString(16).slice(2);
-              const arg0 = args[0];
-              spCalls.push({
-                ts: nowISO(),
-                callId,
-                phase: 'called',
-                arg0Type: (arg0 instanceof Blob) ? `Blob(${arg0.type || 'unknown'})` : (arg0 === null ? 'null' : typeof arg0),
-              });
-              const p = origSP.apply(this, args);
-              return Promise.resolve(p).then((v) => {
-                spCalls.push({ ts: nowISO(), callId, phase: 'resolved', value: String(v) });
-                return v;
-              }, (e) => {
-                spCalls.push({ ts: nowISO(), callId, phase: 'rejected', error: String(e) });
-                throw e;
-              });
-            };
-          }
-        } catch (e) {
-          spCalls.push({ ts: nowISO(), phase: 'wrap_error', error: String(e) });
-        }
-
-        const r2 = await xhrPost(blob, { contentTypeLabel: 'blob', tag: 'blob' });
-
-        try { if (origSP) cls.saveParamsToNative = origSP; } catch {}
-        result.tests.push({ name: 'DEBUG: saveParamsToNative calls during XHR Blob', ok: true, calls: spCalls });
-
-        result.tests.push({
-          name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
-          ok:r2.ok,
-          status:r2.status,
-          rid: r2.rid,
-          requestUrl: r2.url,
-          headerCalls: r2.headerCalls,
-          serverSawTxUuid: r2.headers ? (r2.headers['tx_webkit_body_uuid'] || r2.headers['tx-webkit-body-uuid']) : undefined,
-          echoedHeaders: r2.headers
-        });
-      } catch(e){
-        result.tests.push({ name:'XHR POST (Blob) -> server echo headers', ok:false, error:String(e) });
-      }
-
       // 4) Backup path: hookFetch + fetch(Blob) -> server echo headers
       // Some WebViews behave differently for XHR vs fetch. This gives a second chance to observe tx_webkit_body_uuid on the server.
+      // CONTROL: Can fetch(Blob) manually send tx_webkit_body_uuid to the server?
+      // Purpose: isolate whether "Blob + header" is blocked by the platform at all.
+      try{
+        const val = 'manual-fetch-blob-' + Math.random().toString(16).slice(2);
+        const blob0 = new Blob(['MANUAL-FETCH-BLOB-' + nowISO()], { type:'application/octet-stream' });
+        const u0 = location.origin + '/api/echo?from=fetch-manual&ts=' + encodeURIComponent(nowISO());
+        const resp0 = await fetch(u0, { method:'POST', headers: { 'tx_webkit_body_uuid': val }, body: blob0 });
+        const j0 = await resp0.json().catch(async () => ({ text: (await resp0.text()).slice(0, 1200) }));
+        const h0 = j0 && j0.headers;
+        result.tests.push({
+          name:'CONTROL: fetch POST (Blob) + tx_webkit_body_uuid -> server saw it?',
+          ok: resp0.ok,
+          status: resp0.status,
+          sent: val,
+          serverSaw: h0 ? (h0['tx_webkit_body_uuid'] || h0['tx-webkit-body-uuid']) : undefined,
+          echoedHeaders: h0,
+        });
+      } catch(e){
+        result.tests.push({ name:'CONTROL: fetch POST (Blob) + tx_webkit_body_uuid -> server saw it?', ok:false, error:String(e) });
+      }
+
       if (typeof cls.hookFetch === 'function') {
         try {
           cls.hookFetch();
