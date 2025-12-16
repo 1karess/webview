@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snapchat WebView API 功能测试套件（导出 JSON）</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto;max-width:1100px;margin:0 auto;padding:18px;line-height:1.55}
+    h1{margin:8px 0 6px}
+    .sub{color:#555;margin:0 0 14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center}
+    button{border:0;border-radius:10px;padding:12px 16px;background:#0a66c2;color:#fff;cursor:pointer;font-size:14px}
+    button:hover{background:#005a9e}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+    .badge{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:8px}
+    pre{background:#0b1020;color:#d7e2ff;padding:12px;border-radius:10px;overflow:auto;max-height:520px;font-size:12px;white-space:pre-wrap;word-break:break-word}
+    .muted{color:#666;font-size:12px}
+    code{background:#f6f8fa;padding:2px 6px;border-radius:4px}
+    label{font-size:13px;color:#333}
+    .pill{display:inline-block;background:#f3f4f6;border:1px solid #e5e7eb;padding:2px 8px;border-radius:999px;font-size:12px}
+  </style>
+</head>
+<body>
+  <a href="../index.html">← 返回 WebView Tests</a>
+  <h1>Snapchat WebView API 功能测试套件 <span class="badge">安全模式</span></h1>
+  <p class="sub">
+    目标：把“Snapchat 内置 WebView 注入的对象/函数”做<strong>可复现的黑盒功能测试</strong>，并导出 JSON（方便写报告/对比）。<br>
+    说明：默认只做<strong>枚举/descriptor/源码预览</strong>与<strong>同源回显</strong>，避免触发外联上报或打开新窗口。
+  </p>
+
+  <div class="card">
+    <div><strong>建议使用方式</strong></div>
+    <div class="muted" style="margin-top:6px;">
+      1) 先用 Safari（同一台手机）打开一次（做对照，不一定要导出）<br>
+      2) 再从 Snapchat 内置 WebView 打开本页，点“一键测试（生成 JSON）”<br>
+      3) 复制/下载 JSON 保存为证据<br>
+      小技巧：给链接加 <code>?t=时间戳</code> 防缓存。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="btnRun" onclick="runAll()">🚀 一键测试（生成 JSON）</button>
+      <button id="btnCopy" onclick="copyJSON()" disabled>📋 复制 JSON</button>
+      <button id="btnDownload" onclick="downloadJSON()" disabled>⬇️ 下载 JSON</button>
+      <span class="pill" title="默认关闭：不调用可能触发外联上报/唤起的函数">
+        <label><input id="optActiveCalls" type="checkbox" /> 允许少量“主动调用”</label>
+      </span>
+    </div>
+    <div id="status" class="muted">状态：就绪</div>
+  </div>
+
+  <div class="card">
+    <div><strong>环境信息</strong></div>
+    <pre id="env">(empty)</pre>
+  </div>
+
+  <div class="card">
+    <div><strong>测试结果（JSON）</strong></div>
+    <pre id="out">(empty)</pre>
+  </div>
+
+  <script>
+    function nowISO(){ return new Date().toISOString(); }
+    function setStatus(text){ document.getElementById('status').textContent = `状态：${text}`; }
+
+    function safeStringify(v, maxLen=320){
+      try{
+        if (typeof v === 'function'){
+          const s = Function.prototype.toString.call(v);
+          return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+        }
+        if (typeof v === 'string') return v.length > maxLen ? v.slice(0, maxLen) + '…' : v;
+        const s = JSON.stringify(v);
+        return s && s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
+      } catch(e){
+        try { return String(v); } catch { return '[Unstringifiable]'; }
+      }
+    }
+
+    function createNetworkMonitor(){
+      const logs = { startedAt: nowISO(), fetch: [], xhr: [], stoppedAt: null };
+
+      const origFetch = window.fetch;
+      const origXHROpen = XMLHttpRequest.prototype.open;
+      const origXHRSend = XMLHttpRequest.prototype.send;
+      const origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+      const state = new WeakMap();
+
+      function wrap(){
+        if (typeof origFetch === 'function'){
+          window.fetch = async function(input, init){
+            const ts = nowISO();
+            const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : String(input);
+            const method = (init && init.method) ? String(init.method) : 'GET';
+            logs.fetch.push({
+              ts,
+              url,
+              method,
+              hasBody: !!(init && init.body),
+              bodyType: init && init.body ? (init.body instanceof Blob ? `Blob(${init.body.type || 'unknown'})` : typeof init.body) : null,
+              headerKeys: init && init.headers && typeof init.headers === 'object' ? Object.keys(init.headers) : null,
+            });
+            return await origFetch.apply(this, arguments);
+          };
+        }
+
+        XMLHttpRequest.prototype.open = function(method, url){
+          try { state.set(this, { method: String(method), url: String(url), headers: [] }); } catch {}
+          return origXHROpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.setRequestHeader = function(name, value){
+          try{
+            const s = state.get(this);
+            if (s) s.headers.push(String(name));
+          } catch {}
+          return origXHRSetHeader.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function(body){
+          try{
+            const s = state.get(this);
+            logs.xhr.push({
+              ts: nowISO(),
+              method: s && s.method,
+              url: s && s.url,
+              headerNames: s ? Array.from(new Set(s.headers)) : null,
+              hasBody: !!body,
+              bodyType: body instanceof Blob ? `Blob(${body.type || 'unknown'})` : (body === null ? 'null' : typeof body),
+            });
+          } catch {}
+          return origXHRSend.apply(this, arguments);
+        };
+      }
+
+      function restore(){
+        try { if (typeof origFetch === 'function') window.fetch = origFetch; } catch {}
+        try { XMLHttpRequest.prototype.open = origXHROpen; } catch {}
+        try { XMLHttpRequest.prototype.send = origXHRSend; } catch {}
+        try { XMLHttpRequest.prototype.setRequestHeader = origXHRSetHeader; } catch {}
+        logs.stoppedAt = nowISO();
+      }
+
+      return { logs, wrap, restore };
+    }
+
+    function descriptorSummary(obj, prop){
+      try{
+        let cur = obj;
+        for (let i=0;i<8;i++){
+          const d = Object.getOwnPropertyDescriptor(cur, prop);
+          if (d){
+            const isAccessor = !!(d.get || d.set);
+            return {
+              enumerable: !!d.enumerable,
+              configurable: !!d.configurable,
+              writable: isAccessor ? undefined : !!d.writable,
+              hasGetter: !!d.get,
+              hasSetter: !!d.set,
+            };
+          }
+          cur = Object.getPrototypeOf(cur);
+          if (!cur) break;
+        }
+        return null;
+      } catch(e){
+        return { error: String(e) };
+      }
+    }
+
+    function readValue(obj, prop){
+      try{
+        const v = obj[prop];
+        const t = typeof v;
+        const out = { ok: true, type: t };
+        if (t === 'function') out.function = { paramCount: v.length, sourcePreview: safeStringify(v, 260) };
+        else out.valuePreview = safeStringify(v, 260);
+        return out;
+      } catch(e){
+        return { ok:false, error:String(e) };
+      }
+    }
+
+    function ownPropProfile(obj, maxItems=160){
+      const out = { ok:true, ownProps: [], truncated:false, details: {} };
+      try{
+        const props = Object.getOwnPropertyNames(obj);
+        out.ownProps = props.slice(0, maxItems).sort();
+        out.truncated = props.length > maxItems;
+        for (const k of out.ownProps){
+          out.details[k] = {
+            descriptor: descriptorSummary(obj, k),
+            access: readValue(obj, k)
+          };
+        }
+      } catch(e){
+        out.ok = false;
+        out.error = String(e);
+      }
+      return out;
+    }
+
+    async function testExistence(){
+      const keys = [
+        'SCDynimacBridge',
+        'originalOpen',
+        'performanceObserver',
+        'analyticsFirstHitRelativeTime',
+        'analyticsHitCount',
+        'analyticsURLRegex',
+        'currentPageIsPrefetchHints',
+        'lastPerformanceReportedURL',
+        'gatherPerfPayload',
+        'snap_did_open_prefetch_hint_document',
+        'snap_performance_metrics_send_report',
+        'trustedTypes',
+        'TrustedHTML',
+        'TrustedScript',
+        'TrustedScriptURL',
+        'TrustedTypePolicy',
+        'TrustedTypePolicyFactory',
+      ];
+
+      const out = { step: 'existence+descriptor', timestamp: nowISO(), items: {} };
+      for (const k of keys){
+        const exists = (typeof window[k] !== 'undefined');
+        out.items[k] = {
+          exists,
+          descriptor: descriptorSummary(window, k),
+          access: exists ? readValue(window, k) : { ok:false, error:'not found' },
+        };
+      }
+
+      // webkit/messageHandlers（只做存在性 + own handler 名称预览）
+      try {
+        const wk = window.webkit;
+        const mh = wk && wk.messageHandlers;
+        out.webkit = {
+          exists: typeof wk !== 'undefined',
+          messageHandlersExists: !!mh,
+          messageHandlersOwnKeys: mh ? Object.getOwnPropertyNames(mh).filter(k => !/^__/.test(k)).slice(0, 80).sort() : null,
+          messageHandlersOwnKeyCount: mh ? Object.getOwnPropertyNames(mh).length : null,
+        };
+      } catch(e){
+        out.webkit = { error: String(e) };
+      }
+
+      return out;
+    }
+
+    async function testBridge(){
+      const result = { step:'SCDynimacBridge profile', timestamp: nowISO(), exists: typeof window.SCDynimacBridge !== 'undefined', profile: null };
+      if (!result.exists) return result;
+      const obj = window.SCDynimacBridge;
+      result.profile = {
+        type: typeof obj,
+        own: ownPropProfile(obj, 180),
+      };
+      // 额外：看看原型链上的第一层（很多 bridge 会把方法挂在 prototype 上）
+      try{
+        const p = Object.getPrototypeOf(obj);
+        result.profile.proto = p ? { ctorName: p && p.constructor ? p.constructor.name : null, own: ownPropProfile(p, 180) } : null;
+      } catch(e){
+        result.profile.proto = { error: String(e) };
+      }
+      return result;
+    }
+
+    async function testOpenOverride(){
+      const result = { step:'window.open override check', timestamp: nowISO(), tests: [] };
+
+      function fnSnap(fn){
+        try{
+          if (typeof fn !== 'function') return { ok:true, type: typeof fn };
+          const s = Function.prototype.toString.call(fn);
+          return { ok:true, type:'function', paramCount: fn.length, isNative: /\[native code\]/.test(s), sourcePreview: s.slice(0, 520) + (s.length>520 ? '…' : '') };
+        } catch(e){
+          return { ok:false, error:String(e) };
+        }
+      }
+
+      let wOpen = null;
+      let orig = null;
+      try { wOpen = window.open; } catch {}
+      try { orig = window.originalOpen; } catch {}
+
+      result.tests.push({ name:'descriptor(window.open)', ok:true, descriptor: descriptorSummary(window, 'open') });
+      result.tests.push({ name:'snapshot(window.open)', ok:true, snapshot: fnSnap(wOpen) });
+      result.tests.push({ name:'snapshot(window.originalOpen)', ok:true, snapshot: fnSnap(orig) });
+      result.tests.push({ name:'equality(window.open === window.originalOpen)', ok:true, value: (wOpen && orig) ? (wOpen === orig) : null });
+
+      // 注意：不调用 open，避免弹窗/跳转
+      return result;
+    }
+
+    async function testPerfHooks({ activeCalls = false } = {}){
+      const result = { step:'perf/analytics hooks', timestamp: nowISO(), activeCallsEnabled: !!activeCalls, tests: [] };
+
+      // 只做“读/列”，不默认调用 snap_performance_metrics_send_report（可能外联上报）
+      const fns = [
+        'gatherPerfPayload',
+        'snap_did_open_prefetch_hint_document',
+        'snap_performance_metrics_send_report',
+      ];
+      for (const k of fns){
+        const exists = typeof window[k] === 'function';
+        result.tests.push({ name:`exists ${k}()`, ok:true, exists, access: exists ? readValue(window, k) : null });
+      }
+
+      // 允许的“安全调用”：只影响本页状态
+      if (activeCalls){
+        if (typeof window.snap_did_open_prefetch_hint_document === 'function'){
+          try{
+            const before = readValue(window, 'currentPageIsPrefetchHints');
+            window.snap_did_open_prefetch_hint_document();
+            const after = readValue(window, 'currentPageIsPrefetchHints');
+            result.tests.push({ name:'CALL snap_did_open_prefetch_hint_document()', ok:true, before, after });
+          } catch(e){
+            result.tests.push({ name:'CALL snap_did_open_prefetch_hint_document()', ok:false, error:String(e) });
+          }
+        }
+
+        if (typeof window.gatherPerfPayload === 'function'){
+          try{
+            // 构造一个最小事件对象（不依赖真实 DOM 事件）
+            const out = window.gatherPerfPayload({ type:'suite', ts: nowISO() });
+            result.tests.push({ name:'CALL gatherPerfPayload({type:"suite"})', ok:true, returnPreview: safeStringify(out, 420) });
+          } catch(e){
+            result.tests.push({ name:'CALL gatherPerfPayload({type:"suite"})', ok:false, error:String(e) });
+          }
+        }
+
+        // 默认仍不调用 snap_performance_metrics_send_report（更可能触发外联请求）
+        result.tests.push({ name:'NOTE', ok:true, note:'We did NOT call snap_performance_metrics_send_report() by design (may trigger outbound analytics).'});
+      } else {
+        result.tests.push({ name:'NOTE', ok:true, note:'Active calls disabled: only introspected functions (no invocation).'});
+      }
+
+      // 观测一些状态值
+      const states = ['analyticsHitCount','analyticsFirstHitRelativeTime','currentPageIsPrefetchHints','lastPerformanceReportedURL'];
+      const snapshot = {};
+      for (const k of states){ snapshot[k] = (typeof window[k] !== 'undefined') ? readValue(window, k) : { ok:false, error:'not found' }; }
+      result.stateSnapshot = snapshot;
+
+      return result;
+    }
+
+    async function testSameOriginEcho(){
+      const result = { step:'same-origin /api/echo', timestamp: nowISO(), tests: [] };
+      const url = location.origin + '/api/echo?from=snapchat-suite&ts=' + encodeURIComponent(nowISO());
+      try{
+        const r = await fetch(url, { method:'GET' });
+        const j = await r.json().catch(async () => ({ text: (await r.text()).slice(0, 1200) }));
+        result.tests.push({ name:'GET /api/echo', ok: r.ok, status: r.status, echoedUrl: j && j.url, echoedHeaderKeys: j && j.headers ? Object.keys(j.headers).slice(0, 40) : null });
+      } catch(e){
+        result.tests.push({ name:'GET /api/echo', ok:false, error:String(e) });
+      }
+      return result;
+    }
+
+    let latest = null;
+
+    async function runAll(){
+      document.getElementById('btnRun').disabled = true;
+      setStatus('运行中…');
+
+      const activeCalls = !!document.getElementById('optActiveCalls')?.checked;
+
+      const monitor = createNetworkMonitor();
+      monitor.wrap();
+
+      const env = {
+        timestamp: nowISO(),
+        href: location.href,
+        origin: location.origin,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+      };
+      document.getElementById('env').textContent = JSON.stringify(env, null, 2);
+
+      const out = {
+        tool: 'snapchat-api-function-suite',
+        version: 1,
+        generatedAt: nowISO(),
+        env,
+        options: { activeCalls },
+        results: [],
+        network: null,
+      };
+
+      try { out.results.push(await testExistence()); } catch(e){ out.results.push({ step:'existence+descriptor', ok:false, error:String(e) }); }
+      try { out.results.push(await testBridge()); } catch(e){ out.results.push({ step:'SCDynimacBridge profile', ok:false, error:String(e) }); }
+      try { out.results.push(await testOpenOverride()); } catch(e){ out.results.push({ step:'window.open override check', ok:false, error:String(e) }); }
+      try { out.results.push(await testPerfHooks({ activeCalls })); } catch(e){ out.results.push({ step:'perf/analytics hooks', ok:false, error:String(e) }); }
+      try { out.results.push(await testSameOriginEcho()); } catch(e){ out.results.push({ step:'same-origin /api/echo', ok:false, error:String(e) }); }
+
+      // 等一会儿抓“延迟发起”的请求（如果 Snapchat 注入脚本异步上报）
+      try { await new Promise(r => setTimeout(r, 900)); } catch {}
+      monitor.restore();
+      out.network = monitor.logs;
+
+      latest = out;
+      document.getElementById('out').textContent = JSON.stringify(out, null, 2);
+      document.getElementById('btnCopy').disabled = false;
+      document.getElementById('btnDownload').disabled = false;
+      document.getElementById('btnRun').disabled = false;
+      setStatus('完成：可以复制/下载 JSON');
+    }
+
+    async function copyJSON(){
+      try{
+        await navigator.clipboard.writeText(JSON.stringify(latest ?? {}, null, 2));
+        setStatus('已复制 JSON');
+      } catch(e){
+        setStatus('复制失败：可用“下载 JSON”');
+      }
+    }
+
+    function downloadJSON(){
+      const data = latest ?? {};
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `snapchat-api-function-suite-${nowISO().replace(/[:.]/g,'-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setStatus('已触发下载');
+    }
+  </script>
+</body>
+</html>
