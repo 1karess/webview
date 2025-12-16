@@ -348,6 +348,38 @@
         result.tests.push({ name:'XHR POST (JSON string) -> server echo headers', ok:false, error:String(e) });
       }
 
+      // CONTROL: can a normal page set tx_webkit_body_uuid and have the server receive it?
+      // This tells us whether the header is blocked by the WebView/network stack, or whether only the Hook path is problematic.
+      try{
+        const manualUrl = location.origin + '/api/echo?from=xhr-manual&ts=' + encodeURIComponent(nowISO());
+        const manual = await new Promise((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', manualUrl);
+          const val = 'manual-' + Math.random().toString(16).slice(2);
+          try { xhr.setRequestHeader('tx_webkit_body_uuid', val); } catch {}
+          xhr.onreadystatechange = function(){
+            if (xhr.readyState !== 4) return;
+            try{
+              const j = JSON.parse(xhr.responseText);
+              resolve({ ok: true, status: xhr.status, sent: val, headers: j.headers });
+            } catch(e){
+              resolve({ ok:false, status:xhr.status, sent: val, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800) });
+            }
+          };
+          try { xhr.send('manual-body'); } catch(e){ resolve({ ok:false, sent: val, error:String(e) }); }
+        });
+        result.tests.push({
+          name: 'CONTROL: manual setRequestHeader(tx_webkit_body_uuid) -> server saw it?',
+          ok: manual.ok,
+          status: manual.status,
+          sent: manual.sent,
+          serverSaw: manual.headers ? (manual.headers['tx_webkit_body_uuid'] || manual.headers['tx-webkit-body-uuid']) : undefined,
+          echoedHeaders: manual.headers,
+        });
+      } catch(e){
+        result.tests.push({ name:'CONTROL: manual setRequestHeader(tx_webkit_body_uuid) -> server saw it?', ok:false, error:String(e) });
+      }
+
       // Blob body（更可能触发 shouldNativeHandleHTTPBody === true 分支）
       try{
         // IMPORTANT:
