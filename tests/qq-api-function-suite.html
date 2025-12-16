@@ -297,6 +297,16 @@
       const echoUrl = location.origin + '/api/echo?from=xhr&ts=' + encodeURIComponent(nowISO());
       async function xhrPost(body, contentTypeLabel){
         return await new Promise((resolve) => {
+          // record setRequestHeader calls for THIS request
+          const headerCalls = [];
+          const orig = XMLHttpRequest.prototype.setRequestHeader;
+          try {
+            XMLHttpRequest.prototype.setRequestHeader = function(k, v) {
+              try { headerCalls.push({ name: String(k), value: String(v) }); } catch {}
+              return orig.apply(this, arguments);
+            };
+          } catch {}
+
           const xhr = new XMLHttpRequest();
           xhr.open('POST', echoUrl);
           try { xhr.setRequestHeader('X-Suite', 'qq-api-function-suite'); } catch {}
@@ -304,10 +314,12 @@
             if (xhr.readyState !== 4) return;
             try{
               const j = JSON.parse(xhr.responseText);
-              resolve({ ok: true, status: xhr.status, headers: j.headers, body: j.body });
+              resolve({ ok: true, status: xhr.status, headers: j.headers, body: j.body, headerCalls });
             } catch(e){
-              resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800) });
+              resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800), headerCalls });
             }
+            // restore prototype
+            try { XMLHttpRequest.prototype.setRequestHeader = orig; } catch {}
           };
           try{
             if (contentTypeLabel === 'json-string') xhr.setRequestHeader('Content-Type', 'application/json');
@@ -315,7 +327,8 @@
           try{
             xhr.send(body);
           } catch(e){
-            resolve({ ok:false, error:String(e) });
+            try { XMLHttpRequest.prototype.setRequestHeader = orig; } catch {}
+            resolve({ ok:false, error:String(e), headerCalls });
           }
         });
       }
@@ -327,6 +340,7 @@
           name:'XHR POST (JSON string) -> server echo headers',
           ok:r1.ok,
           status:r1.status,
+          headerCalls: r1.headerCalls,
           serverSawTxUuid: r1.headers ? (r1.headers['tx_webkit_body_uuid'] || r1.headers['tx-webkit-body-uuid']) : undefined,
           echoedHeaders: r1.headers
         });
@@ -351,11 +365,25 @@
           blobSize: blob && blob.size,
           shouldNativeHandleHTTPBody: preCheck,
         });
+
+        // NEW: does saveParamsToNative(blob) itself return a UUID?
+        try {
+          if (typeof cls.saveParamsToNative === 'function') {
+            const uuidBlob = await cls.saveParamsToNative(blob);
+            result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: true, value: String(uuidBlob) });
+          } else {
+            result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: 'missing saveParamsToNative' });
+          }
+        } catch (e) {
+          result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: String(e) });
+        }
+
         const r2 = await xhrPost(blob, 'blob');
         result.tests.push({
           name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
           ok:r2.ok,
           status:r2.status,
+          headerCalls: r2.headerCalls,
           serverSawTxUuid: r2.headers ? (r2.headers['tx_webkit_body_uuid'] || r2.headers['tx-webkit-body-uuid']) : undefined,
           echoedHeaders: r2.headers
         });
