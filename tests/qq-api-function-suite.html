@@ -369,18 +369,29 @@
       }
 
       // 3) 发请求看是否带头（同域 /api/echo 会回显 headers）
-      const echoUrl = location.origin + '/api/echo?from=xhr&ts=' + encodeURIComponent(nowISO());
-      async function xhrPost(body, contentTypeLabel){
+      const echoBase = location.origin + '/api/echo';
+      async function xhrPost(body, { contentTypeLabel, tag } = {}){
         return await new Promise((resolve) => {
           // record setRequestHeader calls for THIS request
           const headerCalls = [];
+          const rid = Math.random().toString(16).slice(2);
+          const url = `${echoBase}?from=xhr&case=${encodeURIComponent(tag || 'unknown')}&rid=${encodeURIComponent(rid)}&ts=${encodeURIComponent(nowISO())}`;
+
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', echoUrl);
+          xhr.open('POST', url);
           // Instrument only THIS XHR instance to avoid interference from other requests.
           const origSet = xhr.setRequestHeader;
           try {
             xhr.setRequestHeader = function(k, v) {
-              try { headerCalls.push({ name: String(k), value: String(v) }); } catch {}
+              try {
+                const stack = (new Error('hdr')).stack || '';
+                headerCalls.push({
+                  ts: nowISO(),
+                  name: String(k),
+                  value: String(v),
+                  stackPreview: String(stack).split('\n').slice(0, 4).join('\n')
+                });
+              } catch {}
               return origSet.apply(this, arguments);
             };
           } catch {}
@@ -390,9 +401,9 @@
             if (xhr.readyState !== 4) return;
             try{
               const j = JSON.parse(xhr.responseText);
-              resolve({ ok: true, status: xhr.status, headers: j.headers, body: j.body, headerCalls });
+              resolve({ ok: true, status: xhr.status, url, rid, headers: j.headers, body: j.body, headerCalls });
             } catch(e){
-              resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800), headerCalls });
+              resolve({ ok:false, status:xhr.status, url, rid, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800), headerCalls });
             }
           };
           try{
@@ -401,18 +412,20 @@
           try{
             xhr.send(body);
           } catch(e){
-            resolve({ ok:false, error:String(e), headerCalls });
+            resolve({ ok:false, url, rid, error:String(e), headerCalls });
           }
         });
       }
 
       // JSON string body（通常不会触发 Blob 分支）
       try{
-        const r1 = await xhrPost(JSON.stringify({ kind:'json-string', ts: nowISO() }), 'json-string');
+        const r1 = await xhrPost(JSON.stringify({ kind:'json-string', ts: nowISO() }), { contentTypeLabel: 'json-string', tag: 'json-string' });
         result.tests.push({
           name:'XHR POST (JSON string) -> server echo headers',
           ok:r1.ok,
           status:r1.status,
+          rid: r1.rid,
+          requestUrl: r1.url,
           headerCalls: r1.headerCalls,
           serverSawTxUuid: r1.headers ? (r1.headers['tx_webkit_body_uuid'] || r1.headers['tx-webkit-body-uuid']) : undefined,
           echoedHeaders: r1.headers
@@ -424,7 +437,8 @@
       // CONTROL: can a normal page set tx_webkit_body_uuid and have the server receive it?
       // This tells us whether the header is blocked by the WebView/network stack, or whether only the Hook path is problematic.
       try{
-        const manualUrl = location.origin + '/api/echo?from=xhr-manual&ts=' + encodeURIComponent(nowISO());
+        const rid = Math.random().toString(16).slice(2);
+        const manualUrl = `${echoBase}?from=xhr-manual&rid=${encodeURIComponent(rid)}&ts=${encodeURIComponent(nowISO())}`;
         const manual = await new Promise((resolve) => {
           const xhr = new XMLHttpRequest();
           xhr.open('POST', manualUrl);
@@ -445,6 +459,8 @@
           name: 'CONTROL: manual setRequestHeader(tx_webkit_body_uuid) -> server saw it?',
           ok: manual.ok,
           status: manual.status,
+          rid,
+          requestUrl: manualUrl,
           sent: manual.sent,
           serverSaw: manual.headers ? (manual.headers['tx_webkit_body_uuid'] || manual.headers['tx-webkit-body-uuid']) : undefined,
           echoedHeaders: manual.headers,
@@ -483,11 +499,13 @@
           result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: String(e) });
         }
 
-        const r2 = await xhrPost(blob, 'blob');
+        const r2 = await xhrPost(blob, { contentTypeLabel: 'blob', tag: 'blob' });
         result.tests.push({
           name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
           ok:r2.ok,
           status:r2.status,
+          rid: r2.rid,
+          requestUrl: r2.url,
           headerCalls: r2.headerCalls,
           serverSawTxUuid: r2.headers ? (r2.headers['tx_webkit_body_uuid'] || r2.headers['tx-webkit-body-uuid']) : undefined,
           echoedHeaders: r2.headers
