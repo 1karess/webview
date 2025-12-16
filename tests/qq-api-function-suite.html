@@ -160,40 +160,42 @@
       const result = { step: 'TXWebKitNativeFetch', timestamp: nowISO(), exists: typeof window.TXWebKitNativeFetch !== 'undefined', tests: [] };
       if (!result.exists) return result;
 
-      // 1) 基本 GET（httpbin 回显）
+      // Prefer same-origin echo endpoint (more likely reachable inside in-app WebViews)
+      const echoGet = location.origin + '/api/echo?from=nativefetch&ts=' + encodeURIComponent(nowISO());
+      const echoPost = location.origin + '/api/echo?from=nativefetch-post&ts=' + encodeURIComponent(nowISO());
+
+      // 1) 基本 GET（同域回显）
       try{
-        const r = await window.TXWebKitNativeFetch('https://httpbin.org/get', { method:'GET' });
+        const r = await window.TXWebKitNativeFetch(echoGet, { method:'GET' });
         const data = await tryFetchJSON(r);
         result.tests.push({
-          name: 'GET https://httpbin.org/get',
+          name: 'GET /api/echo (same-origin)',
           ok: true,
           status: r.status,
-          dataKeys: (data && typeof data === 'object') ? Object.keys(data).slice(0, 16) : undefined,
-          echo: (data && typeof data === 'object') ? { origin: data.origin, url: data.url } : undefined,
+          echoedUrl: data && data.url,
+          echoedHeaderKeys: (data && data.headers && typeof data.headers === 'object') ? Object.keys(data.headers).slice(0, 30) : undefined,
         });
       } catch(e){
-        result.tests.push({ name:'GET https://httpbin.org/get', ok:false, error:String(e) });
+        result.tests.push({ name:'GET /api/echo (same-origin)', ok:false, error:String(e) });
       }
 
-      // 2) “CORS 对照”：浏览器 fetch 可能被挡；NativeFetch 可能仍能拿到响应（即使 401/403）
-      const corsTarget = 'https://www.reddit.com/api/v1/me';
+      // 2) POST（同域回显）—用于观察服务器端收到的 headers/body
       try{
-        await fetch(corsTarget, { method:'GET', credentials:'include' });
-        result.tests.push({ name:'control fetch() to reddit (expected CORS block)', ok:true, note:'Unexpected: fetch() succeeded (depends on reddit CORS)' });
-      } catch(e){
-        result.tests.push({ name:'control fetch() to reddit (expected CORS block)', ok:false, error:String(e) });
-      }
-      try{
-        const r2 = await window.TXWebKitNativeFetch(corsTarget, { method:'GET' });
+        const r2 = await window.TXWebKitNativeFetch(echoPost, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kind: 'nativefetch-post', ts: nowISO() })
+        });
         const data2 = await tryFetchJSON(r2);
         result.tests.push({
-          name:'TXWebKitNativeFetch() to reddit (CORS bypass check)',
+          name:'POST /api/echo (same-origin)',
           ok:true,
           status: r2.status,
-          bodyPreview: safeStringify(data2, 360),
+          serverSawTxUuid: data2 && data2.headers ? (data2.headers['tx_webkit_body_uuid'] || data2.headers['tx-webkit-body-uuid']) : undefined,
+          serverSawHeaderKeys: (data2 && data2.headers && typeof data2.headers === 'object') ? Object.keys(data2.headers).slice(0, 40) : undefined,
         });
       } catch(e){
-        result.tests.push({ name:'TXWebKitNativeFetch() to reddit (CORS bypass check)', ok:false, error:String(e) });
+        result.tests.push({ name:'POST /api/echo (same-origin)', ok:false, error:String(e) });
       }
 
       return result;
@@ -291,17 +293,18 @@
         result.tests.push({ name:'send.toString keyword hits', ok:false, error:String(e) });
       }
 
-      // 3) 发请求看是否带头（httpbin 会回显 headers）
+      // 3) 发请求看是否带头（同域 /api/echo 会回显 headers）
+      const echoUrl = location.origin + '/api/echo?from=xhr&ts=' + encodeURIComponent(nowISO());
       async function xhrPost(body, contentTypeLabel){
         return await new Promise((resolve) => {
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', 'https://httpbin.org/post');
+          xhr.open('POST', echoUrl);
           try { xhr.setRequestHeader('X-Suite', 'qq-api-function-suite'); } catch {}
           xhr.onreadystatechange = function(){
             if (xhr.readyState !== 4) return;
             try{
               const j = JSON.parse(xhr.responseText);
-              resolve({ ok: true, status: xhr.status, headers: j.headers, json: j.json, data: typeof j.data === 'string' ? j.data.slice(0, 1200) : j.data });
+              resolve({ ok: true, status: xhr.status, headers: j.headers, body: j.body });
             } catch(e){
               resolve({ ok:false, status:xhr.status, error:'parse failed: ' + String(e), responsePreview: (xhr.responseText || '').slice(0, 800) });
             }
@@ -320,18 +323,30 @@
       // JSON string body（通常不会触发 Blob 分支）
       try{
         const r1 = await xhrPost(JSON.stringify({ kind:'json-string', ts: nowISO() }), 'json-string');
-        result.tests.push({ name:'XHR POST (JSON string) -> header echo', ok:r1.ok, status:r1.status, tx_webkit_body_uuid: r1.headers ? (r1.headers['Tx-Webkit-Body-Uuid'] || r1.headers['tx_webkit_body_uuid']) : undefined, echoedHeaders: r1.headers });
+        result.tests.push({
+          name:'XHR POST (JSON string) -> server echo headers',
+          ok:r1.ok,
+          status:r1.status,
+          serverSawTxUuid: r1.headers ? (r1.headers['tx_webkit_body_uuid'] || r1.headers['tx-webkit-body-uuid']) : undefined,
+          echoedHeaders: r1.headers
+        });
       } catch(e){
-        result.tests.push({ name:'XHR POST (JSON string) -> header echo', ok:false, error:String(e) });
+        result.tests.push({ name:'XHR POST (JSON string) -> server echo headers', ok:false, error:String(e) });
       }
 
       // Blob body（更可能触发 shouldNativeHandleHTTPBody === true 分支）
       try{
         const blob = new Blob([JSON.stringify({ kind:'blob', ts: nowISO() })], { type:'application/json' });
         const r2 = await xhrPost(blob, 'blob');
-        result.tests.push({ name:'XHR POST (Blob) -> header echo', ok:r2.ok, status:r2.status, tx_webkit_body_uuid: r2.headers ? (r2.headers['Tx-Webkit-Body-Uuid'] || r2.headers['tx_webkit_body_uuid']) : undefined, echoedHeaders: r2.headers });
+        result.tests.push({
+          name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
+          ok:r2.ok,
+          status:r2.status,
+          serverSawTxUuid: r2.headers ? (r2.headers['tx_webkit_body_uuid'] || r2.headers['tx-webkit-body-uuid']) : undefined,
+          echoedHeaders: r2.headers
+        });
       } catch(e){
-        result.tests.push({ name:'XHR POST (Blob) -> header echo', ok:false, error:String(e) });
+        result.tests.push({ name:'XHR POST (Blob) -> server echo headers', ok:false, error:String(e) });
       }
 
       return result;
