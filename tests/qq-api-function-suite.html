@@ -499,7 +499,41 @@
           result.tests.push({ name: 'saveParamsToNative(blob) -> uuid?', ok: false, error: String(e) });
         }
 
+        // DEBUG: wrap saveParamsToNative during the actual XHR send, to see if Hook calls it multiple times.
+        const spCalls = [];
+        let origSP = null;
+        try {
+          if (typeof cls.saveParamsToNative === 'function') {
+            origSP = cls.saveParamsToNative;
+            cls.saveParamsToNative = function() {
+              const args = Array.prototype.slice.call(arguments);
+              const callId = Math.random().toString(16).slice(2);
+              const arg0 = args[0];
+              spCalls.push({
+                ts: nowISO(),
+                callId,
+                phase: 'called',
+                arg0Type: (arg0 instanceof Blob) ? `Blob(${arg0.type || 'unknown'})` : (arg0 === null ? 'null' : typeof arg0),
+              });
+              const p = origSP.apply(this, args);
+              return Promise.resolve(p).then((v) => {
+                spCalls.push({ ts: nowISO(), callId, phase: 'resolved', value: String(v) });
+                return v;
+              }, (e) => {
+                spCalls.push({ ts: nowISO(), callId, phase: 'rejected', error: String(e) });
+                throw e;
+              });
+            };
+          }
+        } catch (e) {
+          spCalls.push({ ts: nowISO(), phase: 'wrap_error', error: String(e) });
+        }
+
         const r2 = await xhrPost(blob, { contentTypeLabel: 'blob', tag: 'blob' });
+
+        try { if (origSP) cls.saveParamsToNative = origSP; } catch {}
+        result.tests.push({ name: 'DEBUG: saveParamsToNative calls during XHR Blob', ok: true, calls: spCalls });
+
         result.tests.push({
           name:'XHR POST (Blob) -> server echo headers (expect tx_webkit_body_uuid)',
           ok:r2.ok,
