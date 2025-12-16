@@ -80,6 +80,75 @@
       }
     }
 
+    // === Network monitor (safe, non-invasive logging) ===
+    // Goal: observe whether running these APIs triggers additional outbound requests.
+    // We only log metadata (URL/method/headers names), not secrets.
+    function createNetworkMonitor(){
+      const logs = { startedAt: nowISO(), fetch: [], xhr: [], stoppedAt: null };
+
+      const origFetch = window.fetch;
+      const origXHROpen = XMLHttpRequest.prototype.open;
+      const origXHRSend = XMLHttpRequest.prototype.send;
+      const origXHRSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+
+      const state = new WeakMap(); // xhr -> { method, url, headers: [] }
+
+      function wrap(){
+        if (typeof origFetch === 'function'){
+          window.fetch = async function(input, init){
+            const ts = nowISO();
+            const url = (typeof input === 'string') ? input : (input && input.url) ? input.url : String(input);
+            const method = (init && init.method) ? String(init.method) : 'GET';
+            logs.fetch.push({
+              ts,
+              url,
+              method,
+              hasBody: !!(init && init.body),
+              bodyType: init && init.body ? (init.body instanceof Blob ? `Blob(${init.body.type || 'unknown'})` : typeof init.body) : null,
+              headerKeys: init && init.headers && typeof init.headers === 'object' ? Object.keys(init.headers) : null,
+            });
+            return await origFetch.apply(this, arguments);
+          };
+        }
+
+        XMLHttpRequest.prototype.open = function(method, url){
+          try { state.set(this, { method: String(method), url: String(url), headers: [] }); } catch {}
+          return origXHROpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.setRequestHeader = function(name, value){
+          try{
+            const s = state.get(this);
+            if (s) s.headers.push(String(name));
+          } catch {}
+          return origXHRSetHeader.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function(body){
+          try{
+            const s = state.get(this);
+            logs.xhr.push({
+              ts: nowISO(),
+              method: s && s.method,
+              url: s && s.url,
+              headerNames: s ? Array.from(new Set(s.headers)) : null,
+              hasBody: !!body,
+              bodyType: body instanceof Blob ? `Blob(${body.type || 'unknown'})` : (body === null ? 'null' : typeof body),
+            });
+          } catch {}
+          return origXHRSend.apply(this, arguments);
+        };
+      }
+
+      function restore(){
+        try { if (typeof origFetch === 'function') window.fetch = origFetch; } catch {}
+        try { XMLHttpRequest.prototype.open = origXHROpen; } catch {}
+        try { XMLHttpRequest.prototype.send = origXHRSend; } catch {}
+        try { XMLHttpRequest.prototype.setRequestHeader = origXHRSetHeader; } catch {}
+        logs.stoppedAt = nowISO();
+      }
+
+      return { logs, wrap, restore };
+    }
+
     function descriptorSummary(obj, prop){
       try{
         let cur = obj;
@@ -478,6 +547,9 @@
       document.getElementById('btnRun').disabled = true;
       setStatus('运行中…');
 
+      const monitor = createNetworkMonitor();
+      monitor.wrap();
+
       const env = {
         timestamp: nowISO(),
         href: location.href,
@@ -493,12 +565,18 @@
         generatedAt: nowISO(),
         env,
         results: [],
+        network: null,
       };
 
       try { out.results.push(await testExistence()); } catch(e){ out.results.push({ step:'existence+descriptor', ok:false, error:String(e) }); }
       try { out.results.push(await testNativeFetch()); } catch(e){ out.results.push({ step:'TXWebKitNativeFetch', ok:false, error:String(e) }); }
       try { out.results.push(await testSchemeHandler()); } catch(e){ out.results.push({ step:'TXWebKitSchemeHandler', ok:false, error:String(e) }); }
       try { out.results.push(await testHook()); } catch(e){ out.results.push({ step:'Hook verification (XHR)', ok:false, error:String(e) }); }
+
+      // small delay to catch any delayed/async requests triggered by hooks/native
+      try { await new Promise(r => setTimeout(r, 700)); } catch {}
+      monitor.restore();
+      out.network = monitor.logs;
 
       latest = out;
       document.getElementById('out').textContent = JSON.stringify(out, null, 2);
